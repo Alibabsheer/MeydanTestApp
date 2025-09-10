@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+    </queries>
+
+    <application
+        android:name=".MyApp"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MeydanTestApp"
+        tools:targetApi="31">
+
+        <!-- مفتاح خرائط غوغل -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="@string/google_maps_key" />
+
+        <activity
+            android:name=".RegisterOrganizationActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".TypeSelectionActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MeydanTestApp" />
+
+        <activity
+            android:name=".OrganizationDashboardActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MeydanTestApp" />
+
+        <activity
+            android:name=".LoginActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".CreateNewProjectActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ProjectsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".SelectLocationActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".AccountSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MeydanTestApp" />
+
+        <activity
+            android:name=".ManageUsersActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MeydanTestApp" />
+
+        <activity
+            android:name=".ProjectSettingsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MeydanTestApp" />
+
+        <activity
+            android:name=".ProjectDetailsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MeydanTestApp" />
+
+        <activity
+            android:name=".ContractTableActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MeydanTestApp" />
+
+        <activity
+            android:name=".JoinCodeEntryActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MeydanTestApp" />
+
+        <activity
+            android:name=".RegisterAffiliatedUserActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MeydanTestApp" />
+
+        <activity
+            android:name=".UserProjectsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MeydanTestApp" />
+
+        <activity
+            android:name=".CreateDailyReportActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MeydanTestApp" />
+
+        <activity
+            android:name=".DailyReportsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MeydanTestApp" />
+
+        <activity
+            android:name=".ViewDailyReportActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MeydanTestApp" />
+
+        <!-- شاشة المعاينة -->
+        <activity
+            android:name=".ImagePreviewActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MeydanTestApp" />
+
+        <!-- شاشة محرّر الصور -->
+        <activity
+            android:name=".ImageEditorActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MeydanTestApp" />
+
+        <!-- FileProvider لمشاركة الصور/الملفات -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+    </application>
+</manifest>

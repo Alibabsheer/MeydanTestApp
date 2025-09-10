@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    android:layout_margin="6dp"
+    android:layout_weight="1"
+    android:foreground="?attr/selectableItemBackground">
+
+    <!-- المصغّر -->
+    <ImageView
+        android:id="@+id/ivThumb"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:adjustViewBounds="true"
+        android:scaleType="centerCrop"
+        android:background="@android:color/transparent"
+        tools:ignore="ContentDescription" />
+
+    <!-- طبقة تعتيم تُعرض عند التحديد -->
+    <View
+        android:id="@+id/selectionScrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#66000000"
+        android:visibility="gone"
+        tools:visibility="visible" />
+
+    <!-- شارة التحديد: نقلناها لأسفل-يسار واستبدلنا الرقم بعلامة ✓ وخلفية دائرية -->
+    <TextView
+        android:id="@+id/tvIndexBadge"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_gravity="start|bottom"
+        android:layout_margin="6dp"
+        android:gravity="center"
+        android:text="✓"
+        android:textColor="@android:color/white"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:background="@drawable/bg_badge_check"
+        android:visibility="gone"
+        tools:visibility="visible" />
+
+    <!-- تراكب +N للعنصر الأخير المرئي -->
+    <FrameLayout
+        android:id="@+id/overlayMore"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#80000000"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvMoreCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="+3"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/white"
+            android:layout_gravity="center" />
+    </FrameLayout>
+
+</FrameLayout>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <style name="Theme.MeydanTestApp" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/brand_red_light_theme</item>
+        <item name="colorOnPrimary">@color/text_and_icons_dark</item>
+        <item name="colorError">@color/material_red_700</item>
+        <item name="colorOnError">@android:color/white</item>
+        <item name="colorOutline">@color/input_field_border_light</item>
+        <item name="android:windowBackground">@color/background_light</item>
+        <item name="android:textColorPrimary">@color/text_and_icons_light</item>
+        <item name="android:textColorSecondary">#757575</item>
+        <item name="iconTint">@color/text_and_icons_light</item>
+
+        <item name="boxBackgroundColor">@color/input_field_light</item>
+
+        <item name="android:fontFamily">@font/main_font</item>
+    </style>
+
+    <style name="Widget.App.Button" parent="Widget.Material3.Button">
+    </style>
+
+    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/background_light</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.MeydanTestApp</item>
+    </style>
+
+    <!-- نمط العنوان (اسم القسم) -->
+    <style name="SectionHeader">
+        <item name="android:textColor">@color/brand_red_light_theme</item>
+        <item name="android:textSize">18sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:layout_marginTop">16dp</item>
+        <item name="android:layout_marginBottom">8dp</item>
+        <item name="android:textAlignment">viewStart</item>
+    </style>
+
+    <!-- نمط النص العادي للحقل -->
+    <style name="FieldText">
+        <item name="android:textColor">@color/black</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:layout_marginBottom">12dp</item>
+        <item name="android:textAlignment">viewStart</item>
+    </style>
+
+</resources>

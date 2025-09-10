@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- عارض الصفحات للصور -->
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/vpPreview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- شريط علوي عائم: رجوع + مؤشر + زر تحرير + اعتماد -->
+    <LinearLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="12dp"
+        android:background="#66000000"
+        android:layout_gravity="top">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@android:color/transparent"
+            android:contentDescription="رجوع"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            app:tint="@android:color/white" />
+
+        <TextView
+            android:id="@+id/tvIndicator"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:text="1 / 10"
+            android:textColor="@android:color/white"
+            android:textSize="16sp" />
+
+        <!-- زر التحرير (قلم) -->
+        <ImageButton
+            android:id="@+id/btnEdit"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="8dp"
+            android:background="@android:color/transparent"
+            android:contentDescription="تحرير الصورة"
+            android:src="@drawable/ic_edit"
+            app:tint="@android:color/white" />
+
+        <!-- زر الاعتماد/الإضافة -->
+        <ImageButton
+            android:id="@+id/btnApprove"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@android:color/transparent"
+            android:contentDescription="اعتماد"
+            android:src="@drawable/ic_done"
+            app:tint="@android:color/white" />
+    </LinearLayout>
+
+    <!-- مساحة التعليق أسفل -->
+    <LinearLayout
+        android:id="@+id/captionBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="12dp"
+        android:background="#66000000"
+        android:layout_gravity="bottom">
+
+        <EditText
+            android:id="@+id/etCaption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="أضف تعليقًا للصورة..."
+            android:textColor="@android:color/white"
+            android:textColorHint="#B3FFFFFF"
+            android:textSize="14sp"
+            android:inputType="textCapSentences|textMultiLine"
+            android:maxLines="3"
+            android:overScrollMode="never"
+            android:scrollHorizontally="false"
+            tools:ignore="Autofill" />
+    </LinearLayout>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

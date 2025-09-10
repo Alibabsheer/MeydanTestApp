@@ -1,0 +1,37 @@
+<resources>
+    <string name="app_name">Meydan</string>
+    <string name="default_web_client_id">323263113088-8p27k2fslv5g54psvccdc9vkqjronur9.apps.googleusercontent.com</string>
+
+    <string name="project_code_format">كود المشروع: %s</string>
+    <string name="project_location_status_format">الموقع: %s | الحالة: %s</string>
+
+    <string name="action_save">حفظ</string>
+    <string name="action_cancel">إلغاء</string>
+    <string name="action_create_project">إنشاء مشروع</string>
+    <string name="action_login">تسجيل الدخول</string>
+
+    <string name="label_email">البريد الإلكتروني</string>
+    <string name="label_password">كلمة المرور</string>
+    <string name="label_project_name">اسم المشروع</string>
+
+    <string name="dialog_loading">جاري التحميل...</string>
+    <string name="error_generic">حدث خطأ ما، يرجى المحاولة مرة أخرى.</string>
+
+    <string name="splash_welcome">مرحبًا بكم في ميدان</string>
+
+
+    <string name="theme_toggle">تبديل الوضع الليلي</string>
+    <string name="google_maps_key">AIzaSyAnIOQAiEBIc0Vg1tGD9GgRFwsQCb3Z25g</string>
+    <string name="import_instruction">يرجى استيراد بيانات %1$s</string>
+    <string name="org_info_text">اسم المؤسسة: %1$s\nكود الانضمام: %2$s</string>
+    <string name="create_daily_report_title">إنشاء تقرير يومي</string>
+    <string name="daily_reports_title">عرض التقارير اليومية</string>
+
+    <string-array name="work_type_options">
+        <item>اختر نوع العمل</item>
+        <item>مقطوعية</item>
+        <item>جدول كميات</item>
+    </string-array>
+
+
+</resources>

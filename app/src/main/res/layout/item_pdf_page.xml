@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- عنصر Recycler لعرض صورة صفحة PDF واحدة مع تحسينات:
+     - دعم RTL والتوجيه العربي.
+     - عرض متناسب للصورة (fitCenter) مع adjustViewBounds.
+     - خلفية بيضاء لتوضيح الحواف.
+     - مؤشّر تحميل ورسالة خطأ اختيارية كطبقات Overlay. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layoutDirection="rtl"
+    android:textDirection="anyRtl"
+    android:textAlignment="viewStart"
+    android:padding="8dp"
+    android:foreground="?android:attr/selectableItemBackground"
+    android:clipToPadding="false"
+    android:elevation="2dp">
+
+    <ImageView
+        android:id="@+id/pageImage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:adjustViewBounds="true"
+        android:scaleType="fitCenter"
+        android:background="@android:color/white"
+        android:contentDescription="صفحة PDF"
+        android:importantForAccessibility="yes"
+        android:cropToPadding="false" />
+
+    <!-- مؤشر تحميل يظهر أثناء توليد/عرض الصفحة -->
+    <ProgressBar
+        android:id="@+id/progress"
+        style="?android:attr/progressBarStyleSmall"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:visibility="gone" />
+
+    <!-- رسالة خطأ اختيارية في حال التعذّر -->
+    <TextView
+        android:id="@+id/errorText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:padding="8dp"
+        android:text="تعذّر تحميل الصفحة"
+        android:textStyle="bold"
+        android:textColor="@android:color/black"
+        android:background="#80FFFFFF"
+        android:visibility="gone" />
+
+</FrameLayout>

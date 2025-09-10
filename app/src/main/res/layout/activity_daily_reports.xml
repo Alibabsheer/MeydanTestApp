@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layoutDirection="rtl"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- زر الرجوع -->
+    <ImageView
+        android:id="@+id/backButton"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@drawable/ic_arrow_back"
+        android:contentDescription="رجوع"
+        android:padding="8dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        app:tint="?attr/iconTint" />
+
+    <!-- عنوان الشاشة -->
+    <TextView
+        android:id="@+id/titleText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/daily_reports_title"
+        android:gravity="center"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:fontFamily="@font/main_font"
+        android:textColor="?android:textColorPrimary"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp" />
+
+    <!-- مؤشر التحميل -->
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="?android:attr/progressBarStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:visibility="gone" />
+
+    <!-- قائمة التقارير -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/reportsRecycler"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp" />
+
+    <!-- نص حالة فارغة -->
+    <TextView
+        android:id="@+id/emptyView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="لا توجد تقارير غير مؤرشفة لهذا المشروع."
+        android:gravity="center"
+        android:padding="12dp"
+        android:visibility="gone" />
+
+    <!-- أبقينا عناصر الأسلوب السابق (Dropdown + زر) لكن مخفية للتوافق إن لزم لاحقًا -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/reportSelectionLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="اختر تقريرًا"
+        android:visibility="gone"
+        app:boxBackgroundColor="?attr/boxBackgroundColor">
+
+        <AutoCompleteTextView
+            android:id="@+id/reportDropdown"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="none"
+            android:focusable="false"
+            android:clickable="true" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <Button
+        android:id="@+id/viewReportButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="عرض التقرير"
+        android:layout_marginTop="8dp"
+        android:enabled="false"
+        android:visibility="gone" />
+
+</LinearLayout>

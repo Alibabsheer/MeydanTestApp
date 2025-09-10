@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <style name="Theme.MeydanTestApp" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#F0EAD6</item>
+        <item name="colorOnPrimary">@color/on_primary_dark_theme</item>
+        <item name="colorError">@color/error_dark_theme</item>
+        <item name="colorOnError">@android:color/black</item>
+        <item name="colorOutline">@color/outline_dark_theme</item>
+        <item name="android:windowBackground">@color/background_dark</item>
+        <item name="android:textColorPrimary">@color/text_and_icons_dark</item>
+        <item name="android:textColorSecondary">#BDBDBD</item>
+        <item name="iconTint">@color/text_and_icons_dark</item>
+        <item name="boxBackgroundColor">@color/input_field_dark</item>
+        <item name="android:fontFamily">@font/main_font</item>
+    </style>
+
+    <style name="Widget.App.Button" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/background_light</item>
+        <item name="android:textColor">@color/text_and_icons_light</item>
+    </style>
+
+    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/background_dark</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.MeydanTestApp</item>
+    </style>
+
+    <!-- نمط العنوان (اسم القسم) في الوضع الليلي -->
+    <style name="SectionHeader">
+        <item name="android:textColor">@color/brand_red_light_theme</item>
+        <item name="android:textSize">18sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:layout_marginTop">16dp</item>
+        <item name="android:layout_marginBottom">8dp</item>
+        <item name="android:textAlignment">viewStart</item>
+    </style>
+
+    <!-- نمط النص العادي للحقل في الوضع الليلي -->
+    <style name="FieldText">
+        <item name="android:textColor">@color/text_and_icons_dark</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:layout_marginBottom">12dp</item>
+        <item name="android:textAlignment">viewStart</item>
+    </style>
+
+
+</resources>

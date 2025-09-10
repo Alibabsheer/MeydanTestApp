@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@android:color/white">
+
+    <TextView
+        android:id="@+id/optionDailyReport"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="إنشاء تقرير يومي"
+        android:drawablePadding="8dp"
+        android:paddingVertical="12dp"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:gravity="start"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true" />
+
+    <TextView
+        android:id="@+id/optionResourceReport"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="إنشاء تقرير موارد"
+        android:drawablePadding="8dp"
+        android:paddingVertical="12dp"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:gravity="start"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true" />
+
+    <TextView
+        android:id="@+id/optionWeeklyReport"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="إنشاء تقرير اسبوعي"
+        android:drawablePadding="8dp"
+        android:paddingVertical="12dp"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:gravity="start"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true" />
+
+    <TextView
+        android:id="@+id/optionMonthlyReport"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="إنشاء تقرير شهري"
+        android:drawablePadding="8dp"
+        android:paddingVertical="12dp"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:gravity="start"
+        android:alpha="0.4"
+        android:enabled="false" />
+
+</LinearLayout>

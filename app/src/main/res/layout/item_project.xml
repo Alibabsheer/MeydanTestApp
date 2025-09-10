@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="12dp"
+    android:layoutDirection="rtl"
+    app:cardElevation="4dp"
+    app:cardCornerRadius="16dp"
+    app:cardBackgroundColor="?attr/boxBackgroundColor">
+
+    <LinearLayout
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layoutDirection="rtl">
+
+        <!-- اسم المشروع -->
+        <TextView
+            android:id="@+id/projectName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="اسم المشروع"
+            android:textColor="?android:textColorPrimary"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:fontFamily="@font/main_font"
+            android:gravity="right"
+            android:textDirection="anyRtl"
+            android:layoutDirection="rtl"
+            android:includeFontPadding="false" />
+
+      
+
+        <!-- موقع المشروع -->
+        <TextView
+            android:id="@+id/projectLocation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="موقع المشروع: الرياض"
+            android:textColor="?android:textColorSecondary"
+            android:textSize="13sp"
+            android:layout_marginTop="4dp"
+            android:fontFamily="@font/main_font"
+            android:gravity="right"
+            android:textDirection="anyRtl"
+            android:layoutDirection="rtl"
+            android:includeFontPadding="false" />
+
+        <!-- الأزرار -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginTop="16dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/editButton"
+                style="@style/Widget.App.Button"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="تعديل التفاصيل"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:fontFamily="@font/main_font"
+                android:layout_marginEnd="8dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/viewButton"
+                style="@style/Widget.App.Button"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="عرض المشروع"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:fontFamily="@font/main_font"
+                android:layout_marginStart="8dp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+</androidx.cardview.widget.CardView>
