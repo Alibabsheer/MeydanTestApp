@@ -19,9 +19,8 @@
 
     <string name="splash_welcome">مرحبًا بكم في ميدان</string>
 
-
     <string name="theme_toggle">تبديل الوضع الليلي</string>
-    <string name="google_maps_key">AIzaSyAnIOQAiEBIc0Vg1tGD9GgRFwsQCb3Z25g</string>
+    <!-- المفتاح أُزيل من هنا وسيُحقن عبر Gradle -->
     <string name="import_instruction">يرجى استيراد بيانات %1$s</string>
     <string name="org_info_text">اسم المؤسسة: %1$s\nكود الانضمام: %2$s</string>
     <string name="create_daily_report_title">إنشاء تقرير يومي</string>
@@ -32,6 +31,4 @@
         <item>مقطوعية</item>
         <item>جدول كميات</item>
     </string-array>
-
-
 </resources>
