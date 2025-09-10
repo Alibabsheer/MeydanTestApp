@@ -35,17 +35,30 @@
         android:layout_gravity="center"
         android:visibility="gone" />
 
-    <!-- رسالة خطأ اختيارية في حال التعذّر -->
-    <TextView
-        android:id="@+id/errorText"
+    <!-- رسالة خطأ اختيارية مع زر إعادة المحاولة -->
+    <LinearLayout
+        android:id="@+id/errorContainer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
+        android:orientation="vertical"
         android:padding="8dp"
-        android:text="تعذّر تحميل الصفحة"
-        android:textStyle="bold"
-        android:textColor="@android:color/black"
         android:background="#80FFFFFF"
-        android:visibility="gone" />
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/errorText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="تعذّر تحميل الصفحة"
+            android:textStyle="bold"
+            android:textColor="@android:color/black" />
+
+        <Button
+            android:id="@+id/retryButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="إعادة المحاولة" />
+    </LinearLayout>
 
 </FrameLayout>

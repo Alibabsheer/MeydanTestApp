@@ -4,6 +4,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfDocument
 import android.graphics.pdf.PdfRenderer
+import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -18,6 +19,7 @@ import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import android.util.Log
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
@@ -27,8 +29,12 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.load.DataSource
+import com.bumptech.glide.load.engine.GlideException
+import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
 import com.example.meydantestapp.report.ReportPdfBuilder
+import com.example.meydantestapp.repository.DailyReportRepository
 import com.example.meydantestapp.utils.Constants
 import com.example.meydantestapp.utils.ImageUtils
 import com.google.firebase.firestore.FirebaseFirestore
@@ -137,29 +143,22 @@ class ViewDailyReportActivity : AppCompatActivity() {
             return
         }
 
-        // ✅ جديد: تفعيل عرض site_pages مباشرة إن وُجدت داخل DailyReport أو ضمن الـ Intent
-        val sitePagesFromReport = (report.sitepages ?: emptyList()).filter { it.startsWith("http://") || it.startsWith("https://") }
-        val sitePagesExtra: ArrayList<String>? = intent.getStringArrayListExtra("site_pages")
-        val chosenSitePages = when {
-            sitePagesFromReport.isNotEmpty() -> sitePagesFromReport
-            !sitePagesExtra.isNullOrEmpty() -> sitePagesExtra.filter { it.startsWith("http://") || it.startsWith("https://") }
-            else -> emptyList()
-        }
-        if (chosenSitePages.isNotEmpty()) {
-            displaySitePages(chosenSitePages)
-            tryResolveOrganizationAndLoadLogo(report, explicitOrgId)
-            return
-        }
-
-        // 🔁 خلاف ذلك، نولّد PDF ونعرض صوره كما في السابق (سيسقط إلى photos القديمة)
-        showLoading(true)
-        viewModel.logo.observe(this) { logoBitmap ->
-            if (!alreadyRendered) {
-                alreadyRendered = true
-                generateAndDisplayPdf(report, logoBitmap)
+        lifecycleScope.launch {
+            val fromReport = DailyReportRepository.normalizePageUrls(report.sitepages)
+            val extraRaw: ArrayList<String>? = intent.getStringArrayListExtra("site_pages")
+            val fromExtra = DailyReportRepository.normalizePageUrls(extraRaw)
+            val chosenSitePages = when {
+                fromReport.isNotEmpty() -> fromReport
+                fromExtra.isNotEmpty() -> fromExtra
+                else -> emptyList()
+            }
+            if (chosenSitePages.isNotEmpty()) {
+                displaySitePages(chosenSitePages, report.id)
+                tryResolveOrganizationAndLoadLogo(report, explicitOrgId)
+            } else {
+                setupPdfRenderFlow(report, explicitOrgId)
             }
         }
-        tryResolveOrganizationAndLoadLogo(report, explicitOrgId)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -203,6 +202,17 @@ class ViewDailyReportActivity : AppCompatActivity() {
         renderPdfWithoutLogoIfNotYet(report)
     }
 
+    private fun setupPdfRenderFlow(report: DailyReport, explicitOrgId: String?) {
+        showLoading(true)
+        viewModel.logo.observe(this) { logoBitmap ->
+            if (!alreadyRendered) {
+                alreadyRendered = true
+                generateAndDisplayPdf(report, logoBitmap)
+            }
+        }
+        tryResolveOrganizationAndLoadLogo(report, explicitOrgId)
+    }
+
     private fun renderPdfWithoutLogoIfNotYet(report: DailyReport) {
         if (!alreadyRendered && currentMode != DisplayMode.SITE_PAGES) {
             alreadyRendered = true
@@ -213,15 +223,23 @@ class ViewDailyReportActivity : AppCompatActivity() {
     // ---------------------------------------------------------------------
     // 2A) Display pre-composed site pages (full images per template)
     // ---------------------------------------------------------------------
-    private fun displaySitePages(urls: List<String>) {
+    private fun displaySitePages(urls: List<String>, reportId: String?) {
         currentMode = DisplayMode.SITE_PAGES
         renderJob?.cancel()
         sitePageUrls.clear()
         sitePageUrls.addAll(urls)
         sharePdfButton.isEnabled = true // يمكن التصدير إلى PDF من هذه الصفحات
 
-        // استبدل الـ Adapter بواحد للروابط
-        recycler.adapter = SitePagesAdapter(this, sitePageUrls)
+        var adapter: SitePagesAdapter? = null
+        adapter = SitePagesAdapter(this, sitePageUrls, reportId) { pos ->
+            lifecycleScope.launch {
+                val retried = DailyReportRepository.normalizePageUrls(listOf(sitePageUrls[pos])).firstOrNull()
+                    ?: sitePageUrls[pos]
+                sitePageUrls[pos] = retried
+                adapter?.updateAt(pos, retried)
+            }
+        }
+        recycler.adapter = adapter
         recycler.scrollToPosition(0)
         showLoading(false)
     }
@@ -489,13 +507,16 @@ class ViewDailyReportActivity : AppCompatActivity() {
      */
     private class SitePagesAdapter(
         private val context: android.content.Context,
-        private val urls: List<String>
+        private val urls: MutableList<String>,
+        private val reportId: String?,
+        private val onRetry: (position: Int) -> Unit
     ) : RecyclerView.Adapter<SitePagesAdapter.Holder>() {
 
         class Holder(v: View) : RecyclerView.ViewHolder(v) {
             val img: ImageView = v.findViewById(R.id.pageImage)
-            val progress: ProgressBar? = v.findViewById(R.id.progress)
-            val errorText: TextView? = v.findViewById(R.id.errorText)
+            val progress: ProgressBar = v.findViewById(R.id.progress)
+            val errorContainer: View = v.findViewById(R.id.errorContainer)
+            val retry: Button = v.findViewById(R.id.retryButton)
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
@@ -505,19 +526,49 @@ class ViewDailyReportActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
             val url = urls[position]
-            holder.progress?.visibility = View.VISIBLE
-            holder.errorText?.visibility = View.GONE
+            holder.progress.visibility = View.VISIBLE
+            holder.errorContainer.visibility = View.GONE
 
             Glide.with(holder.img.context)
                 .load(url)
+                .dontAnimate()
+                .listener(object : RequestListener<Drawable> {
+                    override fun onLoadFailed(
+                        e: GlideException?,
+                        model: Any?,
+                        target: Target<Drawable>?,
+                        isFirstResource: Boolean
+                    ): Boolean {
+                        holder.progress.visibility = View.GONE
+                        holder.errorContainer.visibility = View.VISIBLE
+                        holder.retry.setOnClickListener { onRetry(position) }
+                        Log.e(
+                            "SitePagesAdapter",
+                            "Load failed report=$reportId page=$position url=$url",
+                            e
+                        )
+                        return false
+                    }
+
+                    override fun onResourceReady(
+                        resource: Drawable?,
+                        model: Any?,
+                        target: Target<Drawable>?,
+                        dataSource: DataSource?,
+                        isFirstResource: Boolean
+                    ): Boolean {
+                        holder.progress.visibility = View.GONE
+                        Log.d("SitePagesAdapter", "Loaded report=$reportId page=$position")
+                        return false
+                    }
+                })
+                .placeholder(R.drawable.ic_image_placeholder)
+                .error(R.drawable.ic_error)
                 .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
                 .fitCenter()
                 .into(holder.img)
 
-            holder.progress?.visibility = View.GONE
-
             holder.img.setOnLongClickListener {
-                // تنزيل وحفظ في الخلفية بدون كروتينز لتجنّب الاعتماد هنا على النطاق الحياتي
                 Thread {
                     try {
                         val future = Glide.with(holder.img.context)
@@ -543,6 +594,11 @@ class ViewDailyReportActivity : AppCompatActivity() {
                 }.start()
                 true
             }
+        }
+
+        fun updateAt(position: Int, newUrl: String) {
+            urls[position] = newUrl
+            notifyItemChanged(position)
         }
 
         override fun getItemCount(): Int = urls.size
