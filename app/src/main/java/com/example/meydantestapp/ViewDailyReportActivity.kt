@@ -536,7 +536,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
                     override fun onLoadFailed(
                         e: GlideException?,
                         model: Any?,
-                        target: Target<Drawable>?,
+                        target: Target<Drawable>,
                         isFirstResource: Boolean
                     ): Boolean {
                         holder.progressBar.visibility = View.GONE
@@ -557,13 +557,14 @@ class ViewDailyReportActivity : AppCompatActivity() {
                     }
 
                     override fun onResourceReady(
-                        resource: Drawable?,
-                        model: Any?,
-                        target: Target<Drawable>?,
+                        resource: Drawable,
+                        model: Any,
+                        target: Target<Drawable>,
                         dataSource: DataSource,
                         isFirstResource: Boolean
                     ): Boolean {
                         holder.progressBar.visibility = View.GONE
+                        holder.errorContainer.visibility = View.GONE
                         val adapterPos = holder.bindingAdapterPosition
                         Log.d("SitePagesAdapter", "Loaded report=$reportId page=$adapterPos")
                         return false
