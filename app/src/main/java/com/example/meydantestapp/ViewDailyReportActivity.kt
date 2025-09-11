@@ -472,7 +472,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
 
         class Holder(v: View) : RecyclerView.ViewHolder(v) {
             val img: ImageView = v.findViewById(R.id.pageImage)
-            val progress: ProgressBar? = v.findViewById(R.id.progress)
+            val progressBar: ProgressBar? = v.findViewById(R.id.progressBar)
             val errorText: TextView? = v.findViewById(R.id.errorText)
         }
 
@@ -482,7 +482,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
         }
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
-            holder.progress?.visibility = View.GONE
+            holder.progressBar?.visibility = View.GONE
             holder.errorText?.visibility = View.GONE
             holder.img.setImageBitmap(pages[position])
 
@@ -513,10 +513,10 @@ class ViewDailyReportActivity : AppCompatActivity() {
     ) : RecyclerView.Adapter<SitePagesAdapter.Holder>() {
 
         class Holder(v: View) : RecyclerView.ViewHolder(v) {
-            val img: ImageView = v.findViewById(R.id.pageImage)
-            val progress: ProgressBar = v.findViewById(R.id.progress)
+            val pageImage: ImageView = v.findViewById(R.id.pageImage)
+            val progressBar: ProgressBar = v.findViewById(R.id.progressBar)
             val errorContainer: View = v.findViewById(R.id.errorContainer)
-            val retry: Button = v.findViewById(R.id.retryButton)
+            val retryButton: Button = v.findViewById(R.id.retryButton)
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
@@ -526,10 +526,10 @@ class ViewDailyReportActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
             val url = urls[position]
-            holder.progress.visibility = View.VISIBLE
+            holder.progressBar.visibility = View.VISIBLE
             holder.errorContainer.visibility = View.GONE
 
-            Glide.with(holder.img.context)
+            Glide.with(holder.pageImage.context)
                 .load(url)
                 .dontAnimate()
                 .listener(object : RequestListener<Drawable> {
@@ -539,12 +539,18 @@ class ViewDailyReportActivity : AppCompatActivity() {
                         target: Target<Drawable>?,
                         isFirstResource: Boolean
                     ): Boolean {
-                        holder.progress.visibility = View.GONE
+                        holder.progressBar.visibility = View.GONE
                         holder.errorContainer.visibility = View.VISIBLE
-                        holder.retry.setOnClickListener { onRetry(position) }
+                        holder.retryButton.setOnClickListener {
+                            val adapterPos = holder.bindingAdapterPosition
+                            if (adapterPos != RecyclerView.NO_POSITION) {
+                                onRetry(adapterPos)
+                            }
+                        }
+                        val adapterPos = holder.bindingAdapterPosition
                         Log.e(
                             "SitePagesAdapter",
-                            "Load failed report=$reportId page=$position url=$url",
+                            "Load failed report=$reportId page=$adapterPos url=$url",
                             e
                         )
                         return false
@@ -554,11 +560,12 @@ class ViewDailyReportActivity : AppCompatActivity() {
                         resource: Drawable?,
                         model: Any?,
                         target: Target<Drawable>?,
-                        dataSource: DataSource?,
+                        dataSource: DataSource,
                         isFirstResource: Boolean
                     ): Boolean {
-                        holder.progress.visibility = View.GONE
-                        Log.d("SitePagesAdapter", "Loaded report=$reportId page=$position")
+                        holder.progressBar.visibility = View.GONE
+                        val adapterPos = holder.bindingAdapterPosition
+                        Log.d("SitePagesAdapter", "Loaded report=$reportId page=$adapterPos")
                         return false
                     }
                 })
@@ -566,29 +573,33 @@ class ViewDailyReportActivity : AppCompatActivity() {
                 .error(R.drawable.ic_error)
                 .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
                 .fitCenter()
-                .into(holder.img)
+                .into(holder.pageImage)
 
-            holder.img.setOnLongClickListener {
+            holder.pageImage.setOnLongClickListener {
+                val adapterPos = holder.bindingAdapterPosition
+                if (adapterPos == RecyclerView.NO_POSITION) {
+                    return@setOnLongClickListener true
+                }
                 Thread {
                     try {
-                        val future = Glide.with(holder.img.context)
+                        val future = Glide.with(holder.pageImage.context)
                             .asBitmap()
                             .load(url)
                             .diskCacheStrategy(DiskCacheStrategy.ALL)
                             .submit(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
                         val bmp = future.get()
-                        val name = "SitePage_${position + 1}_${System.currentTimeMillis()}.jpg"
-                        val uri = ImageUtils.saveToGallery(holder.img.context, bmp, name, 92)
+                        val name = "SitePage_${adapterPos + 1}_${System.currentTimeMillis()}.jpg"
+                        val uri = ImageUtils.saveToGallery(holder.pageImage.context, bmp, name, 92)
                         Handler(Looper.getMainLooper()).post {
                             if (uri != null) {
-                                Toast.makeText(holder.img.context, "تم حفظ الصورة في الاستديو", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(holder.pageImage.context, "تم حفظ الصورة في الاستديو", Toast.LENGTH_SHORT).show()
                             } else {
-                                Toast.makeText(holder.img.context, "تعذر حفظ الصورة", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(holder.pageImage.context, "تعذر حفظ الصورة", Toast.LENGTH_SHORT).show()
                             }
                         }
                     } catch (_: Exception) {
                         Handler(Looper.getMainLooper()).post {
-                            Toast.makeText(holder.img.context, "تعذر تنزيل الصورة", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(holder.pageImage.context, "تعذر تنزيل الصورة", Toast.LENGTH_SHORT).show()
                         }
                     }
                 }.start()

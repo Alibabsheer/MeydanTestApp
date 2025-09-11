@@ -28,7 +28,7 @@
 
     <!-- مؤشر تحميل يظهر أثناء توليد/عرض الصفحة -->
     <ProgressBar
-        android:id="@+id/progress"
+        android:id="@+id/progressBar"
         style="?android:attr/progressBarStyleSmall"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
