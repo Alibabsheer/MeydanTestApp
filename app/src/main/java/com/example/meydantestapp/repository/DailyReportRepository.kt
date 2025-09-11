@@ -8,6 +8,9 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -485,5 +488,26 @@ class DailyReportRepository {
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .get().await()
         qs.documents.map { it.data!!.toMutableMap().apply { put("id", it.id) } }
+    }
+
+    companion object {
+        /** يحوّل رابط gs:// إلى https إن لزم */
+        suspend fun toHttpsUrlIfNeeded(storage: FirebaseStorage, value: String): String {
+            return if (value.startsWith("gs://")) {
+                val ref = storage.getReferenceFromUrl(value)
+                ref.downloadUrl.await().toString()
+            } else {
+                value
+            }
+        }
+
+        /** يطبع قائمة روابط الصفحات لتصبح قابلة للعرض */
+        suspend fun normalizePageUrls(values: List<String>?): List<String> {
+            if (values.isNullOrEmpty()) return emptyList()
+            val storage = FirebaseStorage.getInstance()
+            return coroutineScope {
+                values.map { v -> async { toHttpsUrlIfNeeded(storage, v) } }.awaitAll()
+            }
+        }
     }
 }
