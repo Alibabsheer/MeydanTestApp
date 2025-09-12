@@ -535,6 +535,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
                 .listener(object : RequestListener<Drawable> {
                     override fun onLoadFailed(
                         e: GlideException?,
+                        model: Any?,
                         target: Target<Drawable>,
                         isFirstResource: Boolean
                     ): Boolean {
@@ -557,7 +558,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
 
                     override fun onResourceReady(
                         resource: Drawable,
-                        model: Any,
+                        model: Any?,
                         target: Target<Drawable>,
                         dataSource: DataSource,
                         isFirstResource: Boolean
