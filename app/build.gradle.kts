@@ -79,6 +79,7 @@ dependencies {
     // Cloud Functions client
     implementation("com.google.firebase:firebase-functions-ktx")
 
+
     // Google Maps & Places
     implementation("com.google.android.gms:play-services-maps:18.2.0")
     implementation("com.google.android.libraries.places:places:3.3.0")

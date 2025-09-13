@@ -558,7 +558,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
 
                     override fun onResourceReady(
                         resource: Drawable,
-                        model: Any?,
+                        model: Any,
                         target: Target<Drawable>,
                         dataSource: DataSource,
                         isFirstResource: Boolean
