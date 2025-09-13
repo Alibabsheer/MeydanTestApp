@@ -14,8 +14,6 @@ import androidx.lifecycle.ViewModelProvider
 import com.example.meydantestapp.databinding.ActivityMainBinding
 import com.example.meydantestapp.utils.Constants
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseUser
-import com.google.firebase.firestore.FirebaseFirestore
 
 class LoginActivity : AppCompatActivity() {
 
@@ -54,9 +52,18 @@ class LoginActivity : AppCompatActivity() {
         }
 
         loginViewModel.loginResult.observe(this) {
-            it.onSuccess {
-                FirebaseAuth.getInstance().currentUser?.let { user ->
-                    routeByRole(user)
+            it.onSuccess { destination ->
+                when (destination) {
+                    is LoginDestination.OrganizationDashboard -> {
+                        startActivity(Intent(this, OrganizationDashboardActivity::class.java))
+                        finish()
+                    }
+                    is LoginDestination.UserProjects -> {
+                        val intent = Intent(this, UserProjectsActivity::class.java)
+                        intent.putExtra(Constants.EXTRA_ORGANIZATION_ID, destination.organizationId)
+                        startActivity(intent)
+                        finish()
+                    }
                 }
             }.onFailure { e ->
                 Toast.makeText(this, e.message, Toast.LENGTH_LONG).show()
@@ -73,60 +80,7 @@ class LoginActivity : AppCompatActivity() {
             startActivity(Intent(this, TypeSelectionActivity::class.java))
         }
 
-        if (loginViewModel.isUserLoggedIn()) {
-            FirebaseAuth.getInstance().currentUser?.let { user ->
-                routeByRole(user)
-            } ?: FirebaseAuth.getInstance().signOut()
-        }
-    }
-
-    /**
-     * ✅ Routing policy:
-     * 1) If organizations/{uid} exists → OrganizationDashboardActivity
-     * 2) Else if userslogin/{uid} exists → UserProjectsActivity with orgId
-     * 3) Else signOut + error
-     */
-    private fun routeByRole(user: FirebaseUser) {
-        val db = FirebaseFirestore.getInstance()
-
-        // Organization owner?
-        db.collection(Constants.COLLECTION_ORGANIZATIONS).document(user.uid).get()
-            .addOnSuccessListener { orgDoc ->
-                if (orgDoc.exists()) {
-                    startActivity(Intent(this, OrganizationDashboardActivity::class.java))
-                    finish()
-                } else {
-                    // Affiliated? check top-level userslogin/{uid}
-                    db.collection(Constants.COLLECTION_USERSLOGIN)
-                        .document(user.uid)
-                        .get()
-                        .addOnSuccessListener { loginDoc ->
-                            if (loginDoc.exists()) {
-                                val orgId = loginDoc.getString("organizationId")
-                                if (!orgId.isNullOrEmpty()) {
-                                    val intent = Intent(this, UserProjectsActivity::class.java)
-                                    intent.putExtra(Constants.EXTRA_ORGANIZATION_ID, orgId)
-                                    startActivity(intent)
-                                    finish()
-                                } else {
-                                    FirebaseAuth.getInstance().signOut()
-                                    Toast.makeText(this, "سجل الدخول غير مرتبط بمؤسسة.", Toast.LENGTH_LONG).show()
-                                }
-                            } else {
-                                FirebaseAuth.getInstance().signOut()
-                                Toast.makeText(this, "تعذر تحديد نوع الحساب.", Toast.LENGTH_LONG).show()
-                            }
-                        }
-                        .addOnFailureListener { e ->
-                            FirebaseAuth.getInstance().signOut()
-                            Toast.makeText(this, "فشل قراءة userslogin: ${e.message}", Toast.LENGTH_LONG).show()
-                        }
-                }
-            }
-            .addOnFailureListener { e ->
-                FirebaseAuth.getInstance().signOut()
-                Toast.makeText(this, "فشل تحديد نوع المستخدم: ${e.message}", Toast.LENGTH_LONG).show()
-            }
+        loginViewModel.checkUserSession()
     }
 
     // --------- مهلة الخمول ---------
