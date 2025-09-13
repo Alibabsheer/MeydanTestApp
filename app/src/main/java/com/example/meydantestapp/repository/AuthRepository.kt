@@ -147,6 +147,37 @@ class AuthRepository {
         Result.success(userId)
     } catch (e: Exception) { Result.failure(e) }
 
+    data class AccountTypeResult(
+        val userType: String,
+        val organizationId: String? = null
+    )
+
+    /**
+     * تحديد نوع الحساب (مؤسسة أو تابع) وإرجاع المعرفات المطلوبة للتوجيه.
+     */
+    suspend fun resolveAccountType(userId: String): Result<AccountTypeResult> {
+        return try {
+            val orgDoc = firestore.collection(Constants.COLLECTION_ORGANIZATIONS)
+                .document(userId)
+                .get()
+                .await()
+            if (orgDoc.exists()) {
+                return Result.success(AccountTypeResult(Constants.USER_TYPE_ORGANIZATION, userId))
+            }
+
+            val loginDoc = firestore.collection(Constants.COLLECTION_USERSLOGIN)
+                .document(userId)
+                .get()
+                .await()
+            if (loginDoc.exists()) {
+                val orgId = loginDoc.getString("organizationId") ?: ""
+                return Result.success(AccountTypeResult(Constants.USER_TYPE_AFFILIATED, orgId))
+            }
+
+            throw Exception("User data not found")
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
     /**
      * استرجاع بيانات المستخدم لتحديد نوع الحساب والتوجيه:
      *  - إن وُجدت وثيقة في organizations/{uid} ⇒ حساب مؤسسة.
@@ -154,35 +185,29 @@ class AuthRepository {
      */
     suspend fun getUserData(userId: String): Result<Map<String, Any>> {
         return try {
-            // مؤسسة؟
-            val orgDoc = firestore.collection(Constants.COLLECTION_ORGANIZATIONS)
-                .document(userId)
-                .get()
-                .await()
-            if (orgDoc.exists()) {
-                val data = orgDoc.data ?: emptyMap<String, Any>()
-                val enriched = HashMap(data)
-                enriched["userType"] = Constants.USER_TYPE_ORGANIZATION
-                enriched["organizationId"] = userId
-                return Result.success(enriched)
-            }
-
-            // تابع؟ (مرآة الدخول)
-            val loginDoc = firestore.collection(Constants.COLLECTION_USERSLOGIN)
-                .document(userId)
-                .get()
-                .await()
-            if (loginDoc.exists()) {
-                val orgId = loginDoc.getString("organizationId") ?: ""
-                val data = hashMapOf<String, Any>(
-                    "uid" to userId,
-                    "organizationId" to orgId,
-                    "userType" to Constants.USER_TYPE_AFFILIATED
-                )
-                return Result.success(data)
-            }
-
-            throw Exception("User data not found")
+            resolveAccountType(userId).fold(
+                onSuccess = { info ->
+                    if (info.userType == Constants.USER_TYPE_ORGANIZATION) {
+                        val orgDoc = firestore.collection(Constants.COLLECTION_ORGANIZATIONS)
+                            .document(userId)
+                            .get()
+                            .await()
+                        val data = orgDoc.data ?: emptyMap<String, Any>()
+                        val enriched = HashMap(data)
+                        enriched["userType"] = Constants.USER_TYPE_ORGANIZATION
+                        enriched["organizationId"] = userId
+                        Result.success(enriched)
+                    } else {
+                        val data = hashMapOf<String, Any>(
+                            "uid" to userId,
+                            "organizationId" to (info.organizationId ?: ""),
+                            "userType" to Constants.USER_TYPE_AFFILIATED
+                        )
+                        Result.success(data)
+                    }
+                },
+                onFailure = { Result.failure(it) }
+            )
         } catch (e: Exception) { Result.failure(e) }
     }
 
