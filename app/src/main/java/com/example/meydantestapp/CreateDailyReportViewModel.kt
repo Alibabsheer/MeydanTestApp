@@ -13,7 +13,10 @@ import androidx.lifecycle.viewModelScope
 import com.example.meydantestapp.models.PhotoEntry
 import com.example.meydantestapp.models.PhotoTemplates
 import com.example.meydantestapp.models.TemplateId
+import com.example.meydantestapp.repository.AuthRepository
 import com.example.meydantestapp.repository.DailyReportRepository
+import com.example.meydantestapp.repository.OrganizationRepository
+import com.example.meydantestapp.repository.ProjectRepository
 import com.example.meydantestapp.repository.WeatherRepository
 import com.example.meydantestapp.utils.ImageUtils
 import com.google.firebase.FirebaseNetworkException
@@ -45,6 +48,9 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
     private val auth by lazy { FirebaseAuth.getInstance() }
     private val weatherRepo by lazy { WeatherRepository() }
     private val reportsRepo by lazy { DailyReportRepository() }
+    private val authRepo by lazy { AuthRepository() }
+    private val projectRepo by lazy { ProjectRepository() }
+    private val organizationRepo by lazy { OrganizationRepository() }
 
     // ===== UI State عامة =====
     private val _date = MutableLiveData<String?>()
@@ -78,6 +84,12 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
     // بيانات المشروع الخام
     private val _projectInfo = MutableLiveData<Map<String, Any>?>(null)
     val projectInfo: LiveData<Map<String, Any>?> = _projectInfo
+
+    private val _organizationId = MutableLiveData<String?>(null)
+    val organizationId: LiveData<String?> = _organizationId
+
+    private val _projectId = MutableLiveData<String?>(null)
+    val projectIdLive: LiveData<String?> = _projectId
 
     // أسماء إضافية تُلتقط وقت الإنشاء
     private val _organizationName = MutableLiveData<String?>(null)
@@ -176,6 +188,29 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
         _createdByName.value = fromArg ?: auth.currentUser?.displayName
     }
 
+    fun initialize(projectId: String?, organizationId: String?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _createdByName.postValue(auth.currentUser?.displayName)
+            val pid = projectId ?: return@launch
+            val org = organizationId ?: run {
+                val uid = authRepo.getCurrentUserId() ?: return@launch
+                val data = authRepo.getUserData(uid).getOrNull()
+                data?.get("organizationId")?.toString() ?: uid
+            }
+            _projectId.postValue(pid)
+            _organizationId.postValue(org)
+
+            val orgDoc = organizationRepo.getOrganizationDoc(org)
+            val orgName = (orgDoc?.get("organizationName") ?: orgDoc?.get("name")) as? String
+            _organizationName.postValue(orgName)
+
+            val proj = projectRepo.getProjectById(org, pid).getOrNull()
+            if (proj != null) {
+                _projectInfo.postValue(proj)
+            }
+        }
+    }
+
     // ===== الطقس =====
     fun fetchWeatherFor(dateIso: String, lat: Double, lng: Double) {
         viewModelScope.launch {
@@ -226,8 +261,6 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
 
     // ===== حفظ التقرير =====
     fun saveReport(
-        organizationId: String,
-        projectId: String,
         activities: List<String>?,
         skilledLabor: String?,
         unskilledLabor: String?,
@@ -236,6 +269,13 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
         challengesList: List<String>?,
         notesList: List<String>?
     ) {
+        val orgId = _organizationId.value
+        val pid = _projectId.value
+        if (orgId.isNullOrBlank() || pid.isNullOrBlank()) {
+            _message.value = "معلومات المؤسسة أو المشروع غير متاحة."
+            return
+        }
+
         val currentDateIso = _date.value
         val cleanedActivities = activities?.map { it.trim() }?.filter { it.isNotBlank() }.orElseEmpty()
         if (currentDateIso.isNullOrBlank() || cleanedActivities.isEmpty()) {
@@ -252,7 +292,7 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                 fun String?.nullIfBlank(): String? = if (this.isNullOrBlank()) null else this
 
                 // 0) منع التكرار
-                val exists = reportsRepo.existsReportForDate(organizationId, projectId, dateMillis)
+                val exists = reportsRepo.existsReportForDate(orgId, pid, dateMillis)
                 if (exists.isSuccess && exists.getOrNull() == true) {
                     _message.postValue("يوجد تقرير محفوظ لهذا المشروع في نفس التاريخ.")
                     _loading.postValue(false)
@@ -350,8 +390,8 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                 // 6) بناء البيانات الأساسية
                 val data = mutableMapOf<String, Any>(
                     "id" to reportId,
-                    "projectId" to projectId,
-                    "organizationId" to organizationId,
+                    "projectId" to pid,
+                    "organizationId" to orgId,
                     "date" to dateMillis,
                     "createdAt" to Timestamp.now(),
                     "createdBy" to (auth.currentUser?.uid ?: ""),
@@ -398,7 +438,7 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                 _saveState.postValue(SaveState.Saving)
                 _uploadProgress.postValue(96)
 
-                val write = reportsRepo.createDailyReportAutoNumbered(organizationId, projectId, reportId, data)
+                val write = reportsRepo.createDailyReportAutoNumbered(orgId, pid, reportId, data)
                 if (write.isSuccess) {
                     _uploadProgress.postValue(100)
                     _saveState.postValue(SaveState.Success)

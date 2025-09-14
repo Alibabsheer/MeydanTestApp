@@ -17,6 +17,21 @@ class OrganizationRepository {
         return doc.data
     }
 
+    suspend fun findOrganizationIdByName(name: String): String? {
+        val snap = firestore.collection(Constants.COLLECTION_ORGANIZATIONS)
+            .whereEqualTo("name", name)
+            .limit(1)
+            .get().await()
+        val doc = snap.documents.firstOrNull()
+        if (doc != null) return doc.id
+
+        val alt = firestore.collection(Constants.COLLECTION_ORGANIZATIONS)
+            .whereEqualTo("organizationName", name)
+            .limit(1)
+            .get().await()
+        return alt.documents.firstOrNull()?.id
+    }
+
     suspend fun updateOrganizationFields(
         userId: String,
         name: String? = null,
