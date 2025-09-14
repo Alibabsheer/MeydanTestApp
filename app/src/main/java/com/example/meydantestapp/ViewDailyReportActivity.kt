@@ -63,13 +63,9 @@ class ViewDailyReportActivity : AppCompatActivity() {
     private val db by lazy { FirebaseFirestore.getInstance() }
 
     // وضع العرض الحالي
-    private enum class DisplayMode { SITE_PAGES, PDF_RENDER }
-    private var currentMode: DisplayMode? = null
-
     // ملفات/صفحات
     private var pdfFile: File? = null
     private val pageBitmaps = mutableListOf<Bitmap>() // لعرض PDF المُرندَر
-    private val sitePageUrls = mutableListOf<String>() // لعرض صفحات جاهزة حسب القالب
 
     // ===== Rendering guards =====
     private var alreadyRendered = false
@@ -143,22 +139,8 @@ class ViewDailyReportActivity : AppCompatActivity() {
             return
         }
 
-        lifecycleScope.launch {
-            val fromReport = DailyReportRepository.normalizePageUrls(report.sitepages)
-            val extraRaw: ArrayList<String>? = intent.getStringArrayListExtra("site_pages")
-            val fromExtra = DailyReportRepository.normalizePageUrls(extraRaw)
-            val chosenSitePages = when {
-                fromReport.isNotEmpty() -> fromReport
-                fromExtra.isNotEmpty() -> fromExtra
-                else -> emptyList()
-            }
-            if (chosenSitePages.isNotEmpty()) {
-                displaySitePages(chosenSitePages, report.id)
-                tryResolveOrganizationAndLoadLogo(report, explicitOrgId)
-            } else {
-                setupPdfRenderFlow(report, explicitOrgId)
-            }
-        }
+        // دائمًا استخدم تدفق PDF الموحد
+        setupPdfRenderFlow(report, explicitOrgId)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -330,179 +312,13 @@ class ViewDailyReportActivity : AppCompatActivity() {
     // 3) Export / Share
     // ---------------------------------------------------------------------
     private fun onShareClicked() {
-        when (currentMode) {
-            DisplayMode.SITE_PAGES -> exportSitePagesThenShare()
-            DisplayMode.PDF_RENDER -> sharePdfIfAny()
-            else -> Unit
-        }
+        // دائمًا شارك ملف PDF الموحد النهائي فقط
+        sharePdfIfAny()
     }
 
     private fun sharePdfIfAny() {
         val file = pdfFile ?: return
         val uri: Uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            FileProvider.getUriForFile(this, "${packageName}.fileprovider", file)
-        } else {
-            Uri.fromFile(file)
-        }
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/pdf"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        startActivity(Intent.createChooser(intent, "مشاركة التقرير PDF"))
-    }
-
-    private fun exportSitePagesThenShare() {
-        // إن كان لدينا ملف PDF جاهز من قبل (من صفحات الموقع)، شاركه مباشرة
-        if (pdfFile != null && currentMode == DisplayMode.SITE_PAGES) {
-            sharePdfIfAny()
-            return
-        }
-        val urls = sitePageUrls.toList()
-        if (urls.isEmpty()) {
-            Toast.makeText(this, "لا توجد صفحات لتصديرها.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        lifecycleScope.launch {
-            try {
-                showLoading(true)
-                sharePdfButton.isEnabled = false
-                val out = File(cacheDir, "reports/sitepages_${System.currentTimeMillis()}.pdf")
-                out.parentFile?.mkdirs()
-
-                withContext(Dispatchers.IO) { buildPdfFromSitePages(urls, out) }
-                pdfFile = out
-                sharePdfIfAny()
-            } catch (_: Exception) {
-                Toast.makeText(this@ViewDailyReportActivity, "تعذر إنشاء ملف PDF من الصفحات.", Toast.LENGTH_LONG).show()
-            } finally {
-                showLoading(false)
-                sharePdfButton.isEnabled = true
-            }
-        }
-    }
-
-    /** يبني PDF من قائمة صور (روابط) – صفحة = صورة كاملة. */
-    private fun buildPdfFromSitePages(urls: List<String>, outFile: File) {
-        val doc = PdfDocument()
-        try {
-            urls.forEachIndexed { index, url ->
-                val bmp = loadBitmapBlocking(url) ?: return@forEachIndexed
-                val scaled = scaleBitmapMaxDim(bmp, maxDim = 2048)
-                val pageInfo = PdfDocument.PageInfo.Builder(scaled.width, scaled.height, index + 1).create()
-                val page = doc.startPage(pageInfo)
-                page.canvas.drawBitmap(scaled, 0f, 0f, null)
-                doc.finishPage(page)
-                if (scaled !== bmp) scaled.recycle()
-                bmp.recycle()
-            }
-            FileOutputStream(outFile).use { fos -> doc.writeTo(fos) }
-        } finally {
-            doc.close()
-        }
-    }
-
-    /** تحميل متزامن للصورة كـ Bitmap عبر Glide (استعمال داخلي فقط داخل Dispatchers.IO). */
-    private fun loadBitmapBlocking(url: String): Bitmap? = try {
-        Glide.with(this)
-            .asBitmap()
-            .load(url)
-            .diskCacheStrategy(DiskCacheStrategy.ALL)
-            .submit(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
-            .get()
-    } catch (_: Exception) { null }
-
-    private fun scaleBitmapMaxDim(src: Bitmap, maxDim: Int): Bitmap {
-        val w = src.width
-        val h = src.height
-        val maxSrc = maxOf(w, h)
-        if (maxSrc <= maxDim) return src
-        val scale = maxDim.toFloat() / maxSrc.toFloat()
-        val nw = (w * scale).toInt().coerceAtLeast(1)
-        val nh = (h * scale).toInt().coerceAtLeast(1)
-        return Bitmap.createScaledBitmap(src, nw, nh, true)
-    }
-
-    // ---------------------------------------------------------------------
-    // 4) UI helpers
-    // ---------------------------------------------------------------------
-    private fun showLoading(loading: Boolean) {
-        progressBar?.visibility = if (loading) View.VISIBLE else View.GONE
-        if (loading) sharePdfButton.isEnabled = false
-    }
-
-    /**
-     * يُرجع سطرًا واحدًا كما طُلِب:
-     * "درجة الحرارة : 45 °C    حالة الطقس : غائم"
-     * مع تطبيع تمثيل الدرجة إلى "NN °C" إن لم تكن مضبوطة.
-     */
-    private fun formatWeatherLine(tempRaw: String?, statusRaw: String?): String? {
-        val t = normalizeCelsius(tempRaw)
-        val s = statusRaw?.trim()?.takeIf { it.isNotEmpty() }
-        return when {
-            t != null && s != null -> "درجة الحرارة : $t    حالة الطقس : $s"
-            t != null -> "درجة الحرارة : $t"
-            s != null -> "حالة الطقس : $s"
-            else -> null
-        }
-    }
-
-    /** يحوّل أي تمثيل للحرارة ("45", "45C", "45 °C") إلى صيغة موحَّدة: "45 °C" */
-    private fun normalizeCelsius(input: String?): String? {
-        val src = input?.trim()?.replace('\u00A0'.toString(), " ")?.replace(",", ".") ?: return null
-        if (src.isEmpty()) return null
-        val regex = Regex("[+-]?\\d+(?:\\.\\d+)?")
-        val match = regex.find(src)
-        val number = match?.value ?: return null
-        val asDouble = number.toDoubleOrNull() ?: return null
-        val fmt = if (asDouble % 1.0 == 0.0) DecimalFormat("#").format(asDouble) else DecimalFormat("#.#").format(asDouble)
-        return "$fmt °C"
-    }
-
-    // ---------------------------------------------------------------------
-    // 5) Adapters
-    // ---------------------------------------------------------------------
-    /**
-     * عارض لصفحات PDF (Bitmaps) – يدعم الحفظ بالضغط المطوّل.
-     */
-    private class PdfPagesAdapter(
-        private val context: android.content.Context,
-        private val pages: List<Bitmap>
-    ) : RecyclerView.Adapter<PdfPagesAdapter.Holder>() {
-
-        class Holder(v: View) : RecyclerView.ViewHolder(v) {
-            val img: ImageView = v.findViewById(R.id.pageImage)
-            val progressBar: ProgressBar? = v.findViewById(R.id.progressBar)
-            val errorText: TextView? = v.findViewById(R.id.errorText)
-        }
-
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
-            val v = LayoutInflater.from(parent.context).inflate(R.layout.item_pdf_page, parent, false)
-            return Holder(v)
-        }
-
-        override fun onBindViewHolder(holder: Holder, position: Int) {
-            holder.progressBar?.visibility = View.GONE
-            holder.errorText?.visibility = View.GONE
-            holder.img.setImageBitmap(pages[position])
-
-            holder.img.setOnLongClickListener {
-                val name = "ReportPage_${position + 1}_${System.currentTimeMillis()}.jpg"
-                val uri = ImageUtils.saveToGallery(context, pages[position], name, 90)
-                if (uri != null) {
-                    Toast.makeText(context, "تم حفظ الصورة في الاستديو", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(context, "تعذر حفظ الصورة", Toast.LENGTH_SHORT).show()
-                }
-                true
-            }
-        }
-
-        override fun getItemCount(): Int = pages.size
-    }
-
-    /**
-     * عارض لروابط صفحات جاهزة (site_pages) – صفحة = صورة كاملة.
      * يدعم الحفظ بالضغط المطوّل بتنزيل الصورة وحفظها في الاستديو.
      */
     private class SitePagesAdapter(
