@@ -37,7 +37,7 @@ import kotlin.math.min
  * - يُكوّن صفحة صورة **A4 عمودية** حسب القالب (شبكة صور + تعليق لكل خانة) بدون قصّ داخل الخانات (Fit-Inside).
  * - يحفظ الصفحة كـ WebP بجودة عالية، ويرفعها إلى Storage تحت المسار:
  *   daily_reports/{reportId}/pages/page_XXX.webp
- * - يخزن الحقول الجديدة: sitepages, sitepagesmeta. ويحافظ على حقل photos للتوافق عند عدم استخدام القوالب.
+ * - يخزن الحقول الجديدة: sitepages, sitepagesmeta.
  */
 class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -55,10 +55,6 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _weatherStatus = MutableLiveData<String?>()
     val weatherStatus: LiveData<String?> = _weatherStatus
-
-    // التدفق القديم للصور (قائمة URIs)
-    private val _photos = MutableLiveData<List<Uri>>(emptyList())
-    val photos: LiveData<List<Uri>> = _photos
 
     private val _loading = MutableLiveData(false)
     val loading: LiveData<Boolean> = _loading
@@ -191,39 +187,6 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ===== الصور (التدفق القديم – ضغط وتجهيز مفرد) =====
-    fun addImage(resolver: ContentResolver, uri: Uri, projectName: String?) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val bmp = ImageUtils.decodeBitmap(resolver, uri, maxDim = 2560) ?: return@launch
-                val prepared = ImageUtils.prepareHorizontalWithOverlay(
-                    getApplication(), bmp, 1280, 720, null, null
-                )
-                val compressedUri = ImageUtils.compressToCacheJpeg(getApplication(), prepared, 92)
-                withContext(Dispatchers.Main) {
-                    _photos.value = _photos.value!! + compressedUri
-                }
-            } catch (_: Exception) {
-                _message.postValue("فشل في معالجة إحدى الصور.")
-            }
-        }
-    }
-
-    fun addImages(resolver: ContentResolver, uris: List<Uri>, projectName: String?, maxPhotos: Int = 10) {
-        if (uris.isEmpty()) return
-        val current = _photos.value?.size ?: 0
-        if (current >= maxPhotos) {
-            _message.value = "تم بلوغ الحد الأقصى ($maxPhotos) من الصور."
-            return
-        }
-        val remain = maxPhotos - current
-        val take = uris.take(remain)
-        take.forEach { addImage(resolver, it, projectName) }
-        if (uris.size > take.size) _message.value = "تم بلوغ الحد الأقصى ($maxPhotos) من الصور."
-    }
-
-    fun clearPhotos() { _photos.value = emptyList() }
-
     // ===== حفظ التقرير =====
     fun saveReport(
         organizationId: String,
@@ -269,7 +232,6 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                 // 3) التكوين/الرفع
                 var pageUrls: List<String> = emptyList()
                 var pagesMeta: List<Map<String, Any>> = emptyList()
-                var photoUrlsLegacy: List<String> = emptyList()
 
                 if (filledEntries.isNotEmpty()) {
                     // صفحة مركّبة كاملة بحسب القالب — A4 عمودي بدون قص داخل الخانات
@@ -307,20 +269,9 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                             }
                         )
                     )
-                } else {
-                    // مسار قديم: رفع الصور كما هي إذا وُجدت
-                    val preparedUploadUris: List<Uri> = if (!_photos.value.isNullOrEmpty()) {
-                        _photos.value!!
-                    } else {
-                        val fromGridUris = currentGridUris()
-                        if (fromGridUris.isEmpty()) emptyList() else prepareForUpload(fromGridUris)
-                    }
-                    if (preparedUploadUris.isNotEmpty()) {
-                        photoUrlsLegacy = reportsRepo
-                            .uploadPhotosToFirebaseStorage(reportId, preparedUploadUris) { p ->
-                                _uploadProgress.postValue(p.coerceIn(0, 95))
-                            }
-                            .getOrElse { throw it }
+
+                    if (pageUrls.size < pagesMeta.size) {
+                        pagesMeta = pagesMeta.take(pageUrls.size)
                     }
                 }
 
@@ -381,9 +332,6 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     "resourcesUsed" to (equipmentList?.map { it.trim() }.orEmpty().filter { it.isNotBlank() }.ifEmpty { null }),
                     "challenges" to (challengesList?.map { it.trim() }.orEmpty().filter { it.isNotBlank() }.ifEmpty { null }),
                     "notes" to (notesList?.map { it.trim() }.orEmpty().filter { it.isNotBlank() }.ifEmpty { null }),
-
-                    // توافق قديم
-                    "photos" to (if (photoUrlsLegacy.isEmpty()) null else photoUrlsLegacy),
 
                     // الحقول الجديدة (إن وُجدت صفحات)
                     "sitepages" to (if (pageUrls.isEmpty()) null else pageUrls),
@@ -449,22 +397,6 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
      * يجهّز مجموعة URIs للرفع: decode → resize/overlay → compress إلى ملف مؤقت
      * ويُرجع Uri للملف الناتج لكل عنصر. (مسار قديم)
      */
-    private suspend fun prepareForUpload(source: List<Uri>): List<Uri> = withContext(Dispatchers.IO) {
-        val resolver = getApplication<Application>().contentResolver
-        val out = mutableListOf<Uri>()
-        source.forEach { uri ->
-            try {
-                val bmp = ImageUtils.decodeBitmap(resolver, uri, maxDim = 2560) ?: return@forEach
-                val prepared = ImageUtils.prepareHorizontalWithOverlay(
-                    getApplication(), bmp, 1280, 720, null, null
-                )
-                val compressed = ImageUtils.compressToCacheJpeg(getApplication(), prepared, 92)
-                out += compressed
-            } catch (_: Exception) { /* تخطي العنصر المعطوب */ }
-        }
-        out
-    }
-
     // ===== تجميع صفحة القالب (احتياطي داخلي لو لزم) =====
     // ملاحظة: نُبقي هذه النسخة للاستفادة بها إذا احتجنا تخصيصًا خاصًا داخل الـ VM.
     private fun renderGridPageBitmap(

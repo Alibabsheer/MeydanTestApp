@@ -23,12 +23,11 @@ import kotlin.math.min
 /**
  * ReportPdfBuilder – توليد PDF بقياس A4 (عمودي) بالرسم اليدوي عبر Canvas.
  *
- * ✅ حسب الخطة الاستثنائية:
+ * ✅ التدفق المعتمد:
  * 1) إن كانت `sitepages` موجودة: تُعرَض داخل **قسم صور التقرير اليومي** (المساحة المخصصة)
- *    باستخدام Fit-Inside **بدون قص**، صفحة PDF لكل صورة صفحة.
- * 2) إن لم توجد `sitepages`: نرجع لمسار الصور القديمة (شبكة 16:9).
- * 3) دعم RTL وخط عربي موحّد.
- */
+ *    باستخدام Fit-Inside بدون قص، صفحة PDF لكل صورة صفحة.
+ * 2) دعم RTL وخط عربي موحّد.
+*/
 class ReportPdfBuilder(
     private val context: Context,
     private val pageWidth: Int = 595,   // A4 @ 72dpi
@@ -59,11 +58,7 @@ class ReportPdfBuilder(
         val challenges: List<String>? = null,
         val notes: List<String>? = null,
 
-        // صور قديمة
-        val photoUrls: List<String>? = null,
-        val site_photos: List<String>? = null, // توافق قديم
-
-        // الصفحات المركّبة الجاهزة (عمودية) — الاسم الجديد بدون شرطات
+        // الصفحات المركّبة الجاهزة (عمودية)
         val sitepages: List<String>? = null
     )
 
@@ -406,92 +401,6 @@ class ReportPdfBuilder(
             endSectionDivider()
         }
 
-        // شبكة 16:9 – fallback فقط عند عدم وجود sitepages
-        fun drawLegacyPhotos(urls: List<String>) {
-            val all = urls.filter { isHttpUrl(it) }
-            if (all.isEmpty()) return
-
-            drawSectionHeader("صور التقرير اليومي")
-
-            var index = 0
-            while (index < all.size) {
-                val remaining = all.size - index
-                val rowsSpec = when (min(remaining, 9)) {
-                    1 -> intArrayOf(1)
-                    2 -> intArrayOf(1, 1)
-                    3 -> intArrayOf(1, 1, 1)
-                    4 -> intArrayOf(2, 2)
-                    5 -> intArrayOf(2, 2, 1)
-                    6 -> intArrayOf(2, 2, 2)
-                    7 -> intArrayOf(3, 2, 2)
-                    8 -> intArrayOf(3, 3, 2)
-                    else -> intArrayOf(3, 3, 3)
-                }
-                val weights = rowsSpec.map { (rowsSpec.maxOrNull() ?: 2).toFloat() / it }.toFloatArray()
-
-                val availableHeight = bottomLimit() - y
-                if (availableHeight < dp(120)) { finishPage(); startPageWithHeader(); drawSectionHeader("صور التقرير اليومي") }
-
-                val vGap = dp(8)
-                val hGap = dp(8)
-                val totalWeights = weights.sum()
-                val totalVSpacing = vGap * (rowsSpec.size - 1)
-                val unitH = (bottomLimit() - y - totalVSpacing) / totalWeights
-                val rowHeights = weights.map { (unitH * it).toInt() }
-                val startY = y
-
-                var rowTop = startY
-                for ((rowIdx, cols) in rowsSpec.withIndex()) {
-                    val rowHeight = rowHeights[rowIdx]
-                    val maxCols = cols
-                    val totalColsSpacing = hGap * (maxCols - 1)
-                    val cellWidthByCols = (contentWidth - totalColsSpacing) / maxCols
-                    val maxCellWidthByHeight = (rowHeight * 16) / 9
-                    val cellW = min(cellWidthByCols, maxCellWidthByHeight)
-                    val cellH = (cellW * 9) / 16
-                    val rowTotalWidth = maxCols * cellW + totalColsSpacing
-                    val startX = contentLeft + (contentWidth - rowTotalWidth) / 2
-
-                    for (c in 0 until cols) {
-                        if (index >= all.size) break
-                        val leftX = startX + c * (cellW + hGap)
-                        val url = all[index]
-                        val bmp = downloadBmp(url)
-
-                        val dst = Rect(leftX, rowTop, leftX + cellW, rowTop + cellH)
-                        if (bmp != null && bmp.width > 0 && bmp.height > 0) {
-                            // قص 16:9
-                            val bw = bmp.width
-                            val bh = bmp.height
-                            val targetAspect = 16f / 9f
-                            val bmpAspect = bw.toFloat() / bh
-                            val src = if (bmpAspect > targetAspect) {
-                                val newW = (bh * targetAspect).toInt()
-                                val left = (bw - newW) / 2
-                                Rect(left, 0, left + newW, bh)
-                            } else {
-                                val newH = (bw / targetAspect).toInt()
-                                val top = (bh - newH) / 2
-                                Rect(0, top, bw, top + newH)
-                            }
-                            canvas.drawBitmap(bmp, src, dst, null)
-                        } else {
-                            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                color = Color.parseColor("#CCCCCC")
-                                style = Paint.Style.STROKE
-                                strokeWidth = 2f
-                            }
-                            canvas.drawRect(dst, p)
-                        }
-                        index++
-                    }
-                    rowTop += rowHeight + vGap
-                }
-
-                if (index < all.size) { finishPage(); startPageWithHeader(); drawSectionHeader("صور التقرير اليومي") } else { y = rowTop }
-            }
-        }
-
         // عرض الصفحات المركّبة (Fit-Inside داخل مساحة الصور)
         fun drawSitePagesSection(urls: List<String>) {
             urls.forEach { url ->
@@ -546,17 +455,8 @@ class ReportPdfBuilder(
         // 2) قسم الصور
         val sitePages = data.sitepages?.filter { isHttpUrl(it) }.orEmpty()
         if (sitePages.isNotEmpty()) {
-            // ✅ استخدام الصفحات المركّبة داخل مساحة الصور (بدون قص)
+            // استخدام الصفحات المركّبة داخل مساحة الصور (بدون قص)
             drawSitePagesSection(sitePages)
-        } else {
-            // 🔁 رجوع للسلوك القديم
-            val legacyCombined = ((data.photoUrls ?: emptyList()) + (data.site_photos ?: emptyList()))
-                .filter { isHttpUrl(it) }
-            if (legacyCombined.isNotEmpty()) {
-                startPageWithHeader()
-                drawLegacyPhotos(legacyCombined)
-                finishPage()
-            }
         }
 
         // إخراج الملف

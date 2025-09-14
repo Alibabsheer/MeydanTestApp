@@ -22,15 +22,11 @@ import kotlin.math.roundToInt
  * التخزين/الجلب عبر:
  * organizations/{organizationId}/projects/{projectId}/dailyReports/{reportId}
  *
- * مسار الصور (قديم للتوافق):
- * daily_reports/{reportId}/photos/photo_XXX.jpg
- *
- * مسار صفحات الشبكات (جديد):
+ * مسار صفحات التقارير:
  * daily_reports/{reportId}/pages/page_XXX.webp
  *
  * حقول Firestore المحتملة:
- * - photos: [String] روابط الصور المفردة (توافق)
- * - sitepages: [String] روابط صور الصفحات المركّبة (اختياري)
+ * - sitepages: [String] روابط صور الصفحات المركّبة
  * - sitepagesmeta: [ { templateId, pageIndex, slots: [ {originalUrl, caption, slotIndex} ] } ]
  */
 class DailyReportRepository {
@@ -179,7 +175,7 @@ class DailyReportRepository {
 
     /**
      * إنشاء/تحديث تقرير بمعرّف محدد مع توليد رقم تسلسلي reportNumber و reportIndex.
-     * يقبل ضمن baseReportData أي حقول إضافية (sitepages, sitepagesmeta, photos...).
+     * يقبل ضمن baseReportData أي حقول إضافية (sitepages, sitepagesmeta).
      */
     suspend fun createDailyReportAutoNumbered(
         organizationId: String,
@@ -227,76 +223,6 @@ class DailyReportRepository {
     }
 
     // ============================
-    // رفع الصور القديمة (توافق)
-    // ============================
-
-    /** رفع صور التقرير إلى daily_reports/{reportId}/photos (بدون إبلاغ تقدّم) — بأسلوب متسامح مع الأعطال. */
-    suspend fun uploadPhotosToFirebaseStorage(
-        reportId: String,
-        uris: List<Uri>
-    ): Result<List<String>> = runCatching {
-        if (uris.isEmpty()) return@runCatching emptyList<String>()
-        val baseRef = storage.reference.child("daily_reports/$reportId/photos")
-        val urls = mutableListOf<String>()
-        val metadata = StorageMetadata.Builder().setContentType("image/jpeg").build()
-
-        uris.forEachIndexed { index, uri ->
-            try {
-                val name = String.format(Locale.US, "photo_%03d.jpg", index + 1)
-                val ref = baseRef.child(name)
-                ref.putFile(uri, metadata).await()
-                urls += ref.downloadUrl.await().toString()
-            } catch (_: Exception) {
-                // تخطّي الصورة المعطوبة ومتابعة الرفع للبقية
-            }
-        }
-        urls
-    }
-
-    /** رفع صور التقرير مع إبلاغ تقدّم إجمالي 0..100 — بأسلوب متسامح مع الأعطال لكل صورة. */
-    suspend fun uploadPhotosToFirebaseStorage(
-        reportId: String,
-        uris: List<Uri>,
-        onProgress: ((Int) -> Unit)?
-    ): Result<List<String>> = runCatching {
-        if (uris.isEmpty()) return@runCatching emptyList<String>()
-
-        val baseRef = storage.reference.child("daily_reports/$reportId/photos")
-        val total = uris.size
-        val urls = mutableListOf<String>()
-        val metadata = StorageMetadata.Builder().setContentType("image/jpeg").build()
-        onProgress?.invoke(0)
-
-        uris.forEachIndexed { index, uri ->
-            try {
-                val name = String.format(Locale.US, "photo_%03d.jpg", index + 1)
-                val ref = baseRef.child(name)
-                val task = ref.putFile(uri, metadata)
-
-                task.addOnProgressListener { snap ->
-                    val perFile = if (snap.totalByteCount > 0) {
-                        snap.bytesTransferred.toDouble() / snap.totalByteCount
-                    } else 0.0
-                    val overall = (((index) + perFile) / total * 100.0).toInt().coerceIn(0, 99)
-                    onProgress?.invoke(overall)
-                }
-
-                task.await()
-                val url = ref.downloadUrl.await().toString()
-                urls += url
-                val overallAfter = (((index + 1).toDouble() / total) * 100.0).toInt().coerceIn(0, 100)
-                onProgress?.invoke(overallAfter)
-            } catch (_: Exception) {
-                // تخطّي هذه الصورة ومتابعة الباقي
-                val overallAfter = (((index + 1).toDouble() / total) * 100.0).toInt().coerceIn(0, 100)
-                onProgress?.invoke(overallAfter)
-            }
-        }
-
-        onProgress?.invoke(100)
-        urls
-    }
-
     // ============================
     // رفع صفحات الشبكات (جديدة)
     // ============================

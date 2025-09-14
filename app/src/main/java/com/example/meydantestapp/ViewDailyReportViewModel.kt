@@ -20,12 +20,11 @@ import kotlinx.coroutines.tasks.await
  *
  * الميزات:
  * 1) loadOrganizationLogo(organizationId): يجلب شعار المؤسسة من التخزين مع كاش الذاكرة ومنع السباق.
- * 2) loadReport(organizationId, projectId, reportId): يجلب بيانات التقرير ويحضّر مصادر العرض:
- *    - يفضّل الحقل الجديد sitepages (قائمة روابط صفحات جاهزة) مع sitepagesmeta.
- *    - إن لم توجد، يرجع إلى الحقل القديم photos (توافقًا).
+ * 2) loadReport(organizationId, projectId, reportId): يجلب بيانات التقرير ويحضّر مصادر العرض
+ *    اعتمادًا على الحقلين sitepages و sitepagesmeta.
  * 3) displayPages: قائمة روابط الصور التي يجب عرضها (صفحة كاملة لكل عنصر).
- * 4) usingSitePages: مؤشر هل المصدر هو الصفحات المركّبة أم صور قديمة.
- */
+ * 4) usingSitePages: مؤشر هل المصدر يحوي صفحات مركّبة أم لا.
+*/
 class ViewDailyReportViewModel : ViewModel() {
 
     // =============== تخزين الشعار =============== //
@@ -113,9 +112,6 @@ class ViewDailyReportViewModel : ViewModel() {
     private val _sitePages = MutableLiveData<List<String>>(emptyList())
     val sitePages: LiveData<List<String>> = _sitePages
 
-    private val _photosLegacy = MutableLiveData<List<String>>(emptyList())
-    val photosLegacy: LiveData<List<String>> = _photosLegacy
-
     private val _pagesMeta = MutableLiveData<List<Map<String, Any>>>(emptyList())
     val pagesMeta: LiveData<List<Map<String, Any>>> = _pagesMeta
 
@@ -134,9 +130,7 @@ class ViewDailyReportViewModel : ViewModel() {
     private var currentReportJob: Job? = null
 
     /**
-     * يجلب تقريرًا مفردًا ويجهّز مصادر العرض.
-     * - يفضّل sitepages + sitepagesmeta
-     * - إن لم توجد، يرجع إلى photos (توافقًا)
+     * يجلب تقريرًا مفردًا ويجهّز مصادر العرض اعتمادًا على الحقول الجديدة للصفحات.
      */
     fun loadReport(organizationId: String, projectId: String, reportId: String) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -149,29 +143,18 @@ class ViewDailyReportViewModel : ViewModel() {
                     val data = result.getOrElse { throw it }
                     _report.postValue(data)
 
-                    // قراءة الحقول الجديدة أولاً
-                    val pages = coerceStringList(data["sitepages"]) // ترتيبًا
-                    val meta = coerceMetaList(data["sitepagesmeta"]) // وصف لكل صفحة وخاناتها
-
-                    // الحقل القديم photos (توافقًا)
-                    val photos = coerceStringList(data["photos"]) // روابط صور منفردة قديمة
+                    // قراءة الحقول الجديدة فقط
+                    val pages = coerceStringList(data["sitepages"])
+                    val meta = coerceMetaList(data["sitepagesmeta"]).take(pages.size)
 
                     _sitePages.postValue(pages)
                     _pagesMeta.postValue(meta)
-                    _photosLegacy.postValue(photos)
-
-                    if (pages.isNotEmpty()) {
-                        _displayPages.postValue(pages)
-                        _usingSitePages.postValue(true)
-                    } else {
-                        _displayPages.postValue(photos)
-                        _usingSitePages.postValue(false)
-                    }
+                    _displayPages.postValue(pages)
+                    _usingSitePages.postValue(pages.isNotEmpty())
                 } catch (e: Exception) {
                     _message.postValue(e.message ?: "تعذر تحميل التقرير")
                     _report.postValue(null)
                     _sitePages.postValue(emptyList())
-                    _photosLegacy.postValue(emptyList())
                     _pagesMeta.postValue(emptyList())
                     _displayPages.postValue(emptyList())
                     _usingSitePages.postValue(false)

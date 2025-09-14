@@ -166,7 +166,6 @@ class DailyReportsActivity : AppCompatActivity() {
                 resourcesUsed = (this["resourcesUsed"] as? List<*>)?.mapNotNull { it?.toString() },
                 challenges = (this["challenges"] as? List<*>)?.mapNotNull { it?.toString() },
                 notes = (this["notes"] as? List<*>)?.mapNotNull { it?.toString() },
-                photos = (this["photos"] as? List<*>)?.mapNotNull { it?.toString() },
                 sitepages = (this["sitepages"] as? List<*>)?.mapNotNull { it?.toString() },
                 // الحقول الجديدة المطلوبة لعرض "معلومات التقرير"
                 createdBy = (this["createdBy"] as? String),

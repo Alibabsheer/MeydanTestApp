@@ -11,7 +11,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
-import android.widget.ImageView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -201,11 +200,6 @@ class CreateDailyReportActivity : AppCompatActivity() {
                     showResultBanner(success = false, text = it)
                 }
             }
-        }
-
-        // التدفق القديم لعرض المصغرات سيُهمَل عندما نكون في وضع الشبكة
-        vm.photos.observe(this) { uris ->
-            if (selectedTemplate == null) renderPhotos(uris)
         }
 
         // صف افتراضي لكل قسم
@@ -527,8 +521,7 @@ class CreateDailyReportActivity : AppCompatActivity() {
         // بدء طبقة التحميل من البداية
         showUploadOverlay(status = "جاري رفع التقرير...", percent = 0, indeterminate = true)
 
-        // ✅ وفق الخطة الاستثنائية: لا نضيف الصور إلى التدفق القديم (_photos).
-        // الاعتماد سيكون على خانات القالب داخل الـ ViewModel لتركيب صفحات A4 عمودية.
+        // الاعتماد على خانات القالب داخل الـ ViewModel لتركيب صفحات A4 عمودية.
 
         val activities = extractTextsFrom(binding.activityDescriptionInput).filter { it.isNotBlank() }
         val equipment = extractTextsFrom(binding.equipmentInputContainer).filter { it.isNotBlank() }
@@ -615,18 +608,6 @@ class CreateDailyReportActivity : AppCompatActivity() {
         val row = LayoutInflater.from(this).inflate(R.layout.item_note, binding.noteInputContainer, false)
         row.findViewById<ImageButton?>(R.id.addNoteButton)?.setOnClickListener { addNoteRow() }
         binding.noteInputContainer.addView(row)
-    }
-
-    // ===== العرض القديم للصور المصغّرة (للتوافق فقط عندما لا يكون القالب محددًا) =====
-    private fun renderPhotos(uris: List<Uri>) {
-        binding.photoPreviewContainer.removeAllViews()
-        val inflater = LayoutInflater.from(this)
-        uris.forEach { uri ->
-            val item = inflater.inflate(R.layout.item_photo_preview, binding.photoPreviewContainer, false)
-            val thumb: ImageView? = item.findViewById(R.id.photoThumb)
-            thumb?.setImageURI(uri)
-            binding.photoPreviewContainer.addView(item)
-        }
     }
 
     // ===== واجهة طبقة التحميل/الراية =====

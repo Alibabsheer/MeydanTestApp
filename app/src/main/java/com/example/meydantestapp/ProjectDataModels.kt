@@ -50,7 +50,6 @@ data class Project(
 ) : Parcelable
 
 // تقرير يومي
-// مع الإبقاء على photos (متقادم) للتوافق مع تقارير قديمة.
 @Parcelize
 data class DailyReport(
     var id: String? = null,
@@ -67,10 +66,7 @@ data class DailyReport(
     val challenges: List<String>? = null,
     val notes: List<String>? = null,
 
-    @Deprecated("Use sitepages")
-    val photos: List<String>? = null,
-
-    // --- الحقول الجديدة الخاصة بالصفحات المركّبة ---
+    // --- الحقول الخاصة بالصفحات المركّبة ---
     val sitepages: List<String>? = null,
     val sitepagesmeta: List<@RawValue Map<String, Any?>>? = null,
 

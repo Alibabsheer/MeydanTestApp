@@ -273,8 +273,6 @@ class ViewDailyReportActivity : AppCompatActivity() {
                     resourcesUsed = report.resourcesUsed,
                     challenges = report.challenges,
                     notes = report.notes,
-                    // ✅ تم تمرير القيم الجديدة/القديمة معًا
-                    photoUrls = report.photos,
                     sitepages = report.sitepages
                 )
 
