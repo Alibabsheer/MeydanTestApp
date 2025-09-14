@@ -24,7 +24,7 @@ import kotlin.math.min
  * ReportPdfBuilder – توليد PDF بقياس A4 (عمودي) بالرسم اليدوي عبر Canvas.
  *
  * ✅ حسب الخطة الاستثنائية:
- * 1) إن كانت `sitepages` موجودة: تُعرَض داخل **قسم صور التقرير اليومي** (المساحة المخصصة)
+ * 1) إن كانت `sitepages` موجودة: تُعرَض داخل **قسم صور التقرير** (المساحة المخصصة)
  *    باستخدام Fit-Inside **بدون قص**، صفحة PDF لكل صورة صفحة.
  * 2) إن لم توجد `sitepages`: نرجع لمسار الصور القديمة (شبكة 16:9).
  * 3) دعم RTL وخط عربي موحّد.
@@ -411,7 +411,7 @@ class ReportPdfBuilder(
             val all = urls.filter { isHttpUrl(it) }
             if (all.isEmpty()) return
 
-            drawSectionHeader("صور التقرير اليومي")
+            drawSectionHeader("صور التقرير")
 
             var index = 0
             while (index < all.size) {
@@ -430,7 +430,7 @@ class ReportPdfBuilder(
                 val weights = rowsSpec.map { (rowsSpec.maxOrNull() ?: 2).toFloat() / it }.toFloatArray()
 
                 val availableHeight = bottomLimit() - y
-                if (availableHeight < dp(120)) { finishPage(); startPageWithHeader(); drawSectionHeader("صور التقرير اليومي") }
+                if (availableHeight < dp(120)) { finishPage(); startPageWithHeader(); drawSectionHeader("صور التقرير") }
 
                 val vGap = dp(8)
                 val hGap = dp(8)
@@ -488,7 +488,7 @@ class ReportPdfBuilder(
                     rowTop += rowHeight + vGap
                 }
 
-                if (index < all.size) { finishPage(); startPageWithHeader(); drawSectionHeader("صور التقرير اليومي") } else { y = rowTop }
+                if (index < all.size) { finishPage(); startPageWithHeader(); drawSectionHeader("صور التقرير") } else { y = rowTop }
             }
         }
 
@@ -496,7 +496,7 @@ class ReportPdfBuilder(
         fun drawSitePagesSection(urls: List<String>) {
             urls.forEach { url ->
                 startPageWithHeader()
-                drawSectionHeader("صور التقرير اليومي")
+                drawSectionHeader("صور التقرير")
 
                 // مساحة الصور من الموضع الحالي حتى ما قبل التذييل
                 val area = Rect(contentLeft, y, contentRight, bottomLimit())

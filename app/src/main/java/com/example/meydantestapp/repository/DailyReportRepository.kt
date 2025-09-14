@@ -403,6 +403,40 @@ class DailyReportRepository {
         data
     }
 
+    /**
+     * جلب الميتا الخاصة بالتقرير فقط (التوافق مع getDailyReportById).
+     */
+    suspend fun getReportMeta(
+        organizationId: String,
+        projectId: String,
+        reportId: String
+    ): Result<Map<String, Any>> = getDailyReportById(organizationId, projectId, reportId)
+
+    /**
+     * جلب قائمة صفحات التقرير (A4 WebP) مرتبة حسب الاسم.
+     * إذا لم يتم العثور على مجلد الصفحات الجديدة يتم الرجوع إلى الصور القديمة.
+     */
+    suspend fun getReportPages(
+        organizationId: String,
+        projectId: String,
+        reportId: String
+    ): Result<List<String>> = runCatching {
+        // المجلد الجديد للصفحات المركبة
+        val pagesRef = storage.reference.child("daily_reports/$reportId/pages")
+        val listed = runCatching { pagesRef.listAll().await() }.getOrNull()
+        val pageItems = listed?.items ?: emptyList()
+        val pageUrls = pageItems.sortedBy { it.name }.map { it.downloadUrl.await().toString() }
+        if (pageUrls.isNotEmpty()) {
+            pageUrls
+        } else {
+            // fallback للصور القديمة
+            val meta = getReportMeta(organizationId, projectId, reportId).getOrElse { emptyMap() }
+            val legacy1 = (meta["photos"] as? List<*>)?.mapNotNull { it?.toString() }.orEmpty()
+            val legacy2 = (meta["site_photos"] as? List<*>)?.mapNotNull { it?.toString() }.orEmpty()
+            legacy1 + legacy2
+        }
+    }
+
     /** تحديث تقرير (هرمي) */
     suspend fun updateDailyReport(
         organizationId: String,
