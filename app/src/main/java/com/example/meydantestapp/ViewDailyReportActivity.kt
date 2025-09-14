@@ -34,6 +34,7 @@ import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
 import com.example.meydantestapp.report.ReportPdfBuilder
+import com.example.meydantestapp.report.ReportTitleUtil
 import com.example.meydantestapp.repository.DailyReportRepository
 import com.example.meydantestapp.utils.Constants
 import com.example.meydantestapp.utils.ImageUtils
@@ -142,6 +143,15 @@ class ViewDailyReportActivity : AppCompatActivity() {
             finish()
             return
         }
+
+        val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val dateText = report.date?.let { df.format(java.util.Date(it)) }
+        val metaForTitle = mapOf(
+            "projectName" to report.projectName,
+            "reportNumber" to report.reportNumber,
+            "dateText" to dateText
+        )
+        title = ReportTitleUtil.getReportTitle(metaForTitle)
 
         lifecycleScope.launch {
             val fromReport = DailyReportRepository.normalizePageUrls(report.sitepages)
@@ -258,6 +268,14 @@ class ViewDailyReportActivity : AppCompatActivity() {
                 val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
                 val dateText = report.date?.let { df.format(java.util.Date(it)) }
 
+                val meta = mapOf(
+                    "projectName" to report.projectName,
+                    "reportNumber" to report.reportNumber,
+                    "dateText" to dateText
+                )
+                val title = ReportTitleUtil.getReportTitle(meta)
+                this@ViewDailyReportActivity.title = title
+
                 val builderInput = ReportPdfBuilder.DailyReport(
                     organizationName = report.organizationName,
                     projectName = report.projectName,
@@ -278,7 +296,8 @@ class ViewDailyReportActivity : AppCompatActivity() {
                     sitepages = report.sitepages
                 )
 
-                val out = File(cacheDir, "reports/report_${report.id ?: System.currentTimeMillis()}.pdf")
+                val fileName = ReportTitleUtil.fileNameFromMeta(meta)
+                val out = File(cacheDir, "reports/${fileName}.pdf")
                 out.parentFile?.mkdirs()
 
                 val pdf = withContext(Dispatchers.IO) {
