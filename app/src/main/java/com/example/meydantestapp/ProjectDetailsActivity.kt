@@ -6,12 +6,11 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import com.example.meydantestapp.databinding.ActivityProjectDetailsBinding
 import com.example.meydantestapp.utils.Constants
 import com.google.android.material.bottomsheet.BottomSheetDialog
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
 
 class ProjectDetailsActivity : AppCompatActivity() {
 
@@ -19,8 +18,7 @@ class ProjectDetailsActivity : AppCompatActivity() {
     private var organizationId: String? = null
     private var projectId: String? = null
     private var projectName: String? = null
-    private var selectedProject: Project? = null
-    private val db = FirebaseFirestore.getInstance()
+    private val vm: ProjectDetailsViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,17 +38,19 @@ class ProjectDetailsActivity : AppCompatActivity() {
 
         binding.backButton.setOnClickListener { finish() }
 
-        // 2) إن لم تصل organizationId من الشاشة السابقة، نحاول تحديدها تلقائيًا
-        if (organizationId.isNullOrBlank()) {
-            resolveOrganizationIdForCurrentUser(
-                onResolved = { orgId ->
-                    organizationId = orgId
-                    maybeLoadProject()
-                },
-                onFail = { msg -> Toast.makeText(this, msg, Toast.LENGTH_LONG).show() }
-            )
-        } else {
-            maybeLoadProject()
+        vm.initialize(projectId, organizationId)
+        vm.organizationId.observe(this) { organizationId = it }
+        vm.projectDetails.observe(this) { details ->
+            if (projectName.isNullOrBlank()) {
+                val pn = (details?.get("projectName") ?: details?.get("name")) as? String
+                if (!pn.isNullOrBlank()) {
+                    projectName = pn
+                    binding.projectNameText.text = pn
+                }
+            }
+        }
+        vm.errorMessage.observe(this) { msg ->
+            if (!msg.isNullOrBlank()) Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
         }
 
         // فتح قائمة إنشاء تقرير
@@ -118,58 +118,5 @@ class ProjectDetailsActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    private fun maybeLoadProject() {
-        val pid = projectId
-        val oid = organizationId
-        if (pid.isNullOrBlank() || oid.isNullOrBlank()) {
-            // نعرض الاسم فقط إن وُجد، لكن لا نجلب التفاصيل بدون معرفين
-            return
-        }
-        val projectRef = db.collection(Constants.COLLECTION_ORGANIZATIONS)
-            .document(oid)
-            .collection(Constants.COLLECTION_PROJECTS)
-            .document(pid)
-
-        projectRef.get()
-            .addOnSuccessListener { doc ->
-                selectedProject = doc.toObject(Project::class.java)?.also { it.id = doc.id }
-            }
-            .addOnFailureListener {
-                Toast.makeText(this, "فشل في جلب تفاصيل المشروع", Toast.LENGTH_SHORT).show()
-            }
-    }
-
-    private fun resolveOrganizationIdForCurrentUser(onResolved: (String) -> Unit, onFail: (String) -> Unit) {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: run {
-            onFail("لم يتم تسجيل الدخول")
-            return
-        }
-        // 1) المؤسسة = uid
-        db.collection(Constants.COLLECTION_ORGANIZATIONS).document(uid).get()
-            .addOnSuccessListener { doc ->
-                if (doc.exists()) {
-                    onResolved(uid)
-                } else {
-                    // 2) مستخدم تابع داخل organizations/*/users
-                    db.collectionGroup(Constants.COLLECTION_USERS)
-                        .whereEqualTo("uid", uid)
-                        .limit(1)
-                        .get()
-                        .addOnSuccessListener { q ->
-                            val orgId = q.documents.firstOrNull()?.reference?.parent?.parent?.id
-                            if (orgId != null) onResolved(orgId) else {
-                                // 3) احتياطي: userslogin/{uid}
-                                db.collection(Constants.COLLECTION_USERSLOGIN).document(uid).get()
-                                    .addOnSuccessListener { mirror ->
-                                        val mirrorOrgId = mirror.getString("organizationId")
-                                        if (!mirrorOrgId.isNullOrBlank()) onResolved(mirrorOrgId) else onFail("تعذر تحديد مؤسسة المستخدم.")
-                                    }
-                                    .addOnFailureListener { onFail("فشل في تحديد مؤسسة المستخدم.") }
-                            }
-                        }
-                        .addOnFailureListener { onFail("فشل في تحديد مؤسسة المستخدم.") }
-                }
-            }
-            .addOnFailureListener { onFail("فشل في تحديد مؤسسة المستخدم.") }
-    }
+    // لم يعد النشاط يحتوي على منطق جلب المشروع أو تحديد المؤسسة؛ يتم ذلك عبر الـ ViewModel
 }

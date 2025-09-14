@@ -7,6 +7,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.meydantestapp.repository.DailyReportRepository
+import com.example.meydantestapp.repository.OrganizationRepository
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -106,6 +107,7 @@ class ViewDailyReportViewModel : ViewModel() {
 
     // ================== عرض التقرير ================== //
     private val reportsRepo by lazy { DailyReportRepository() }
+    private val organizationRepo by lazy { OrganizationRepository() }
 
     private val _report = MutableLiveData<Map<String, Any>?>(null)
     val report: LiveData<Map<String, Any>?> = _report
@@ -132,6 +134,9 @@ class ViewDailyReportViewModel : ViewModel() {
     val message: LiveData<String?> = _message
 
     private var currentReportJob: Job? = null
+
+    private val _normalizedSitePages = MutableLiveData<List<String>>(emptyList())
+    val normalizedSitePages: LiveData<List<String>> = _normalizedSitePages
 
     /**
      * يجلب تقريرًا مفردًا ويجهّز مصادر العرض.
@@ -179,6 +184,30 @@ class ViewDailyReportViewModel : ViewModel() {
                     _loadingReport.postValue(false)
                 }
             }
+        }
+    }
+
+    fun resolveOrganizationAndLoadLogo(report: DailyReport, explicitOrgId: String?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val orgId = explicitOrgId?.trim()?.takeIf { it.isNotEmpty() } ?: run {
+                val name = report.organizationName?.trim()
+                if (name.isNullOrEmpty()) null else organizationRepo.findOrganizationIdByName(name)
+            }
+            loadOrganizationLogo(orgId)
+        }
+    }
+
+    fun normalizeSitePages(urls: List<String>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val normalized = DailyReportRepository.normalizePageUrls(urls)
+            _normalizedSitePages.postValue(normalized)
+        }
+    }
+
+    fun normalizePage(url: String, onResult: (String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val normalized = DailyReportRepository.normalizePageUrls(listOf(url)).firstOrNull() ?: url
+            onResult(normalized)
         }
     }
 

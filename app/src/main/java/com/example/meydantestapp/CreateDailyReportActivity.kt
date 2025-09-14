@@ -31,8 +31,7 @@ import com.example.meydantestapp.models.TemplateId
 import com.example.meydantestapp.ui.photolayout.TemplatePickerBottomSheet
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
+import com.example.meydantestapp.utils.Constants
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -43,14 +42,6 @@ class CreateDailyReportActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityCreateDailyReportBinding
     private val vm: CreateDailyReportViewModel by viewModels()
-
-    private val auth by lazy { FirebaseAuth.getInstance() }
-    private val db by lazy { FirebaseFirestore.getInstance() }
-
-    private var organizationId: String? = null
-    private var projectId: String? = null
-    private var projectName: String? = null
-    private var selectedProject: Project? = null
 
     // ملف مؤقت للكاميرا
     private var cameraTempFile: File? = null
@@ -118,15 +109,18 @@ class CreateDailyReportActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         // قيَم من الشاشة السابقة
-        projectId = intent.getStringExtra("projectId")
-        projectName = intent.getStringExtra("projectName")
-        organizationId = intent.getStringExtra("organizationId")
+        val projectId = intent.getStringExtra("projectId")
+            ?: intent.getStringExtra(Constants.EXTRA_PROJECT_ID)
+        val organizationId = intent.getStringExtra("organizationId")
+            ?: intent.getStringExtra(Constants.EXTRA_ORGANIZATION_ID)
 
-        // تمهيد أسماء العرض الملتقطة وقت الإنشاء
-        vm.setCreatedByName(auth.currentUser?.displayName)
+        vm.initialize(projectId, organizationId)
 
         // تعطيل التاريخ حتى تحميل المشروع
         binding.reportDateInput.isEnabled = false
+        vm.projectInfo.observe(this) { info ->
+            if (info != null) binding.reportDateInput.isEnabled = true
+        }
 
         // إجمالي العمالة للعرض فقط
         binding.totalLaborInput.isEnabled = false
@@ -211,8 +205,7 @@ class CreateDailyReportActivity : AppCompatActivity() {
         // صف افتراضي لكل قسم
         initDynamicSections()
 
-        // تحميل المؤسسة ثم المشروع
-        resolveOrganizationAndLoadProject()
+        // تم التهيئة داخل الـ ViewModel
     }
 
     // ===== قسم شبكة القوالب =====
@@ -347,94 +340,6 @@ class CreateDailyReportActivity : AppCompatActivity() {
         }
     }
 
-    /** تحديد organizationId ثم تحميل المشروع + التقاط organizationName في الـ VM */
-    private fun resolveOrganizationAndLoadProject() {
-        val pid = projectId
-        if (pid.isNullOrBlank()) {
-            Toast.makeText(this, "معرّف المشروع غير متاح.", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        val passedOrg = organizationId
-        if (!passedOrg.isNullOrBlank()) {
-            organizationId = passedOrg
-            loadOrganizationName(passedOrg)
-            loadProject(passedOrg, pid)
-            return
-        }
-
-        val currentUser = auth.currentUser
-        if (currentUser == null) {
-            Toast.makeText(this, "لم يتم تسجيل الدخول.", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        db.collection("organizations").document(currentUser.uid)
-            .get()
-            .addOnSuccessListener { doc ->
-                if (doc.exists()) {
-                    organizationId = currentUser.uid
-                    loadOrganizationName(currentUser.uid)
-                    loadProject(currentUser.uid, pid)
-                } else {
-                    db.collectionGroup("users")
-                        .whereEqualTo("uid", currentUser.uid)
-                        .limit(1)
-                        .get()
-                        .addOnSuccessListener { q ->
-                            val orgId = q.documents.firstOrNull()?.reference?.parent?.parent?.id
-                            if (orgId.isNullOrBlank()) {
-                                Toast.makeText(this, "تعذر تحديد مؤسسة المستخدم.", Toast.LENGTH_LONG).show()
-                            } else {
-                                organizationId = orgId
-                                loadOrganizationName(orgId)
-                                loadProject(orgId, pid)
-                            }
-                        }
-                        .addOnFailureListener {
-                            Toast.makeText(this, "فشل في تحديد مؤسسة المستخدم.", Toast.LENGTH_LONG).show()
-                        }
-                }
-            }
-            .addOnFailureListener {
-                Toast.makeText(this, "فشل في جلب بيانات المؤسسة.", Toast.LENGTH_LONG).show()
-            }
-    }
-
-    /** جلب organizationName وتمريره لـ ViewModel للالتقاط وقت الإنشاء */
-    private fun loadOrganizationName(orgId: String) {
-        db.collection("organizations").document(orgId)
-            .get()
-            .addOnSuccessListener { doc ->
-                val orgName = (doc.get("name") as? String)
-                    ?: (doc.get("organizationName") as? String)
-                vm.setOrganizationName(orgName)
-            }
-            .addOnFailureListener { /* تجاهل */ }
-    }
-
-    /** تحميل وثيقة المشروع وتمريرها للـ ViewModel (تشمل projectName/lat/lng ...) */
-    private fun loadProject(orgId: String, pid: String) {
-        db.collection("organizations").document(orgId)
-            .collection("projects").document(pid)
-            .get()
-            .addOnSuccessListener { doc ->
-                selectedProject = doc.toObject(Project::class.java)?.also { it.id = doc.id }
-
-                val projectMap = doc.data ?: emptyMap<String, Any>()
-                vm.setProjectInfo(projectMap)
-
-                if (projectName.isNullOrBlank()) {
-                    projectName = (projectMap["projectName"] as? String)
-                        ?: (projectMap["name"] as? String)
-                }
-
-                binding.reportDateInput.isEnabled = true
-            }
-            .addOnFailureListener {
-                Toast.makeText(this, "فشل في جلب بيانات المشروع.", Toast.LENGTH_LONG).show()
-            }
-    }
 
     // ===== التاريخ + الطقس =====
     private fun showDatePicker() {
@@ -448,22 +353,17 @@ class CreateDailyReportActivity : AppCompatActivity() {
                 binding.reportDateInput.setText(dateStr)
                 vm.setDate(dateStr)
 
-                var lat = selectedProject?.latitude
-                var lng = selectedProject?.longitude
-
-                if ((lat == null || lat == 0.0) || (lng == null || lng == 0.0)) {
-                    val map = vm.projectInfo.value
-                    lat = when (val v = map?.get("latitude")) {
-                        is Number -> v.toDouble()
-                        is String -> v.toDoubleOrNull()
-                        else -> null
-                    } ?: 0.0
-                    lng = when (val v = map?.get("longitude")) {
-                        is Number -> v.toDouble()
-                        is String -> v.toDoubleOrNull()
-                        else -> null
-                    } ?: 0.0
-                }
+                val map = vm.projectInfo.value
+                val lat = when (val v = map?.get("latitude")) {
+                    is Number -> v.toDouble()
+                    is String -> v.toDoubleOrNull()
+                    else -> null
+                } ?: 0.0
+                val lng = when (val v = map?.get("longitude")) {
+                    is Number -> v.toDouble()
+                    is String -> v.toDoubleOrNull()
+                    else -> null
+                } ?: 0.0
 
                 if (lat == 0.0 || lng == 0.0) {
                     Toast.makeText(this, "بيانات الموقع غير متوفرة لهذا المشروع.", Toast.LENGTH_SHORT).show()
@@ -515,15 +415,6 @@ class CreateDailyReportActivity : AppCompatActivity() {
     private fun onSaveClicked() {
         if (!validateInputs()) return
 
-        val orgId = organizationId ?: run {
-            Toast.makeText(this, "معلومات المؤسسة غير متاحة.", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        // تأكيد تمرير أسماء العرض للـ VM قبل الحفظ
-        if (vm.organizationName.value.isNullOrBlank()) { loadOrganizationName(orgId) }
-        if (vm.createdByName.value.isNullOrBlank()) { vm.setCreatedByName(auth.currentUser?.displayName) }
-
         // بدء طبقة التحميل من البداية
         showUploadOverlay(status = "جاري رفع التقرير...", percent = 0, indeterminate = true)
 
@@ -536,8 +427,6 @@ class CreateDailyReportActivity : AppCompatActivity() {
         val notes = extractTextsFrom(binding.noteInputContainer).filter { it.isNotBlank() }
 
         vm.saveReport(
-            organizationId = orgId,
-            projectId = projectId ?: "",
             activities = activities,
             skilledLabor = binding.skilledLaborInput.text?.toString(),
             unskilledLabor = binding.unskilledLaborInput.text?.toString(),

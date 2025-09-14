@@ -34,10 +34,8 @@ import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
 import com.example.meydantestapp.report.ReportPdfBuilder
-import com.example.meydantestapp.repository.DailyReportRepository
 import com.example.meydantestapp.utils.Constants
 import com.example.meydantestapp.utils.ImageUtils
-import com.google.firebase.firestore.FirebaseFirestore
 import com.otaliastudios.zoom.ZoomLayout
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -60,7 +58,6 @@ class ViewDailyReportActivity : AppCompatActivity() {
 
     // ===== VM / Data =====
     private lateinit var viewModel: ViewDailyReportViewModel
-    private val db by lazy { FirebaseFirestore.getInstance() }
 
     // وضع العرض الحالي
     private enum class DisplayMode { SITE_PAGES, PDF_RENDER }
@@ -143,22 +140,22 @@ class ViewDailyReportActivity : AppCompatActivity() {
             return
         }
 
-        lifecycleScope.launch {
-            val fromReport = DailyReportRepository.normalizePageUrls(report.sitepages)
-            val extraRaw: ArrayList<String>? = intent.getStringArrayListExtra("site_pages")
-            val fromExtra = DailyReportRepository.normalizePageUrls(extraRaw)
-            val chosenSitePages = when {
-                fromReport.isNotEmpty() -> fromReport
-                fromExtra.isNotEmpty() -> fromExtra
-                else -> emptyList()
-            }
-            if (chosenSitePages.isNotEmpty()) {
-                displaySitePages(chosenSitePages, report.id)
-                tryResolveOrganizationAndLoadLogo(report, explicitOrgId)
-            } else {
-                setupPdfRenderFlow(report, explicitOrgId)
-            }
+        val sitePagesRaw: List<String> = when {
+            !report.sitepages.isNullOrEmpty() -> report.sitepages
+            intent.getStringArrayListExtra("site_pages") != null -> intent.getStringArrayListExtra("site_pages")!!.toList()
+            else -> emptyList()
         }
+        if (sitePagesRaw.isNotEmpty()) {
+            viewModel.normalizedSitePages.observe(this) { pages ->
+                if (pages.isNotEmpty()) {
+                    displaySitePages(pages, report.id)
+                }
+            }
+            viewModel.normalizeSitePages(sitePagesRaw)
+        } else {
+            setupPdfRenderFlow(report, explicitOrgId)
+        }
+        viewModel.resolveOrganizationAndLoadLogo(report, explicitOrgId)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -176,31 +173,6 @@ class ViewDailyReportActivity : AppCompatActivity() {
     // ---------------------------------------------------------------------
     // 1) Resolve organization & load logo
     // ---------------------------------------------------------------------
-    private fun tryResolveOrganizationAndLoadLogo(report: DailyReport, explicitOrgId: String?) {
-        val trimmed = explicitOrgId?.trim()
-        if (!trimmed.isNullOrEmpty()) {
-            viewModel.loadOrganizationLogo(trimmed)
-            return
-        }
-        val orgName = report.organizationName?.trim()
-        if (!orgName.isNullOrEmpty()) {
-            db.collection("organizations")
-                .whereEqualTo("name", orgName)
-                .limit(1)
-                .get()
-                .addOnSuccessListener { snap ->
-                    if (!snap.isEmpty) {
-                        val orgId = snap.documents.first().id
-                        viewModel.loadOrganizationLogo(orgId)
-                    } else {
-                        renderPdfWithoutLogoIfNotYet(report)
-                    }
-                }
-                .addOnFailureListener { renderPdfWithoutLogoIfNotYet(report) }
-            return
-        }
-        renderPdfWithoutLogoIfNotYet(report)
-    }
 
     private fun setupPdfRenderFlow(report: DailyReport, explicitOrgId: String?) {
         showLoading(true)
@@ -209,14 +181,6 @@ class ViewDailyReportActivity : AppCompatActivity() {
                 alreadyRendered = true
                 generateAndDisplayPdf(report, logoBitmap)
             }
-        }
-        tryResolveOrganizationAndLoadLogo(report, explicitOrgId)
-    }
-
-    private fun renderPdfWithoutLogoIfNotYet(report: DailyReport) {
-        if (!alreadyRendered && currentMode != DisplayMode.SITE_PAGES) {
-            alreadyRendered = true
-            generateAndDisplayPdf(report, null)
         }
     }
 
@@ -232,9 +196,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
 
         var adapter: SitePagesAdapter? = null
         adapter = SitePagesAdapter(this, sitePageUrls, reportId) { pos ->
-            lifecycleScope.launch {
-                val retried = DailyReportRepository.normalizePageUrls(listOf(sitePageUrls[pos])).firstOrNull()
-                    ?: sitePageUrls[pos]
+            viewModel.normalizePage(sitePageUrls[pos]) { retried ->
                 sitePageUrls[pos] = retried
                 adapter?.updateAt(pos, retried)
             }
