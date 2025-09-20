@@ -1,12 +1,16 @@
 name: Android CI
 
 on:
+  push:
+    branches: [ "main" ]         # يشغّل الفحص عند أي دفع إلى main
   pull_request:
-    types: [opened, synchronize, reopened]
+    branches: [ "main" ]         # يشغّل الفحص على أي PR نحو main
+  workflow_dispatch:              # زر تشغيل يدوي من تبويب Actions
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,5 +27,21 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      # بناء + اختبارات مع لوجات مفصلة لمعرفة الأخطاء بدقة
       - name: Build (assemble + unit tests)
-        run: ./gradlew clean assembleDebug test
+        run: ./gradlew clean assembleDebug test --stacktrace --info --no-daemon
+
+      # Lint اختياري لكنه مفيد لاكتشاف مشاكل الكود الساكنة
+      - name: Android Lint (debug)
+        run: ./gradlew lintDebug --stacktrace --no-daemon
+
+      # ارفع كل التقارير حتى لو البناء فشل
+      - name: Upload build reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-reports
+          path: |
+            **/build/reports/**
+            **/build/test-results/**
+            **/outputs/**
