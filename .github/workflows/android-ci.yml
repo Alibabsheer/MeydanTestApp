@@ -2,10 +2,10 @@ name: Android CI
 
 on:
   push:
-    branches: [ "main" ]         # يشغّل الفحص عند أي دفع إلى main
+    branches: [ "main" ]               # يشغّل الفحص عند أي دفع إلى main
   pull_request:
-    branches: [ "main" ]         # يشغّل الفحص على أي PR نحو main
-  workflow_dispatch:              # زر تشغيل يدوي من تبويب Actions
+    branches: [ "main" ]               # يشغّل الفحص لأي PR نحو main
+  workflow_dispatch:                    # زر تشغيل يدوي من تبويب Actions
 
 jobs:
   build:
@@ -27,15 +27,17 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      # بناء + اختبارات مع لوجات مفصلة لمعرفة الأخطاء بدقة
-      - name: Build (assemble + unit tests)
-        run: ./gradlew clean assembleDebug test --stacktrace --info --no-daemon
+      # بناء مع لوجات مفصلة لمعرفة الملف/السطر عند الفشل في kapt
+      - name: Build (assemble + unit tests) with diagnostics
+        run: |
+          ./gradlew --stop
+          ./gradlew clean assembleDebug test --stacktrace --info --no-daemon
 
-      # Lint اختياري لكنه مفيد لاكتشاف مشاكل الكود الساكنة
+      # اختياري: lint لمعرفة مشاكل ساكنة (يمكنك حذفه لو ما تحتاجه)
       - name: Android Lint (debug)
         run: ./gradlew lintDebug --stacktrace --no-daemon
 
-      # ارفع كل التقارير حتى لو البناء فشل
+      # ارفع كل التقارير والـ logs حتى لو فشل البناء
       - name: Upload build reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -45,3 +47,22 @@ jobs:
             **/build/reports/**
             **/build/test-results/**
             **/outputs/**
+
+      - name: Upload Gradle logs (kapt, stubs, classes)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-logs
+          path: |
+            **/build/tmp/kapt*/stubs/**
+            **/build/tmp/kapt3/classes/**
+            **/build/tmp/kapt3/incApCache/**
+            **/build/tmp/kapt3/**/kaptGenerateStubs*/kapt.log
+
+      - name: Upload app build directory (summary)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-build
+          path: app/build/
+          if-no-files-found: warn
