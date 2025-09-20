@@ -319,7 +319,23 @@ class ViewDailyReportActivity : AppCompatActivity() {
     private fun sharePdfIfAny() {
         val file = pdfFile ?: return
         val uri: Uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-     * يدعم الحفظ بالضغط المطوّل بتنزيل الصورة وحفظها في الاستديو.
+            FileProvider.getUriForFile(this, "${'$'}packageName.fileprovider", file)
+        } else {
+            Uri.fromFile(file)
+        }
+
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/pdf"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        startActivity(Intent.createChooser(shareIntent, getString(R.string.app_name)))
+    }
+
+    /**
+     * Adapter responsible for rendering site pages previews.
+     * يدعم الحفظ بالضغط المطوّل لتنزيل الصورة وحفظها في الاستديو.
      */
     private class SitePagesAdapter(
         private val context: android.content.Context,
