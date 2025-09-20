@@ -21,6 +21,9 @@ object ReportTitleUtil {
     /** يحوّل العنوان إلى اسم ملف آمن عبر استبدال المسافات بعلامة underscore. */
     fun fileNameFromMeta(meta: Map<String, Any?>): String {
         val title = getReportTitle(meta)
-        return title.replace("\\s+".toRegex(), "_")
+
+        // استبدال أي حرف غير مسموح (غير A–Z, a–z, 0–9, _ , -) بـ "_"
+        return title.replace("[^A-Za-z0-9-_]".toRegex(), "_")
     }
+
 }
