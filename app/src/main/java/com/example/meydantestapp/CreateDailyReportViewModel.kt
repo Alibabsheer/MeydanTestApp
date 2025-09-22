@@ -9,12 +9,17 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.Observer
 import androidx.lifecycle.viewModelScope
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import com.example.meydantestapp.models.PhotoEntry
 import com.example.meydantestapp.models.PhotoTemplates
 import com.example.meydantestapp.models.TemplateId
+import com.example.meydantestapp.repository.UploadBatchResult
 import com.example.meydantestapp.repository.DailyReportRepository
 import com.example.meydantestapp.repository.WeatherRepository
+import com.example.meydantestapp.repository.work.DailyReportUploadRetryScheduler
 import com.example.meydantestapp.utils.ImageUtils
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.Timestamp
@@ -74,6 +79,65 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _lastReportId = MutableLiveData<String?>()
     val lastReportId: LiveData<String?> = _lastReportId
+
+    private val workManager = WorkManager.getInstance(app)
+
+    data class QueuedUploadsStatus(
+        val workName: String,
+        val total: Int,
+        val pending: Int,
+        val running: Int,
+        val succeeded: Int,
+        val failed: Int,
+        val cancelled: Int
+    ) {
+        val completed: Int get() = succeeded + failed + cancelled
+        val allFinished: Boolean get() = total > 0 && completed >= total
+    }
+
+    private val _queuedUploadsStatus = MediatorLiveData<QueuedUploadsStatus?>().apply { value = null }
+    val queuedUploadsStatus: LiveData<QueuedUploadsStatus?> = _queuedUploadsStatus
+
+    private val _queuedNotice = MutableLiveData<String?>()
+    val queuedNotice: LiveData<String?> = _queuedNotice
+
+    private var retryWorkName: String? = null
+    private var retryWorkLiveData: LiveData<List<WorkInfo>>? = null
+    private val retryObserver = Observer<List<WorkInfo>> { infos ->
+        if (infos.isNullOrEmpty()) {
+            detachRetryObserver()
+            return@Observer
+        }
+
+        val currentWorkName = retryWorkName ?: return@Observer
+        val total = infos.size
+        val running = infos.count { it.state == WorkInfo.State.RUNNING }
+        val succeeded = infos.count { it.state == WorkInfo.State.SUCCEEDED }
+        val failed = infos.count { it.state == WorkInfo.State.FAILED }
+        val cancelled = infos.count { it.state == WorkInfo.State.CANCELLED }
+        val pending = infos.count { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
+
+        val status = QueuedUploadsStatus(
+            workName = currentWorkName,
+            total = total,
+            pending = pending,
+            running = running,
+            succeeded = succeeded,
+            failed = failed,
+            cancelled = cancelled
+        )
+        _queuedUploadsStatus.postValue(status)
+
+        if (status.allFinished) {
+            val notice = when {
+                status.failed > 0 -> "تعذر رفع ${status.failed} ملف/ملفات بعد إعادة المحاولة."
+                status.cancelled > 0 -> "تم إلغاء إعادة محاولات رفع الصور."
+                else -> "اكتملت إعادة رفع الصور المؤجلة بنجاح."
+            }
+            _queuedNotice.postValue(notice)
+            detachRetryObserver(clearStatus = false)
+        }
+    }
 
     // بيانات المشروع الخام
     private val _projectInfo = MutableLiveData<Map<String, Any>?>(null)
@@ -191,6 +255,78 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun cancelPendingUploadRetries() {
+        val workName = retryWorkName ?: _queuedUploadsStatus.value?.workName ?: return
+        workManager.cancelUniqueWork(workName)
+        _queuedNotice.postValue("تم إرسال طلب إلغاء لمحاولات الرفع المؤجلة.")
+    }
+
+    fun clearQueuedNotice() {
+        if (_queuedUploadsStatus.value?.allFinished == true) {
+            _queuedUploadsStatus.value = null
+        }
+        _queuedNotice.value = null
+    }
+
+    private fun handleQueuedRetry(
+        enqueueResult: DailyReportUploadRetryScheduler.EnqueueResult?,
+        label: String
+    ) {
+        if (enqueueResult == null) return
+        val added = enqueueResult.workIds.size
+        if (added <= 0) return
+
+        val existing = _queuedUploadsStatus.value
+        val message = if (existing != null && existing.workName == enqueueResult.uniqueWorkName && existing.total > 0) {
+            "تمت إضافة $added $label إلى قائمة إعادة الرفع (${existing.total + added} إجماليًا)."
+        } else {
+            "سيتم إعادة محاولة رفع $added $label عند توفر الاتصال."
+        }
+        _queuedNotice.postValue(message)
+
+        val updatedStatus = if (existing != null && existing.workName == enqueueResult.uniqueWorkName) {
+            existing.copy(
+                total = existing.total + added,
+                pending = (existing.pending + added).coerceAtLeast(0)
+            )
+        } else {
+            QueuedUploadsStatus(
+                workName = enqueueResult.uniqueWorkName,
+                total = added,
+                pending = added,
+                running = 0,
+                succeeded = 0,
+                failed = 0,
+                cancelled = 0
+            )
+        }
+        _queuedUploadsStatus.postValue(updatedStatus)
+
+        attachRetryObserver(enqueueResult)
+    }
+
+    private fun attachRetryObserver(result: DailyReportUploadRetryScheduler.EnqueueResult) {
+        val workName = result.uniqueWorkName
+        if (retryWorkName != null && retryWorkName != workName) {
+            detachRetryObserver(clearStatus = false)
+        }
+        retryWorkName = workName
+        if (retryWorkLiveData == null) {
+            retryWorkLiveData = workManager.getWorkInfosForUniqueWorkLiveData(workName).also { liveData ->
+                liveData.observeForever(retryObserver)
+            }
+        }
+    }
+
+    private fun detachRetryObserver(clearStatus: Boolean = true) {
+        retryWorkLiveData?.removeObserver(retryObserver)
+        retryWorkLiveData = null
+        retryWorkName = null
+        if (clearStatus) {
+            _queuedUploadsStatus.postValue(null)
+        }
+    }
+
     // ===== الصور (التدفق القديم – ضغط وتجهيز مفرد) =====
     fun addImage(resolver: ContentResolver, uri: Uri, projectName: String?) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -244,6 +380,8 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
         }
         val dateMillis = isoToStartOfDayMillis(currentDateIso)
 
+        _queuedNotice.value = null
+
         viewModelScope.launch(Dispatchers.IO) {
             _loading.postValue(true)
             _uploadProgress.postValue(0)
@@ -290,9 +428,19 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     val pageUri = compressToCacheWebp(pageBitmap, quality = 92)
 
                     // رفع كصفحة واحدة (MVP)
-                    pageUrls = reportsRepo.uploadGridPages(reportId, listOf(pageUri)) { p ->
-                        _uploadProgress.postValue(p.coerceIn(0, 95))
-                    }.getOrElse { throw it }
+                    val pageUploadResult: UploadBatchResult = reportsRepo
+                        .uploadGridPages(
+                            context = getApplication(),
+                            organizationId = organizationId,
+                            projectId = projectId,
+                            reportId = reportId,
+                            pageUris = listOf(pageUri)
+                        ) { p ->
+                            _uploadProgress.postValue(p.coerceIn(0, 95))
+                        }
+                        .getOrElse { throw it }
+                    pageUrls = pageUploadResult.urls
+                    handleQueuedRetry(pageUploadResult.retry, "صورة الشبكة")
 
                     pagesMeta = listOf(
                         mapOf(
@@ -316,11 +464,19 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                         if (fromGridUris.isEmpty()) emptyList() else prepareForUpload(fromGridUris)
                     }
                     if (preparedUploadUris.isNotEmpty()) {
-                        photoUrlsLegacy = reportsRepo
-                            .uploadPhotosToFirebaseStorage(reportId, preparedUploadUris) { p ->
+                        val photoUploadResult: UploadBatchResult = reportsRepo
+                            .uploadPhotosToFirebaseStorage(
+                                context = getApplication(),
+                                organizationId = organizationId,
+                                projectId = projectId,
+                                reportId = reportId,
+                                uris = preparedUploadUris
+                            ) { p ->
                                 _uploadProgress.postValue(p.coerceIn(0, 95))
                             }
                             .getOrElse { throw it }
+                        photoUrlsLegacy = photoUploadResult.urls
+                        handleQueuedRetry(photoUploadResult.retry, "صورة")
                     }
                 }
 
@@ -463,6 +619,11 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
             } catch (_: Exception) { /* تخطي العنصر المعطوب */ }
         }
         out
+    }
+
+    override fun onCleared() {
+        detachRetryObserver()
+        super.onCleared()
     }
 
     // ===== تجميع صفحة القالب (احتياطي داخلي لو لزم) =====

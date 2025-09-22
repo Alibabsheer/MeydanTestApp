@@ -1,5 +1,6 @@
 package com.example.meydantestapp.repository
 
+import android.content.Context
 import android.net.Uri
 import com.example.meydantestapp.utils.Constants
 import com.google.firebase.auth.FirebaseAuth
@@ -8,6 +9,7 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
+import com.example.meydantestapp.repository.work.DailyReportUploadRetryScheduler
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -16,6 +18,11 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
 import kotlin.math.roundToInt
+
+data class UploadBatchResult(
+    val urls: List<String>,
+    val retry: DailyReportUploadRetryScheduler.EnqueueResult?
+)
 
 /**
  * DailyReportRepository (Hierarchical)
@@ -232,44 +239,37 @@ class DailyReportRepository {
 
     /** رفع صور التقرير إلى daily_reports/{reportId}/photos (بدون إبلاغ تقدّم) — بأسلوب متسامح مع الأعطال. */
     suspend fun uploadPhotosToFirebaseStorage(
+        context: Context,
+        organizationId: String,
+        projectId: String,
         reportId: String,
         uris: List<Uri>
-    ): Result<List<String>> = runCatching {
-        if (uris.isEmpty()) return@runCatching emptyList<String>()
-        val baseRef = storage.reference.child("daily_reports/$reportId/photos")
-        val urls = mutableListOf<String>()
-        val metadata = StorageMetadata.Builder().setContentType("image/jpeg").build()
-
-        uris.forEachIndexed { index, uri ->
-            try {
-                val name = String.format(Locale.US, "photo_%03d.jpg", index + 1)
-                val ref = baseRef.child(name)
-                ref.putFile(uri, metadata).await()
-                urls += ref.downloadUrl.await().toString()
-            } catch (_: Exception) {
-                // تخطّي الصورة المعطوبة ومتابعة الرفع للبقية
-            }
-        }
-        urls
-    }
+    ): Result<UploadBatchResult> =
+        uploadPhotosToFirebaseStorage(context, organizationId, projectId, reportId, uris, null)
 
     /** رفع صور التقرير مع إبلاغ تقدّم إجمالي 0..100 — بأسلوب متسامح مع الأعطال لكل صورة. */
     suspend fun uploadPhotosToFirebaseStorage(
+        context: Context,
+        organizationId: String,
+        projectId: String,
         reportId: String,
         uris: List<Uri>,
         onProgress: ((Int) -> Unit)?
-    ): Result<List<String>> = runCatching {
-        if (uris.isEmpty()) return@runCatching emptyList<String>()
+    ): Result<UploadBatchResult> = runCatching {
+        if (uris.isEmpty()) return@runCatching UploadBatchResult(emptyList(), null)
 
-        val baseRef = storage.reference.child("daily_reports/$reportId/photos")
+        val basePath = "daily_reports/$reportId/photos"
+        val baseRef = storage.reference.child(basePath)
         val total = uris.size
         val urls = mutableListOf<String>()
+        val failed = mutableListOf<DailyReportUploadRetryScheduler.PendingUploadTask>()
         val metadata = StorageMetadata.Builder().setContentType("image/jpeg").build()
         onProgress?.invoke(0)
 
         uris.forEachIndexed { index, uri ->
+            val name = String.format(Locale.US, "photo_%03d.jpg", index + 1)
+            val storagePath = "$basePath/$name"
             try {
-                val name = String.format(Locale.US, "photo_%03d.jpg", index + 1)
                 val ref = baseRef.child(name)
                 val task = ref.putFile(uri, metadata)
 
@@ -287,14 +287,26 @@ class DailyReportRepository {
                 val overallAfter = (((index + 1).toDouble() / total) * 100.0).toInt().coerceIn(0, 100)
                 onProgress?.invoke(overallAfter)
             } catch (_: Exception) {
-                // تخطّي هذه الصورة ومتابعة الباقي
                 val overallAfter = (((index + 1).toDouble() / total) * 100.0).toInt().coerceIn(0, 100)
                 onProgress?.invoke(overallAfter)
+                failed += DailyReportUploadRetryScheduler.PendingUploadTask(
+                    localUri = uri.toString(),
+                    storagePath = storagePath,
+                    firestoreField = "photos",
+                    mimeType = "image/jpeg"
+                )
             }
         }
 
         onProgress?.invoke(100)
-        urls
+        val retry = DailyReportUploadRetryScheduler.enqueue(
+            context,
+            organizationId,
+            projectId,
+            reportId,
+            failed
+        )
+        UploadBatchResult(urls, retry)
     }
 
     // ============================
@@ -306,19 +318,25 @@ class DailyReportRepository {
      * ويُرجع روابط التنزيل بالترتيب نفسه.
      */
     suspend fun uploadGridPages(
+        context: Context,
+        organizationId: String,
+        projectId: String,
         reportId: String,
         pageUris: List<Uri>,
         onProgress: ((Int) -> Unit)? = null
-    ): Result<List<String>> = runCatching {
-        if (pageUris.isEmpty()) return@runCatching emptyList<String>()
-        val baseRef = storage.reference.child("daily_reports/$reportId/pages")
+    ): Result<UploadBatchResult> = runCatching {
+        if (pageUris.isEmpty()) return@runCatching UploadBatchResult(emptyList(), null)
+        val basePath = "daily_reports/$reportId/pages"
+        val baseRef = storage.reference.child(basePath)
         val urls = MutableList(pageUris.size) { "" }
+        val failed = mutableListOf<DailyReportUploadRetryScheduler.PendingUploadTask>()
         val metadata = StorageMetadata.Builder().setContentType("image/webp").build()
         onProgress?.invoke(0)
 
         pageUris.forEachIndexed { index, uri ->
+            val name = String.format(Locale.US, "page_%03d.webp", index + 1)
+            val storagePath = "$basePath/$name"
             try {
-                val name = String.format(Locale.US, "page_%03d.webp", index + 1)
                 val ref = baseRef.child(name)
                 val task = ref.putFile(uri, metadata)
 
@@ -337,13 +355,25 @@ class DailyReportRepository {
                 val overallAfter = (((index + 1) * 100.0) / pageUris.size).toInt().coerceIn(0, 100)
                 onProgress?.invoke(overallAfter)
             } catch (_: Exception) {
-                // تخطّي الصفحة المعطوبة واستمر
                 val overallAfter = (((index + 1) * 100.0) / pageUris.size).toInt().coerceIn(0, 100)
                 onProgress?.invoke(overallAfter)
+                failed += DailyReportUploadRetryScheduler.PendingUploadTask(
+                    localUri = uri.toString(),
+                    storagePath = storagePath,
+                    firestoreField = "sitepages",
+                    mimeType = "image/webp"
+                )
             }
         }
         onProgress?.invoke(100)
-        urls.filter { it.isNotBlank() }
+        val retry = DailyReportUploadRetryScheduler.enqueue(
+            context,
+            organizationId,
+            projectId,
+            reportId,
+            failed
+        )
+        UploadBatchResult(urls.filter { it.isNotBlank() }, retry)
     }
 
     /** يكتب/يُحدّث حقول sitepages و sitepagesmeta في وثيقة التقرير. */

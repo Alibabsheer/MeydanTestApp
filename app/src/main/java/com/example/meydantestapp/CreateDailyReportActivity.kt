@@ -29,6 +29,7 @@ import com.example.meydantestapp.models.PhotoTemplate
 import com.example.meydantestapp.models.PhotoTemplates
 import com.example.meydantestapp.models.TemplateId
 import com.example.meydantestapp.ui.photolayout.TemplatePickerBottomSheet
+import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.google.firebase.auth.FirebaseAuth
@@ -200,6 +201,18 @@ class CreateDailyReportActivity : AppCompatActivity() {
                 if (it.contains("فشل")) {
                     showResultBanner(success = false, text = it)
                 }
+            }
+        }
+
+        vm.queuedNotice.observe(this) { notice ->
+            notice?.let {
+                val snackbar = Snackbar.make(binding.root, it, Snackbar.LENGTH_LONG)
+                val status = vm.queuedUploadsStatus.value
+                if (status == null || !status.allFinished) {
+                    snackbar.setAction("إلغاء") { vm.cancelPendingUploadRetries() }
+                }
+                snackbar.show()
+                vm.clearQueuedNotice()
             }
         }
 
