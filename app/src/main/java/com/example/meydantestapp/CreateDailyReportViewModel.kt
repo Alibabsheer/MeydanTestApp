@@ -10,16 +10,25 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import androidx.work.OneTimeWorkRequest
 import com.example.meydantestapp.models.PhotoEntry
 import com.example.meydantestapp.models.PhotoTemplates
 import com.example.meydantestapp.models.TemplateId
 import com.example.meydantestapp.repository.DailyReportRepository
+import com.example.meydantestapp.repository.DailyReportUploadTarget
+import com.example.meydantestapp.repository.DailyReportUploadWorker
 import com.example.meydantestapp.repository.WeatherRepository
 import com.example.meydantestapp.utils.ImageUtils
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -27,6 +36,7 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
+import java.util.UUID
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
@@ -45,6 +55,10 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
     private val auth by lazy { FirebaseAuth.getInstance() }
     private val weatherRepo by lazy { WeatherRepository() }
     private val reportsRepo by lazy { DailyReportRepository() }
+    private val workManager by lazy { WorkManager.getInstance(getApplication()) }
+
+    private var currentUploadWorkId: UUID? = null
+    private var uploadObservationJob: Job? = null
 
     // ===== UI State عامة =====
     private val _date = MutableLiveData<String?>()
@@ -68,6 +82,15 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _uploadProgress = MutableLiveData(0)
     val uploadProgress: LiveData<Int> = _uploadProgress
+
+    private val _uploadStatusMessage = MutableLiveData("جاري رفع الصور...")
+    val uploadStatusMessage: LiveData<String> = _uploadStatusMessage
+
+    private val _uploadIndeterminate = MutableLiveData(true)
+    val uploadIndeterminate: LiveData<Boolean> = _uploadIndeterminate
+
+    private val _uploadCancelable = MutableLiveData(false)
+    val uploadCancelable: LiveData<Boolean> = _uploadCancelable
 
     private val _saveState = MutableLiveData(SaveState.Idle)
     val saveState: LiveData<SaveState> = _saveState
@@ -248,6 +271,12 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
             _loading.postValue(true)
             _uploadProgress.postValue(0)
             _saveState.postValue(SaveState.Uploading)
+            uploadObservationJob?.cancel()
+            uploadObservationJob = null
+            currentUploadWorkId = null
+            _uploadStatusMessage.postValue("جاري تجهيز الصور للرفع...")
+            _uploadIndeterminate.postValue(true)
+            _uploadCancelable.postValue(false)
             try {
                 fun String?.nullIfBlank(): String? = if (this.isNullOrBlank()) null else this
 
@@ -290,9 +319,18 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     val pageUri = compressToCacheWebp(pageBitmap, quality = 92)
 
                     // رفع كصفحة واحدة (MVP)
-                    pageUrls = reportsRepo.uploadGridPages(reportId, listOf(pageUri)) { p ->
-                        _uploadProgress.postValue(p.coerceIn(0, 95))
-                    }.getOrElse { throw it }
+                    val request = reportsRepo.buildUploadWorkRequest(
+                        reportId,
+                        listOf(pageUri),
+                        DailyReportUploadTarget.GRID_PAGE
+                    )
+                    if (request != null) {
+                        pageUrls = enqueueAndAwaitUpload(
+                            request,
+                            queuedMessage = "بانتظار الاتصال لإعادة رفع الصفحة...",
+                            runningMessage = "جاري رفع الصفحة..."
+                        )
+                    }
 
                     pagesMeta = listOf(
                         mapOf(
@@ -316,11 +354,18 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                         if (fromGridUris.isEmpty()) emptyList() else prepareForUpload(fromGridUris)
                     }
                     if (preparedUploadUris.isNotEmpty()) {
-                        photoUrlsLegacy = reportsRepo
-                            .uploadPhotosToFirebaseStorage(reportId, preparedUploadUris) { p ->
-                                _uploadProgress.postValue(p.coerceIn(0, 95))
-                            }
-                            .getOrElse { throw it }
+                        val request = reportsRepo.buildUploadWorkRequest(
+                            reportId,
+                            preparedUploadUris,
+                            DailyReportUploadTarget.LEGACY_PHOTO
+                        )
+                        if (request != null) {
+                            photoUrlsLegacy = enqueueAndAwaitUpload(
+                                request,
+                                queuedMessage = "بانتظار الاتصال لإعادة رفع الصور...",
+                                runningMessage = "جاري رفع الصور..."
+                            )
+                        }
                     }
                 }
 
@@ -396,7 +441,8 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
 
                 // 7) حفظ الوثيقة
                 _saveState.postValue(SaveState.Saving)
-                _uploadProgress.postValue(96)
+                _uploadIndeterminate.postValue(false)
+                _uploadProgress.postValue(maxOf(_uploadProgress.value ?: 0, 96))
 
                 val write = reportsRepo.createDailyReportAutoNumbered(organizationId, projectId, reportId, data)
                 if (write.isSuccess) {
@@ -409,6 +455,9 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     _message.postValue("فشل حفظ التقرير.")
                 }
 
+            } catch (e: CancellationException) {
+                _saveState.postValue(SaveState.FailureOther)
+                _message.postValue("تم إلغاء رفع الصور.")
             } catch (e: Exception) {
                 if (e is FirebaseNetworkException) {
                     _saveState.postValue(SaveState.FailureNetwork)
@@ -420,11 +469,97 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } finally {
                 _loading.postValue(false)
+                uploadObservationJob?.cancel()
+                uploadObservationJob = null
+                currentUploadWorkId = null
+                _uploadCancelable.postValue(false)
             }
         }
     }
 
     // ===== Helpers =====
+    private fun observeUpload(workId: UUID, queuedMessage: String, runningMessage: String) {
+        uploadObservationJob?.cancel()
+        uploadObservationJob = viewModelScope.launch {
+            workManager.getWorkInfoByIdFlow(workId).collect { info ->
+                when (info.state) {
+                    WorkInfo.State.ENQUEUED -> {
+                        _uploadStatusMessage.postValue(queuedMessage)
+                        _uploadIndeterminate.postValue(true)
+                        _uploadCancelable.postValue(true)
+                        _uploadProgress.postValue(0)
+                    }
+                    WorkInfo.State.RUNNING -> {
+                        val progress = info.progress.getInt(DailyReportUploadWorker.KEY_PROGRESS, 0)
+                        _uploadStatusMessage.postValue(runningMessage)
+                        _uploadIndeterminate.postValue(false)
+                        _uploadCancelable.postValue(true)
+                        _uploadProgress.postValue(progress.coerceIn(0, 100))
+                    }
+                    WorkInfo.State.SUCCEEDED,
+                    WorkInfo.State.CANCELLED,
+                    WorkInfo.State.FAILED -> {
+                        _uploadCancelable.postValue(false)
+                        return@launch
+                    }
+                    else -> Unit
+                }
+            }
+        }
+    }
+
+    private suspend fun enqueueAndAwaitUpload(
+        request: OneTimeWorkRequest,
+        queuedMessage: String,
+        runningMessage: String
+    ): List<String> {
+        observeUpload(request.id, queuedMessage, runningMessage)
+        currentUploadWorkId = request.id
+        workManager.enqueue(request)
+
+        val finalInfo = workManager.getWorkInfoByIdFlow(request.id).first { it.state.isFinished }
+
+        uploadObservationJob?.cancel()
+        uploadObservationJob = null
+        currentUploadWorkId = null
+
+        return when (finalInfo.state) {
+            WorkInfo.State.SUCCEEDED -> {
+                _uploadStatusMessage.postValue("تم رفع الصور بنجاح")
+                _uploadIndeterminate.postValue(false)
+                _uploadProgress.postValue(100)
+                _uploadCancelable.postValue(false)
+                reportsRepo.extractUploadedUrls(finalInfo.outputData)
+            }
+            WorkInfo.State.CANCELLED -> {
+                _uploadStatusMessage.postValue("تم إلغاء عملية الرفع")
+                _uploadIndeterminate.postValue(false)
+                _uploadCancelable.postValue(false)
+                throw CancellationException("upload-cancelled")
+            }
+            WorkInfo.State.FAILED -> {
+                _uploadStatusMessage.postValue("تعذر رفع الصور")
+                _uploadIndeterminate.postValue(false)
+                _uploadCancelable.postValue(false)
+                val reason = reportsRepo.extractUploadError(finalInfo.outputData)
+                throw IllegalStateException(reason ?: "upload-failed")
+            }
+            else -> emptyList()
+        }
+    }
+
+    fun cancelOngoingUpload() {
+        val workId = currentUploadWorkId ?: return
+        workManager.cancelWorkById(workId)
+        _uploadCancelable.postValue(false)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        uploadObservationJob?.cancel()
+        uploadObservationJob = null
+    }
+
     private fun recomputeTotal() {
         val sRaw = _skilledLaborInput.value
         val uRaw = _unskilledLaborInput.value

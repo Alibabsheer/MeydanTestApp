@@ -1,13 +1,18 @@
 package com.example.meydantestapp.repository
 
 import android.net.Uri
+import androidx.work.BackoffPolicy
+import androidx.work.Constraints
+import androidx.work.Data
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequest
+import androidx.work.OneTimeWorkRequestBuilder
 import com.example.meydantestapp.utils.Constants
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.storage.FirebaseStorage
-import com.google.firebase.storage.StorageMetadata
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -15,6 +20,7 @@ import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
+import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
 /**
@@ -227,124 +233,42 @@ class DailyReportRepository {
     }
 
     // ============================
-    // رفع الصور القديمة (توافق)
+    // رفع الصور عبر WorkManager
     // ============================
 
-    /** رفع صور التقرير إلى daily_reports/{reportId}/photos (بدون إبلاغ تقدّم) — بأسلوب متسامح مع الأعطال. */
-    suspend fun uploadPhotosToFirebaseStorage(
-        reportId: String,
-        uris: List<Uri>
-    ): Result<List<String>> = runCatching {
-        if (uris.isEmpty()) return@runCatching emptyList<String>()
-        val baseRef = storage.reference.child("daily_reports/$reportId/photos")
-        val urls = mutableListOf<String>()
-        val metadata = StorageMetadata.Builder().setContentType("image/jpeg").build()
-
-        uris.forEachIndexed { index, uri ->
-            try {
-                val name = String.format(Locale.US, "photo_%03d.jpg", index + 1)
-                val ref = baseRef.child(name)
-                ref.putFile(uri, metadata).await()
-                urls += ref.downloadUrl.await().toString()
-            } catch (_: Exception) {
-                // تخطّي الصورة المعطوبة ومتابعة الرفع للبقية
-            }
-        }
-        urls
-    }
-
-    /** رفع صور التقرير مع إبلاغ تقدّم إجمالي 0..100 — بأسلوب متسامح مع الأعطال لكل صورة. */
-    suspend fun uploadPhotosToFirebaseStorage(
+    fun buildUploadWorkRequest(
         reportId: String,
         uris: List<Uri>,
-        onProgress: ((Int) -> Unit)?
-    ): Result<List<String>> = runCatching {
-        if (uris.isEmpty()) return@runCatching emptyList<String>()
+        target: DailyReportUploadTarget
+    ): OneTimeWorkRequest? {
+        if (uris.isEmpty()) return null
 
-        val baseRef = storage.reference.child("daily_reports/$reportId/photos")
-        val total = uris.size
-        val urls = mutableListOf<String>()
-        val metadata = StorageMetadata.Builder().setContentType("image/jpeg").build()
-        onProgress?.invoke(0)
+        val inputData = Data.Builder()
+            .putString(DailyReportUploadWorker.KEY_REPORT_ID, reportId)
+            .putStringArray(
+                DailyReportUploadWorker.KEY_URI_LIST,
+                uris.map { it.toString() }.toTypedArray()
+            )
+            .putString(DailyReportUploadWorker.KEY_UPLOAD_TARGET, target.name)
+            .build()
 
-        uris.forEachIndexed { index, uri ->
-            try {
-                val name = String.format(Locale.US, "photo_%03d.jpg", index + 1)
-                val ref = baseRef.child(name)
-                val task = ref.putFile(uri, metadata)
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
 
-                task.addOnProgressListener { snap ->
-                    val perFile = if (snap.totalByteCount > 0) {
-                        snap.bytesTransferred.toDouble() / snap.totalByteCount
-                    } else 0.0
-                    val overall = (((index) + perFile) / total * 100.0).toInt().coerceIn(0, 99)
-                    onProgress?.invoke(overall)
-                }
-
-                task.await()
-                val url = ref.downloadUrl.await().toString()
-                urls += url
-                val overallAfter = (((index + 1).toDouble() / total) * 100.0).toInt().coerceIn(0, 100)
-                onProgress?.invoke(overallAfter)
-            } catch (_: Exception) {
-                // تخطّي هذه الصورة ومتابعة الباقي
-                val overallAfter = (((index + 1).toDouble() / total) * 100.0).toInt().coerceIn(0, 100)
-                onProgress?.invoke(overallAfter)
-            }
-        }
-
-        onProgress?.invoke(100)
-        urls
+        return OneTimeWorkRequestBuilder<DailyReportUploadWorker>()
+            .setConstraints(constraints)
+            .setInputData(inputData)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .addTag("daily-report-${target.name.lowercase(Locale.ROOT)}-$reportId")
+            .build()
     }
 
-    // ============================
-    // رفع صفحات الشبكات (جديدة)
-    // ============================
+    fun extractUploadedUrls(output: Data): List<String> =
+        output.getStringArray(DailyReportUploadWorker.KEY_RESULT_URLS)?.toList().orEmpty()
 
-    /**
-     * يرفع صور صفحات الشبكات (WebP) إلى: daily_reports/{reportId}/pages/page_XXX.webp
-     * ويُرجع روابط التنزيل بالترتيب نفسه.
-     */
-    suspend fun uploadGridPages(
-        reportId: String,
-        pageUris: List<Uri>,
-        onProgress: ((Int) -> Unit)? = null
-    ): Result<List<String>> = runCatching {
-        if (pageUris.isEmpty()) return@runCatching emptyList<String>()
-        val baseRef = storage.reference.child("daily_reports/$reportId/pages")
-        val urls = MutableList(pageUris.size) { "" }
-        val metadata = StorageMetadata.Builder().setContentType("image/webp").build()
-        onProgress?.invoke(0)
-
-        pageUris.forEachIndexed { index, uri ->
-            try {
-                val name = String.format(Locale.US, "page_%03d.webp", index + 1)
-                val ref = baseRef.child(name)
-                val task = ref.putFile(uri, metadata)
-
-                task.addOnProgressListener { snap ->
-                    val perFile = if (snap.totalByteCount > 0) {
-                        (100.0 * snap.bytesTransferred / snap.totalByteCount)
-                    } else 0.0
-                    val completedBefore = index
-                    val total = pageUris.size
-                    val overall = (((completedBefore * 100.0) + perFile) / total).toInt().coerceIn(0, 99)
-                    onProgress?.invoke(overall)
-                }
-
-                task.await()
-                urls[index] = ref.downloadUrl.await().toString()
-                val overallAfter = (((index + 1) * 100.0) / pageUris.size).toInt().coerceIn(0, 100)
-                onProgress?.invoke(overallAfter)
-            } catch (_: Exception) {
-                // تخطّي الصفحة المعطوبة واستمر
-                val overallAfter = (((index + 1) * 100.0) / pageUris.size).toInt().coerceIn(0, 100)
-                onProgress?.invoke(overallAfter)
-            }
-        }
-        onProgress?.invoke(100)
-        urls.filter { it.isNotBlank() }
-    }
+    fun extractUploadError(output: Data): String? =
+        output.getString(DailyReportUploadWorker.KEY_ERROR_MESSAGE)
 
     /** يكتب/يُحدّث حقول sitepages و sitepagesmeta في وثيقة التقرير. */
     suspend fun writeSitePages(
