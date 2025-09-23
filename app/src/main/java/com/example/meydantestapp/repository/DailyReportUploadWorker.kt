@@ -1,0 +1,107 @@
+package com.example.meydantestapp.repository
+
+import android.content.Context
+import android.net.Uri
+import androidx.work.CoroutineWorker
+import androidx.work.WorkerParameters
+import androidx.work.workDataOf
+import com.google.firebase.FirebaseNetworkException
+import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageException
+import com.google.firebase.storage.StorageMetadata
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.tasks.await
+import java.io.IOException
+
+/**
+ * Worker يقوم برفع صور التقرير اليومي مع إعادة المحاولة الآلية عند فشل الشبكة.
+ */
+class DailyReportUploadWorker(
+    appContext: Context,
+    params: WorkerParameters
+) : CoroutineWorker(appContext, params) {
+
+    companion object {
+        const val KEY_REPORT_ID = "reportId"
+        const val KEY_URI_LIST = "uriList"
+        const val KEY_UPLOAD_TARGET = "uploadTarget"
+        const val KEY_PROGRESS = "progress"
+        const val KEY_RESULT_URLS = "uploadedUrls"
+        const val KEY_ERROR_MESSAGE = "errorMessage"
+    }
+
+    private val storage by lazy { FirebaseStorage.getInstance() }
+
+    override suspend fun doWork(): Result {
+        val reportId = inputData.getString(KEY_REPORT_ID).orEmpty()
+        if (reportId.isBlank()) {
+            return Result.failure(workDataOf(KEY_ERROR_MESSAGE to "missing-report-id"))
+        }
+
+        val target = inputData.getString(KEY_UPLOAD_TARGET)?.let {
+            runCatching { DailyReportUploadTarget.valueOf(it) }.getOrNull()
+        } ?: return Result.failure(workDataOf(KEY_ERROR_MESSAGE to "unknown-target"))
+
+        val uriStrings = inputData.getStringArray(KEY_URI_LIST)?.toList().orEmpty()
+        if (uriStrings.isEmpty()) {
+            return Result.success(workDataOf(KEY_RESULT_URLS to emptyArray<String>()))
+        }
+
+        val baseRef = storage.reference.child("daily_reports/$reportId/${target.pathSegment}")
+        val metadata = StorageMetadata.Builder().setContentType(target.contentType).build()
+        val uploadedUrls = mutableListOf<String>()
+
+        setProgressAsync(workDataOf(KEY_PROGRESS to 0))
+
+        return try {
+            uriStrings.forEachIndexed { index, uriString ->
+                val uri = Uri.parse(uriString)
+                val objectName = target.fileName(index)
+                val ref = baseRef.child(objectName)
+
+                val uploadTask = ref.putFile(uri, metadata)
+                uploadTask.addOnProgressListener { snap ->
+                    val perFile = if (snap.totalByteCount > 0L) {
+                        snap.bytesTransferred.toDouble() / snap.totalByteCount
+                    } else {
+                        0.0
+                    }
+                    val overall = (((index) + perFile) / uriStrings.size * 100.0).toInt().coerceIn(0, 99)
+                    setProgressAsync(workDataOf(KEY_PROGRESS to overall))
+                }
+
+                uploadTask.await()
+                val url = ref.downloadUrl.await().toString()
+                uploadedUrls += url
+
+                val after = (((index + 1).toDouble() / uriStrings.size) * 100.0).toInt().coerceIn(0, 100)
+                setProgressAsync(workDataOf(KEY_PROGRESS to after))
+            }
+
+            Result.success(
+                workDataOf(
+                    KEY_RESULT_URLS to uploadedUrls.toTypedArray(),
+                    KEY_PROGRESS to 100
+                )
+            )
+        } catch (c: CancellationException) {
+            throw c
+        } catch (e: Exception) {
+            if (shouldRetry(e)) {
+                setProgressAsync(workDataOf(KEY_PROGRESS to 0))
+                Result.retry()
+            } else {
+                Result.failure(workDataOf(KEY_ERROR_MESSAGE to (e.message ?: "upload-failed")))
+            }
+        }
+    }
+
+    private fun shouldRetry(e: Exception): Boolean {
+        return when (e) {
+            is FirebaseNetworkException -> true
+            is IOException -> true
+            is StorageException -> e.errorCode == StorageException.ERROR_RETRY_LIMIT_EXCEEDED
+            else -> false
+        }
+    }
+}

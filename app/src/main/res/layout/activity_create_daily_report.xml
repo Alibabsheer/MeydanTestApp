@@ -310,6 +310,14 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="جاري رفع التقرير..." />
+
+            <Button
+                android:id="@+id/uploadCancelButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="إلغاء"
+                android:visibility="gone" />
         </LinearLayout>
     </LinearLayout>
 

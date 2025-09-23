@@ -136,6 +136,7 @@ class CreateDailyReportActivity : AppCompatActivity() {
         binding.addPhotoButton.setOnClickListener { showImageSourceOptions() }
         binding.reportDateInput.setOnClickListener { showDatePicker() }
         binding.saveReportButton.setOnClickListener { onSaveClicked() }
+        binding.uploadCancelButton.setOnClickListener { vm.cancelOngoingUpload() }
 
         // إعداد شبكة القوالب داخل الحاوية الحالية للصور المصغّرة
         setupPhotoGridSection()
@@ -158,7 +159,11 @@ class CreateDailyReportActivity : AppCompatActivity() {
                 }
                 SaveState.Uploading -> {
                     setInputsEnabled(false)
-                    showUploadOverlay(status = "جاري رفع الصور...", percent = vm.uploadProgress.value ?: 0, indeterminate = false)
+                    showUploadOverlay(
+                        status = vm.uploadStatusMessage.value ?: "جاري رفع الصور...",
+                        percent = vm.uploadProgress.value ?: 0,
+                        indeterminate = vm.uploadIndeterminate.value ?: true
+                    )
                 }
                 SaveState.Saving -> {
                     setInputsEnabled(false)
@@ -186,10 +191,36 @@ class CreateDailyReportActivity : AppCompatActivity() {
         }
 
         vm.uploadProgress.observe(this) { p ->
-            if (binding.uploadOverlay.visibility == View.VISIBLE) {
-                binding.uploadProgressBar.isIndeterminate = false
+            if (binding.uploadOverlay.visibility == View.VISIBLE && !binding.uploadProgressBar.isIndeterminate) {
                 binding.uploadProgressBar.progress = p.coerceIn(0, 100)
                 binding.uploadPercentText.text = "$p%"
+            }
+        }
+
+        vm.uploadStatusMessage.observe(this) { status ->
+            if (binding.uploadOverlay.visibility == View.VISIBLE) {
+                binding.uploadStatusText.text = status
+            }
+        }
+
+        vm.uploadIndeterminate.observe(this) { indeterminate ->
+            if (binding.uploadOverlay.visibility == View.VISIBLE) {
+                binding.uploadProgressBar.isIndeterminate = indeterminate
+                if (indeterminate) {
+                    binding.uploadPercentText.text = "..."
+                } else {
+                    val progress = vm.uploadProgress.value ?: 0
+                    binding.uploadProgressBar.progress = progress.coerceIn(0, 100)
+                    binding.uploadPercentText.text = "$progress%"
+                }
+            }
+        }
+
+        vm.uploadCancelable.observe(this) { cancelable ->
+            if (binding.uploadOverlay.visibility == View.VISIBLE) {
+                binding.uploadCancelButton.visibility = if (cancelable) View.VISIBLE else View.GONE
+            } else {
+                binding.uploadCancelButton.visibility = View.GONE
             }
         }
 
@@ -636,10 +667,12 @@ class CreateDailyReportActivity : AppCompatActivity() {
         binding.uploadProgressBar.isIndeterminate = indeterminate
         binding.uploadProgressBar.progress = percent.coerceIn(0, 100)
         binding.uploadPercentText.text = if (indeterminate) "..." else "$percent%"
+        binding.uploadCancelButton.visibility = View.GONE
     }
 
     private fun hideUploadOverlay() {
         binding.uploadOverlay.visibility = View.GONE
+        binding.uploadCancelButton.visibility = View.GONE
     }
 
     private fun showResultBanner(success: Boolean, text: String) {
