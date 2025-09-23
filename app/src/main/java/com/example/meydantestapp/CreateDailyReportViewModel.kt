@@ -60,6 +60,11 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
     private var currentUploadWorkId: UUID? = null
     private var uploadObservationJob: Job? = null
 
+    private data class UploadOutcome(
+        val urls: List<String>,
+        val cleanupUris: List<String>
+    )
+
     // ===== UI State عامة =====
     private val _date = MutableLiveData<String?>()
     val date: LiveData<String?> = _date
@@ -325,11 +330,13 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                         DailyReportUploadTarget.GRID_PAGE
                     )
                     if (request != null) {
-                        pageUrls = enqueueAndAwaitUpload(
+                        val outcome = enqueueAndAwaitUpload(
                             request,
                             queuedMessage = "بانتظار الاتصال لإعادة رفع الصفحة...",
                             runningMessage = "جاري رفع الصفحة..."
                         )
+                        pageUrls = outcome.urls
+                        deleteCacheFilesSafely(outcome.cleanupUris)
                     }
 
                     pagesMeta = listOf(
@@ -360,11 +367,13 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                             DailyReportUploadTarget.LEGACY_PHOTO
                         )
                         if (request != null) {
-                            photoUrlsLegacy = enqueueAndAwaitUpload(
+                            val outcome = enqueueAndAwaitUpload(
                                 request,
                                 queuedMessage = "بانتظار الاتصال لإعادة رفع الصور...",
                                 runningMessage = "جاري رفع الصور..."
                             )
+                            photoUrlsLegacy = outcome.urls
+                            deleteCacheFilesSafely(outcome.cleanupUris)
                         }
                     }
                 }
@@ -512,7 +521,7 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
         request: OneTimeWorkRequest,
         queuedMessage: String,
         runningMessage: String
-    ): List<String> {
+    ): UploadOutcome {
         observeUpload(request.id, queuedMessage, runningMessage)
         currentUploadWorkId = request.id
         workManager.enqueue(request)
@@ -529,7 +538,10 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                 _uploadIndeterminate.postValue(false)
                 _uploadProgress.postValue(100)
                 _uploadCancelable.postValue(false)
-                reportsRepo.extractUploadedUrls(finalInfo.outputData)
+                UploadOutcome(
+                    urls = reportsRepo.extractUploadedUrls(finalInfo.outputData),
+                    cleanupUris = reportsRepo.extractCleanupUris(finalInfo.outputData)
+                )
             }
             WorkInfo.State.CANCELLED -> {
                 _uploadStatusMessage.postValue("تم إلغاء عملية الرفع")
@@ -544,7 +556,7 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                 val reason = reportsRepo.extractUploadError(finalInfo.outputData)
                 throw IllegalStateException(reason ?: "upload-failed")
             }
-            else -> emptyList()
+            else -> UploadOutcome(emptyList(), emptyList())
         }
     }
 
@@ -702,6 +714,63 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
             bitmap.compress(format, quality.coerceIn(80, 100), fos)
         }
         return Uri.fromFile(out)
+    }
+
+    private fun deleteCacheFilesSafely(uriStrings: List<String>) {
+        if (uriStrings.isEmpty()) return
+        val ctx = getApplication<Application>()
+        val cacheDir = ctx.cacheDir
+        val authority = "${'$'}{ctx.packageName}.fileprovider"
+
+        uriStrings.distinct().forEach { raw ->
+            if (raw.isBlank()) return@forEach
+            try {
+                val uri = Uri.parse(raw)
+                val targetFile = when (uri.scheme) {
+                    ContentResolver.SCHEME_FILE -> uri.path?.let { File(it) }
+                    ContentResolver.SCHEME_CONTENT -> {
+                        if (uri.authority == authority) {
+                            val relative = uri.path?.trimStart('/') ?: return@forEach
+                            if (relative.startsWith("images/") || relative.startsWith("pages/")) {
+                                File(cacheDir, relative)
+                            } else {
+                                null
+                            }
+                        } else {
+                            null
+                        }
+                    }
+                    else -> null
+                }
+                if (targetFile != null && targetFile.exists() && targetFile.isFile && isInside(cacheDir, targetFile)) {
+                    runCatching { targetFile.delete() }
+                }
+            } catch (_: Exception) {
+                // تجاهل أخطاء الحذف لتجنب التعطل
+            }
+        }
+
+        listOf("images", "pages").forEach { subDirName ->
+            try {
+                val dir = File(cacheDir, subDirName)
+                val files = dir.listFiles()
+                if (files != null && files.isEmpty()) {
+                    dir.delete()
+                }
+            } catch (_: Exception) {
+                // تجاهل تنظيف المجلد عند حدوث مشكلة
+            }
+        }
+    }
+
+    private fun isInside(parent: File, child: File): Boolean {
+        return try {
+            val parentPath = parent.canonicalPath
+            val childPath = child.canonicalPath
+            childPath.startsWith(parentPath)
+        } catch (_: Exception) {
+            false
+        }
     }
 }
 
