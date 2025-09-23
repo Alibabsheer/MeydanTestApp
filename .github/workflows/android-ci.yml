@@ -2,10 +2,10 @@ name: Android CI
 
 on:
   push:
-    branches: [ "main" ]               # يشغّل الفحص عند أي دفع إلى main
+    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]               # يشغّل الفحص لأي PR نحو main
-  workflow_dispatch:                    # زر تشغيل يدوي من تبويب Actions
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -21,23 +21,26 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # الخطوة الجديدة: توليد google-services.json من السر
+      - name: Set up google-services.json
+        run: scripts/setup-google-services.sh
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+
       - name: Gradle cache
         uses: gradle/actions/setup-gradle@v3
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      # بناء مع لوجات مفصلة لمعرفة الملف/السطر عند الفشل في kapt
       - name: Build (assemble + unit tests) with diagnostics
         run: |
           ./gradlew --stop
           ./gradlew clean assembleDebug test --stacktrace --info --no-daemon
 
-      # اختياري: lint لمعرفة مشاكل ساكنة (يمكنك حذفه لو ما تحتاجه)
       - name: Android Lint (debug)
         run: ./gradlew lintDebug --stacktrace --no-daemon
 
-      # ارفع كل التقارير والـ logs حتى لو فشل البناء
       - name: Upload build reports
         if: always()
         uses: actions/upload-artifact@v4
