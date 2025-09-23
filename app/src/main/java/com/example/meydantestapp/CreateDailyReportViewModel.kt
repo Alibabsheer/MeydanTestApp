@@ -2,6 +2,10 @@ package com.example.meydantestapp
 
 import android.app.Application
 import android.content.ContentResolver
+import android.content.ContentValues
+import android.content.Context
+import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteOpenHelper
 import android.graphics.*
 import android.net.Uri
 import android.os.Build
@@ -24,6 +28,7 @@ import com.example.meydantestapp.utils.ImageUtils
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import org.json.JSONArray
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -56,6 +61,7 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
     private val weatherRepo by lazy { WeatherRepository() }
     private val reportsRepo by lazy { DailyReportRepository() }
     private val workManager by lazy { WorkManager.getInstance(getApplication()) }
+    private val draftStorage by lazy { DailyReportDraftStorage(getApplication()) }
 
     private var currentUploadWorkId: UUID? = null
     private var uploadObservationJob: Job? = null
@@ -294,8 +300,14 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     return@launch
                 }
 
-                // 1) معرّف التقرير
-                val reportId = System.currentTimeMillis().toString()
+                // 1) مفاتيح الاستئناف المحلية
+                val storageKey = DailyReportDraftStorage.storageKey(organizationId, projectId, dateMillis)
+                val gridDraft = draftStorage.getDraft(storageKey, DailyReportUploadTarget.GRID_PAGE)
+                val legacyDraft = draftStorage.getDraft(storageKey, DailyReportUploadTarget.LEGACY_PHOTO)
+                var reportId: String = gridDraft?.reportId?.takeIf { it.isNotBlank() }
+                    ?: legacyDraft?.reportId?.takeIf { it.isNotBlank() }
+                    ?: draftStorage.findExistingReportId(storageKey)?.takeIf { it.isNotBlank() }
+                    ?: System.currentTimeMillis().toString()
 
                 // 2) حصر العناصر المملوءة في القالب
                 val filledEntries: List<PhotoEntry> = _gridSlots.value.orEmpty().mapNotNull { it }
@@ -309,34 +321,54 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     // صفحة مركّبة كاملة بحسب القالب — A4 عمودي بدون قص داخل الخانات
                     val template = PhotoTemplates.byId(_selectedTemplateId.value ?: TemplateId.E4)
 
-                    // قياس آمن للذاكرة (A4 عمودي تقريبًا): 1480x2100px
-                    val pageBitmap = ImageUtils.composeA4PortraitPage(
-                        context = getApplication(),
-                        entries = filledEntries,
-                        template = template,
-                        pageW = 1480,
-                        pageH = 2100,
-                        projectName = (_projectInfo.value?.get("projectName") ?: _projectInfo.value?.get("name")) as? String,
-                        reportDate = currentDateIso,
-                        headerEnabled = false // الصفحة نفسها ستوضع داخل مساحة الصور في ال PDF
-                    )
+                    val restoredGridUris = restoreDraftUris(gridDraft?.uriStrings.orEmpty()).also {
+                        if (gridDraft != null && it.isEmpty()) {
+                            draftStorage.clearDraft(storageKey, DailyReportUploadTarget.GRID_PAGE)
+                        }
+                    }
+                    if (!gridDraft?.reportId.isNullOrBlank()) {
+                        reportId = gridDraft!!.reportId
+                    }
 
-                    val pageUri = compressToCacheWebp(pageBitmap, quality = 92)
+                    var pageUploadUris = restoredGridUris
+
+                    if (pageUploadUris.isEmpty()) {
+                        // قياس آمن للذاكرة (A4 عمودي تقريبًا): 1480x2100px
+                        val pageBitmap = ImageUtils.composeA4PortraitPage(
+                            context = getApplication(),
+                            entries = filledEntries,
+                            template = template,
+                            pageW = 1480,
+                            pageH = 2100,
+                            projectName = (_projectInfo.value?.get("projectName") ?: _projectInfo.value?.get("name")) as? String,
+                            reportDate = currentDateIso,
+                            headerEnabled = false // الصفحة نفسها ستوضع داخل مساحة الصور في ال PDF
+                        )
+
+                        val pageUri = compressToCacheWebp(pageBitmap, quality = 92)
+                        pageUploadUris = listOf(pageUri)
+                    }
 
                     // رفع كصفحة واحدة (MVP)
-                    val request = reportsRepo.buildUploadWorkRequest(
-                        reportId,
-                        listOf(pageUri),
-                        DailyReportUploadTarget.GRID_PAGE
-                    )
-                    if (request != null) {
-                        val outcome = enqueueAndAwaitUpload(
-                            request,
-                            queuedMessage = "بانتظار الاتصال لإعادة رفع الصفحة...",
-                            runningMessage = "جاري رفع الصفحة..."
+                    if (pageUploadUris.isNotEmpty()) {
+                        val request = reportsRepo.buildUploadWorkRequest(
+                            reportId,
+                            pageUploadUris,
+                            DailyReportUploadTarget.GRID_PAGE
                         )
-                        pageUrls = outcome.urls
-                        deleteCacheFilesSafely(outcome.cleanupUris)
+                        if (request != null) {
+                            val outcome = enqueueAndAwaitUpload(
+                                request,
+                                queuedMessage = "بانتظار الاتصال لإعادة رفع الصفحة...",
+                                runningMessage = "جاري رفع الصفحة...",
+                                storageKey = storageKey,
+                                reportId = reportId,
+                                target = DailyReportUploadTarget.GRID_PAGE,
+                                originalUris = pageUploadUris
+                            )
+                            pageUrls = outcome.urls
+                            deleteCacheFilesSafely(outcome.cleanupUris)
+                        }
                     }
 
                     pagesMeta = listOf(
@@ -354,11 +386,22 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 } else {
                     // مسار قديم: رفع الصور كما هي إذا وُجدت
-                    val preparedUploadUris: List<Uri> = if (!_photos.value.isNullOrEmpty()) {
-                        _photos.value!!
-                    } else {
-                        val fromGridUris = currentGridUris()
-                        if (fromGridUris.isEmpty()) emptyList() else prepareForUpload(fromGridUris)
+                    val restoredLegacyUris = restoreDraftUris(legacyDraft?.uriStrings.orEmpty()).also {
+                        if (legacyDraft != null && it.isEmpty()) {
+                            draftStorage.clearDraft(storageKey, DailyReportUploadTarget.LEGACY_PHOTO)
+                        }
+                    }
+                    if (!legacyDraft?.reportId.isNullOrBlank()) {
+                        reportId = legacyDraft!!.reportId
+                    }
+
+                    val preparedUploadUris: List<Uri> = when {
+                        restoredLegacyUris.isNotEmpty() -> restoredLegacyUris
+                        !_photos.value.isNullOrEmpty() -> _photos.value!!
+                        else -> {
+                            val fromGridUris = currentGridUris()
+                            if (fromGridUris.isEmpty()) emptyList() else prepareForUpload(fromGridUris)
+                        }
                     }
                     if (preparedUploadUris.isNotEmpty()) {
                         val request = reportsRepo.buildUploadWorkRequest(
@@ -370,7 +413,11 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                             val outcome = enqueueAndAwaitUpload(
                                 request,
                                 queuedMessage = "بانتظار الاتصال لإعادة رفع الصور...",
-                                runningMessage = "جاري رفع الصور..."
+                                runningMessage = "جاري رفع الصور...",
+                                storageKey = storageKey,
+                                reportId = reportId,
+                                target = DailyReportUploadTarget.LEGACY_PHOTO,
+                                originalUris = preparedUploadUris
                             )
                             photoUrlsLegacy = outcome.urls
                             deleteCacheFilesSafely(outcome.cleanupUris)
@@ -459,6 +506,7 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     _saveState.postValue(SaveState.Success)
                     _lastReportId.postValue(reportId)
                     _message.postValue("تم حفظ التقرير بنجاح.")
+                    draftStorage.clearAll(storageKey)
                 } else {
                     _saveState.postValue(SaveState.FailureOther)
                     _message.postValue("فشل حفظ التقرير.")
@@ -520,7 +568,11 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun enqueueAndAwaitUpload(
         request: OneTimeWorkRequest,
         queuedMessage: String,
-        runningMessage: String
+        runningMessage: String,
+        storageKey: String,
+        reportId: String,
+        target: DailyReportUploadTarget,
+        originalUris: List<Uri>
     ): UploadOutcome {
         observeUpload(request.id, queuedMessage, runningMessage)
         currentUploadWorkId = request.id
@@ -532,12 +584,15 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
         uploadObservationJob = null
         currentUploadWorkId = null
 
+        val originalUriStrings = originalUris.map { it.toString() }.distinct()
+
         return when (finalInfo.state) {
             WorkInfo.State.SUCCEEDED -> {
                 _uploadStatusMessage.postValue("تم رفع الصور بنجاح")
                 _uploadIndeterminate.postValue(false)
                 _uploadProgress.postValue(100)
                 _uploadCancelable.postValue(false)
+                draftStorage.clearDraft(storageKey, target)
                 UploadOutcome(
                     urls = reportsRepo.extractUploadedUrls(finalInfo.outputData),
                     cleanupUris = reportsRepo.extractCleanupUris(finalInfo.outputData)
@@ -547,6 +602,7 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                 _uploadStatusMessage.postValue("تم إلغاء عملية الرفع")
                 _uploadIndeterminate.postValue(false)
                 _uploadCancelable.postValue(false)
+                draftStorage.saveDraft(storageKey, target, reportId, originalUriStrings)
                 throw CancellationException("upload-cancelled")
             }
             WorkInfo.State.FAILED -> {
@@ -554,6 +610,7 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                 _uploadIndeterminate.postValue(false)
                 _uploadCancelable.postValue(false)
                 val reason = reportsRepo.extractUploadError(finalInfo.outputData)
+                draftStorage.saveDraft(storageKey, target, reportId, originalUriStrings)
                 throw IllegalStateException(reason ?: "upload-failed")
             }
             else -> UploadOutcome(emptyList(), emptyList())
@@ -610,6 +667,20 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
             } catch (_: Exception) { /* تخطي العنصر المعطوب */ }
         }
         out
+    }
+
+    private fun restoreDraftUris(raw: List<String>): List<Uri> {
+        if (raw.isEmpty()) return emptyList()
+        return raw.mapNotNull { runCatching { Uri.parse(it) }.getOrNull() }
+            .distinctBy { it.toString() }
+            .filter { uri -> isUriUsable(uri) }
+    }
+
+    private fun isUriUsable(uri: Uri): Boolean {
+        return when (uri.scheme) {
+            ContentResolver.SCHEME_FILE -> uri.path?.let { File(it).exists() } == true
+            else -> true
+        }
     }
 
     // ===== تجميع صفحة القالب (احتياطي داخلي لو لزم) =====
@@ -770,6 +841,156 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
             childPath.startsWith(parentPath)
         } catch (_: Exception) {
             false
+        }
+    }
+}
+
+private class DailyReportDraftStorage(context: Context) {
+
+    data class DraftRecord(
+        val reportId: String,
+        val uriStrings: List<String>
+    )
+
+    companion object {
+        private const val DB_NAME = "daily_report_drafts.db"
+        private const val DB_VERSION = 1
+        private const val TABLE_NAME = "report_upload_drafts"
+        private const val COL_STORAGE_KEY = "storage_key"
+        private const val COL_TARGET = "target"
+        private const val COL_REPORT_ID = "report_id"
+        private const val COL_URIS = "uris"
+        private const val COL_UPDATED_AT = "updated_at"
+
+        fun storageKey(organizationId: String, projectId: String, dateMillis: Long): String {
+            return listOf(organizationId, projectId, dateMillis.toString()).joinToString("|")
+        }
+    }
+
+    private val dbHelper = DraftDbHelper(context.applicationContext)
+
+    fun getDraft(storageKey: String, target: DailyReportUploadTarget): DraftRecord? {
+        if (storageKey.isBlank()) return null
+        val db = dbHelper.readableDatabase
+        val selection = "$COL_STORAGE_KEY=? AND $COL_TARGET=?"
+        val args = arrayOf(storageKey, target.name)
+        db.query(TABLE_NAME, arrayOf(COL_REPORT_ID, COL_URIS), selection, args, null, null, null).use { cursor ->
+            if (cursor.moveToFirst()) {
+                val reportId = cursor.getString(0)
+                val uriPayload = cursor.getString(1)
+                val uris = decodeUriPayload(uriPayload)
+                if (reportId.isNullOrBlank() || uris.isEmpty()) {
+                    return null
+                }
+                return DraftRecord(reportId, uris)
+            }
+        }
+        return null
+    }
+
+    fun findExistingReportId(storageKey: String): String? {
+        if (storageKey.isBlank()) return null
+        val db = dbHelper.readableDatabase
+        db.query(
+            TABLE_NAME,
+            arrayOf(COL_REPORT_ID),
+            "$COL_STORAGE_KEY=?",
+            arrayOf(storageKey),
+            null,
+            null,
+            "$COL_UPDATED_AT DESC",
+            "1"
+        ).use { cursor ->
+            if (cursor.moveToFirst()) {
+                return cursor.getString(0)
+            }
+        }
+        return null
+    }
+
+    fun saveDraft(
+        storageKey: String,
+        target: DailyReportUploadTarget,
+        reportId: String?,
+        uriStrings: List<String>
+    ) {
+        if (storageKey.isBlank() || reportId.isNullOrBlank()) return
+        if (uriStrings.isEmpty()) {
+            clearDraft(storageKey, target)
+            return
+        }
+        val payload = JSONArray().apply {
+            uriStrings.forEach { put(it) }
+        }.toString()
+        val values = ContentValues().apply {
+            put(COL_STORAGE_KEY, storageKey)
+            put(COL_TARGET, target.name)
+            put(COL_REPORT_ID, reportId)
+            put(COL_URIS, payload)
+            put(COL_UPDATED_AT, System.currentTimeMillis())
+        }
+        dbHelper.writableDatabase.insertWithOnConflict(
+            TABLE_NAME,
+            null,
+            values,
+            SQLiteDatabase.CONFLICT_REPLACE
+        )
+    }
+
+    fun clearDraft(storageKey: String, target: DailyReportUploadTarget) {
+        if (storageKey.isBlank()) return
+        dbHelper.writableDatabase.delete(
+            TABLE_NAME,
+            "$COL_STORAGE_KEY=? AND $COL_TARGET=?",
+            arrayOf(storageKey, target.name)
+        )
+    }
+
+    fun clearAll(storageKey: String) {
+        if (storageKey.isBlank()) return
+        dbHelper.writableDatabase.delete(
+            TABLE_NAME,
+            "$COL_STORAGE_KEY=?",
+            arrayOf(storageKey)
+        )
+    }
+
+    private fun decodeUriPayload(raw: String?): List<String> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return try {
+            val arr = JSONArray(raw)
+            buildList {
+                for (i in 0 until arr.length()) {
+                    val value = arr.optString(i)
+                    if (!value.isNullOrBlank()) add(value)
+                }
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private class DraftDbHelper(ctx: Context) : SQLiteOpenHelper(ctx, DB_NAME, null, DB_VERSION) {
+        override fun onCreate(db: SQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS $TABLE_NAME (
+                    $COL_STORAGE_KEY TEXT NOT NULL,
+                    $COL_TARGET TEXT NOT NULL,
+                    $COL_REPORT_ID TEXT NOT NULL,
+                    $COL_URIS TEXT NOT NULL,
+                    $COL_UPDATED_AT INTEGER NOT NULL,
+                    PRIMARY KEY($COL_STORAGE_KEY, $COL_TARGET)
+                )
+                """.trimIndent()
+            )
+        }
+
+        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+            if (oldVersion != newVersion) {
+                db.execSQL("DROP TABLE IF EXISTS $TABLE_NAME")
+                onCreate(db)
+            }
         }
     }
 }
