@@ -23,7 +23,7 @@ jobs:
 
       # الخطوة الجديدة: توليد google-services.json من السر
       - name: Set up google-services.json
-        run: scripts/setup-google-services.sh
+        run: bash scripts/setup-google-services.sh
         env:
           GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
 
