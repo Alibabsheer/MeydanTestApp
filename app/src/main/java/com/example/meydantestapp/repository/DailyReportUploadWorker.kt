@@ -9,6 +9,7 @@ import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageException
 import com.google.firebase.storage.StorageMetadata
+import com.google.firebase.storage.StorageReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.tasks.await
 import java.io.IOException
@@ -29,6 +30,9 @@ class DailyReportUploadWorker(
         const val KEY_RESULT_URLS = "uploadedUrls"
         const val KEY_ERROR_MESSAGE = "errorMessage"
         const val KEY_CLEANUP_URI_LIST = "cleanupUriList"
+
+        private const val META_REPORT_ID = "report_id"
+        private const val META_INDEX = "source_index"
     }
 
     private val storage by lazy { FirebaseStorage.getInstance() }
@@ -49,7 +53,6 @@ class DailyReportUploadWorker(
         }
 
         val baseRef = storage.reference.child("daily_reports/$reportId/${target.pathSegment}")
-        val metadata = StorageMetadata.Builder().setContentType(target.contentType).build()
         val uploadedUrls = mutableListOf<String>()
 
         setProgressAsync(workDataOf(KEY_PROGRESS to 0))
@@ -59,6 +62,20 @@ class DailyReportUploadWorker(
                 val uri = Uri.parse(uriString)
                 val objectName = target.fileName(index)
                 val ref = baseRef.child(objectName)
+
+                val alreadyUploaded = resolveExistingUpload(ref, reportId, index)
+                if (alreadyUploaded != null) {
+                    uploadedUrls += alreadyUploaded
+                    val after = (((index + 1).toDouble() / uriStrings.size) * 100.0).toInt().coerceIn(0, 100)
+                    setProgressAsync(workDataOf(KEY_PROGRESS to after))
+                    return@forEachIndexed
+                }
+
+                val metadata = StorageMetadata.Builder()
+                    .setContentType(target.contentType)
+                    .setCustomMetadata(META_REPORT_ID, reportId)
+                    .setCustomMetadata(META_INDEX, index.toString())
+                    .build()
 
                 val uploadTask = ref.putFile(uri, metadata)
                 uploadTask.addOnProgressListener { snap ->
@@ -104,6 +121,31 @@ class DailyReportUploadWorker(
             is IOException -> true
             is StorageException -> e.errorCode == StorageException.ERROR_RETRY_LIMIT_EXCEEDED
             else -> false
+        }
+    }
+
+    private suspend fun resolveExistingUpload(
+        ref: StorageReference,
+        reportId: String,
+        index: Int
+    ): String? {
+        return try {
+            val meta = ref.metadata.await()
+            val metaReportId = meta.getCustomMetadata(META_REPORT_ID)
+            val metaIndex = meta.getCustomMetadata(META_INDEX)?.toIntOrNull()
+            val matchesReport = metaReportId == null || metaReportId == reportId
+            val matchesIndex = metaIndex == null || metaIndex == index
+            if (matchesReport && matchesIndex) {
+                ref.downloadUrl.await().toString()
+            } else {
+                null
+            }
+        } catch (e: StorageException) {
+            if (e.errorCode == StorageException.ERROR_OBJECT_NOT_FOUND) {
+                null
+            } else {
+                throw e
+            }
         }
     }
 }
