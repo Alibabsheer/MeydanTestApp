@@ -270,6 +270,9 @@ class DailyReportRepository {
     fun extractUploadError(output: Data): String? =
         output.getString(DailyReportUploadWorker.KEY_ERROR_MESSAGE)
 
+    fun extractCleanupUris(output: Data): List<String> =
+        output.getStringArray(DailyReportUploadWorker.KEY_CLEANUP_URI_LIST)?.toList().orEmpty()
+
     /** يكتب/يُحدّث حقول sitepages و sitepagesmeta في وثيقة التقرير. */
     suspend fun writeSitePages(
         organizationId: String,

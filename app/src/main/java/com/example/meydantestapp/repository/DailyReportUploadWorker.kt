@@ -28,6 +28,7 @@ class DailyReportUploadWorker(
         const val KEY_PROGRESS = "progress"
         const val KEY_RESULT_URLS = "uploadedUrls"
         const val KEY_ERROR_MESSAGE = "errorMessage"
+        const val KEY_CLEANUP_URI_LIST = "cleanupUriList"
     }
 
     private val storage by lazy { FirebaseStorage.getInstance() }
@@ -81,7 +82,8 @@ class DailyReportUploadWorker(
             Result.success(
                 workDataOf(
                     KEY_RESULT_URLS to uploadedUrls.toTypedArray(),
-                    KEY_PROGRESS to 100
+                    KEY_PROGRESS to 100,
+                    KEY_CLEANUP_URI_LIST to uriStrings.toTypedArray()
                 )
             )
         } catch (c: CancellationException) {
