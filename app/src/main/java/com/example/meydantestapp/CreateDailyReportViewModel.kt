@@ -500,7 +500,7 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     WorkInfo.State.CANCELLED,
                     WorkInfo.State.FAILED -> {
                         _uploadCancelable.postValue(false)
-                        return@launch
+                        return@collect
                     }
                     else -> Unit
                 }

@@ -104,6 +104,8 @@ dependencies {
     implementation("com.github.bumptech.glide:glide:4.16.0")
     kapt("com.github.bumptech.glide:compiler:4.16.0")
 
+    implementation("com.google.guava:guava:33.0.0-android")
+
     implementation("androidx.exifinterface:exifinterface:1.3.7")
     implementation("com.otaliastudios:zoomlayout:1.9.0")
 
