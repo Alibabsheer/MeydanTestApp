@@ -32,6 +32,7 @@ import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * ImageUtils – تجهيز/تركيب الصور للاستخدام داخل التقارير.
@@ -80,9 +81,11 @@ object ImageUtils {
             val h0 = bounds.outHeight
             if (w0 <= 0 || h0 <= 0) return@runCatching null
 
+            val safeMaxDim = maxDim.coerceIn(256, DEFAULT_MAX_DIM)
+
             // inSampleSize أقرب قوة للاثنين
             var inSample = 1
-            while (w0 / inSample > maxDim || h0 / inSample > maxDim) inSample *= 2
+            while (w0 / inSample > safeMaxDim || h0 / inSample > safeMaxDim) inSample *= 2
 
             val opts = BitmapFactory.Options().apply {
                 inSampleSize = inSample
@@ -101,13 +104,28 @@ object ImageUtils {
                 open(uri)?.use { BitmapFactory.decodeStream(it, null, retryOpts) }
             } ?: return@runCatching null
 
-            when (orientation) {
+            val oriented = when (orientation) {
                 ExifInterface.ORIENTATION_ROTATE_90 -> decoded.rotate(90f)
                 ExifInterface.ORIENTATION_ROTATE_180 -> decoded.rotate(180f)
                 ExifInterface.ORIENTATION_ROTATE_270 -> decoded.rotate(270f)
                 ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> decoded.flip(horizontal = true, vertical = false)
                 ExifInterface.ORIENTATION_FLIP_VERTICAL -> decoded.flip(horizontal = false, vertical = true)
                 else -> decoded
+            }
+            if (oriented !== decoded) {
+                decoded.recycle()
+            }
+
+            if (oriented.width <= safeMaxDim && oriented.height <= safeMaxDim) {
+                oriented
+            } else {
+                val maxSide = max(oriented.width, oriented.height).toFloat()
+                val scale = safeMaxDim / maxSide
+                val targetW = (oriented.width * scale).roundToInt().coerceAtLeast(1)
+                val targetH = (oriented.height * scale).roundToInt().coerceAtLeast(1)
+                Bitmap.createScaledBitmap(oriented, targetW, targetH, true).also {
+                    if (it !== oriented) oriented.recycle()
+                }
             }
         }.getOrNull()
     }
@@ -445,7 +463,8 @@ object ImageUtils {
 
             if (!srcUriStr.isNullOrBlank()) {
                 val srcUri = runCatching { Uri.parse(srcUriStr) }.getOrNull()
-                val bmp = srcUri?.let { decodeBitmap(context.contentResolver, it, maxDim = DEFAULT_MAX_DIM) }
+                val decodeMaxDim = estimateDecodeMaxDim(imgRect)
+                val bmp = srcUri?.let { decodeBitmap(context.contentResolver, it, maxDim = decodeMaxDim) }
                 if (bmp != null) {
                     // Fit-Inside داخل imgRect (بدون قص)
                     val dstRect = fitInsideRect(bmp.width, bmp.height, imgRect)
@@ -453,6 +472,7 @@ object ImageUtils {
                     c.clipRect(imgRect)
                     c.drawBitmap(bmp, null, dstRect, imgPaint)
                     c.restore()
+                    bmp.recycle()
                 } else {
                     drawPlaceholder(c, imgRect, placeholderStroke)
                 }
@@ -559,7 +579,8 @@ object ImageUtils {
 
             if (!srcUriStr.isNullOrBlank()) {
                 val srcUri = runCatching { Uri.parse(srcUriStr) }.getOrNull()
-                val bmp = srcUri?.let { decodeBitmap(context.contentResolver, it, maxDim = DEFAULT_MAX_DIM) }
+                val decodeMaxDim = estimateDecodeMaxDim(imageRect, maxDim = DEFAULT_MAX_DIM)
+                val bmp = srcUri?.let { decodeBitmap(context.contentResolver, it, maxDim = decodeMaxDim) }
                 if (bmp != null) {
                     // CenterCrop داخل imageRect
                     val srcRect = Rect(0, 0, bmp.width, bmp.height)
@@ -568,6 +589,7 @@ object ImageUtils {
                     c.clipRect(imageRect)
                     c.drawBitmap(bmp, srcRect, dstRect, imagePaint)
                     c.restore()
+                    bmp.recycle()
                 } else {
                     drawPlaceholder(c, imageRect, placeholderStroke)
                 }
@@ -680,6 +702,13 @@ object ImageUtils {
         val left = dst.centerX() - dw / 2f
         val top = dst.centerY() - dh / 2f
         return RectF(left, top, left + dw, top + dh)
+    }
+
+    private fun estimateDecodeMaxDim(rect: RectF, maxDim: Int = DEFAULT_MAX_DIM): Int {
+        if (rect.width() <= 0f || rect.height() <= 0f) return maxDim
+        val longest = max(rect.width(), rect.height())
+        val padded = (longest * 1.2f).roundToInt()
+        return padded.coerceIn(256, maxDim)
     }
 
     private fun drawPlaceholder(c: Canvas, rect: RectF, stroke: Paint) {

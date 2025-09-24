@@ -20,6 +20,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import android.util.Log
+import kotlin.math.roundToInt
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
@@ -512,6 +513,12 @@ class ViewDailyReportActivity : AppCompatActivity() {
         private val onRetry: (position: Int) -> Unit
     ) : RecyclerView.Adapter<SitePagesAdapter.Holder>() {
 
+        companion object {
+            private const val PAGE_ASPECT_RATIO = 1.4142f
+            private const val MAX_OVERRIDE_DIM = 2048
+            private const val MIN_OVERRIDE_DP = 320
+        }
+
         class Holder(v: View) : RecyclerView.ViewHolder(v) {
             val pageImage: ImageView = v.findViewById(R.id.pageImage)
             val progressBar: ProgressBar = v.findViewById(R.id.progressBar)
@@ -529,9 +536,14 @@ class ViewDailyReportActivity : AppCompatActivity() {
             holder.progressBar.visibility = View.VISIBLE
             holder.errorContainer.visibility = View.GONE
 
+            holder.pageImage.setImageDrawable(null)
+            val (overrideW, overrideH) = computeOverrideSize(holder.pageImage)
+
             Glide.with(holder.pageImage.context)
                 .load(url)
                 .dontAnimate()
+                .override(overrideW, overrideH)
+                .thumbnail(0.25f)
                 .listener(object : RequestListener<Drawable> {
                     override fun onLoadFailed(
                         e: GlideException?,
@@ -590,22 +602,28 @@ class ViewDailyReportActivity : AppCompatActivity() {
                             .submit(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
                         val bmp = future.get()
                         val name = "SitePage_${adapterPos + 1}_${System.currentTimeMillis()}.jpg"
-                        val uri = ImageUtils.saveToGallery(holder.pageImage.context, bmp, name, 92)
+                        val uri = ImageUtils.saveToGallery(context, bmp, name, 92)
                         Handler(Looper.getMainLooper()).post {
                             if (uri != null) {
-                                Toast.makeText(holder.pageImage.context, "تم حفظ الصورة في الاستديو", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "تم حفظ الصورة في الاستديو", Toast.LENGTH_SHORT).show()
                             } else {
-                                Toast.makeText(holder.pageImage.context, "تعذر حفظ الصورة", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "تعذر حفظ الصورة", Toast.LENGTH_SHORT).show()
                             }
                         }
                     } catch (_: Exception) {
                         Handler(Looper.getMainLooper()).post {
-                            Toast.makeText(holder.pageImage.context, "تعذر تنزيل الصورة", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "تعذر تنزيل الصورة", Toast.LENGTH_SHORT).show()
                         }
                     }
                 }.start()
                 true
             }
+        }
+
+        override fun onViewRecycled(holder: Holder) {
+            super.onViewRecycled(holder)
+            Glide.with(holder.pageImage.context).clear(holder.pageImage)
+            holder.pageImage.setImageDrawable(null)
         }
 
         fun updateAt(position: Int, newUrl: String) {
@@ -614,5 +632,16 @@ class ViewDailyReportActivity : AppCompatActivity() {
         }
 
         override fun getItemCount(): Int = urls.size
+
+        private fun computeOverrideSize(imageView: ImageView): Pair<Int, Int> {
+            val dm = imageView.resources.displayMetrics
+            val minWidth = (MIN_OVERRIDE_DP * dm.density).roundToInt().coerceAtLeast(1)
+            val fallbackWidth = (dm.widthPixels * 0.9f).roundToInt().coerceAtLeast(minWidth)
+            val measuredWidth = imageView.width.takeIf { it > 0 } ?: fallbackWidth
+            val overrideWidth = measuredWidth.coerceIn(minWidth, MAX_OVERRIDE_DIM)
+            val overrideHeight = (overrideWidth * PAGE_ASPECT_RATIO).roundToInt().coerceAtMost(MAX_OVERRIDE_DIM)
+                .coerceAtLeast(minWidth)
+            return overrideWidth to overrideHeight
+        }
     }
 }
