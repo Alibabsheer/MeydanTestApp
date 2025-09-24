@@ -45,6 +45,7 @@ import java.util.UUID
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * CreateDailyReportViewModel – إدارة الحالة والتخزين للتقرير اليومي.
@@ -229,7 +230,8 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
     fun addImage(resolver: ContentResolver, uri: Uri, projectName: String?) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val bmp = ImageUtils.decodeBitmap(resolver, uri, maxDim = 2560) ?: return@launch
+                val decodeMaxDim = 1280
+                val bmp = ImageUtils.decodeBitmap(resolver, uri, maxDim = decodeMaxDim) ?: return@launch
                 val prepared = ImageUtils.prepareHorizontalWithOverlay(
                     getApplication(), bmp, 1280, 720, null, null
                 )
@@ -658,7 +660,8 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
         val out = mutableListOf<Uri>()
         source.forEach { uri ->
             try {
-                val bmp = ImageUtils.decodeBitmap(resolver, uri, maxDim = 2560) ?: return@forEach
+                val decodeMaxDim = 1280
+                val bmp = ImageUtils.decodeBitmap(resolver, uri, maxDim = decodeMaxDim) ?: return@forEach
                 val prepared = ImageUtils.prepareHorizontalWithOverlay(
                     getApplication(), bmp, 1280, 720, null, null
                 )
@@ -740,7 +743,9 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
 
             val srcUri = entry.localUri ?: entry.originalUrl
             if (!srcUri.isNullOrBlank()) {
-                val src = ImageUtils.decodeBitmap(resolver, Uri.parse(srcUri), maxDim = max(pageWidth, pageHeight))
+                val rectLongest = max(rect.width(), rect.height())
+                val decodeMaxDim = (rectLongest * 1.2f).roundToInt().coerceIn(256, max(pageWidth, pageHeight))
+                val src = ImageUtils.decodeBitmap(resolver, Uri.parse(srcUri), maxDim = decodeMaxDim)
                 if (src != null) {
                     // Fit-Inside داخل الخلية بدون قص
                     val scale = min(rect.width() / src.width.toFloat(), rect.height() / src.height.toFloat())
