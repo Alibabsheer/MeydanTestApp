@@ -850,16 +850,27 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
     }
 }
 
-private class DailyReportDraftStorage(context: Context) {
+class DailyReportDraftStorage(context: Context) {
 
     data class DraftRecord(
         val reportId: String,
         val uriStrings: List<String>
     )
 
+    data class CachedSitePage(
+        val reportId: String,
+        val pageIndex: Int,
+        val remoteUrl: String,
+        val localPath: String,
+        val updatedAt: Long
+    ) {
+        fun resolveFile(cacheDir: File): File = File(cacheDir, localPath)
+    }
+
     companion object {
         private const val DB_NAME = "daily_report_drafts.db"
-        private const val DB_VERSION = 1
+        private const val DB_VERSION = 2
+
         private const val TABLE_NAME = "report_upload_drafts"
         private const val COL_STORAGE_KEY = "storage_key"
         private const val COL_TARGET = "target"
@@ -867,12 +878,25 @@ private class DailyReportDraftStorage(context: Context) {
         private const val COL_URIS = "uris"
         private const val COL_UPDATED_AT = "updated_at"
 
+        private const val TABLE_SITE_CACHE = "site_page_cache"
+        private const val COL_SITE_REPORT_ID = "report_id"
+        private const val COL_SITE_PAGE_INDEX = "page_index"
+        private const val COL_SITE_REMOTE_URL = "remote_url"
+        private const val COL_SITE_LOCAL_PATH = "local_path"
+        private const val COL_SITE_UPDATED_AT = "updated_at"
+
+        private const val SITE_PAGES_DIR = "sitepages"
+        private const val SAFE_FILE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+        private const val MAX_REPORT_ID_LENGTH_FOR_FILE = 48
+        private const val THIRTY_DAYS_MILLIS = 30L * 24L * 60L * 60L * 1000L
+
         fun storageKey(organizationId: String, projectId: String, dateMillis: Long): String {
             return listOf(organizationId, projectId, dateMillis.toString()).joinToString("|")
         }
     }
 
-    private val dbHelper = DraftDbHelper(context.applicationContext)
+    private val appContext = context.applicationContext
+    private val dbHelper = DraftDbHelper(appContext)
 
     fun getDraft(storageKey: String, target: DailyReportUploadTarget): DraftRecord? {
         if (storageKey.isBlank()) return null
@@ -891,6 +915,161 @@ private class DailyReportDraftStorage(context: Context) {
             }
         }
         return null
+    }
+
+    fun cacheSitePageBitmap(
+        reportId: String?,
+        pageIndex: Int,
+        remoteUrl: String?,
+        bitmap: Bitmap
+    ): CachedSitePage? {
+        val safeReportId = reportId?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        if (pageIndex < 0) return null
+        val remote = remoteUrl?.takeIf { it.isNotBlank() } ?: ""
+        val dir = File(appContext.cacheDir, SITE_PAGES_DIR).apply { mkdirs() }
+        val fileName = buildSitePageFileName(safeReportId, pageIndex)
+        val outFile = File(dir, fileName)
+        try {
+            FileOutputStream(outFile).use { fos ->
+                val format = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    Bitmap.CompressFormat.WEBP_LOSSY
+                } else {
+                    Bitmap.CompressFormat.WEBP
+                }
+                bitmap.compress(format, 92, fos)
+            }
+        } catch (_: Exception) {
+            return null
+        }
+
+        val relativePath = "$SITE_PAGES_DIR/${outFile.name}"
+        val now = System.currentTimeMillis()
+        val existing = getCachedSitePageInternal(safeReportId, pageIndex)
+        if (existing != null && existing.localPath != relativePath) {
+            val oldFile = existing.resolveFile(appContext.cacheDir)
+            if (oldFile.exists() && oldFile.isFile) {
+                runCatching { oldFile.delete() }
+            }
+        }
+
+        val values = ContentValues().apply {
+            put(COL_SITE_REPORT_ID, safeReportId)
+            put(COL_SITE_PAGE_INDEX, pageIndex)
+            put(COL_SITE_REMOTE_URL, remote)
+            put(COL_SITE_LOCAL_PATH, relativePath)
+            put(COL_SITE_UPDATED_AT, now)
+        }
+        dbHelper.writableDatabase.insertWithOnConflict(
+            TABLE_SITE_CACHE,
+            null,
+            values,
+            SQLiteDatabase.CONFLICT_REPLACE
+        )
+
+        return CachedSitePage(safeReportId, pageIndex, remote, relativePath, now)
+    }
+
+    fun getCachedSitePages(reportId: String?): List<CachedSitePage> {
+        val safeReportId = reportId?.trim()?.takeIf { it.isNotEmpty() } ?: return emptyList()
+        val result = mutableListOf<CachedSitePage>()
+        val staleIndices = mutableListOf<Int>()
+        val db = dbHelper.readableDatabase
+        db.query(
+            TABLE_SITE_CACHE,
+            arrayOf(
+                COL_SITE_PAGE_INDEX,
+                COL_SITE_REMOTE_URL,
+                COL_SITE_LOCAL_PATH,
+                COL_SITE_UPDATED_AT
+            ),
+            "$COL_SITE_REPORT_ID=?",
+            arrayOf(safeReportId),
+            null,
+            null,
+            "$COL_SITE_PAGE_INDEX ASC"
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val pageIndex = cursor.getInt(0)
+                val remote = cursor.getString(1) ?: ""
+                val localPath = cursor.getString(2) ?: continue
+                val updatedAt = cursor.getLong(3)
+                val entry = CachedSitePage(safeReportId, pageIndex, remote, localPath, updatedAt)
+                val file = entry.resolveFile(appContext.cacheDir)
+                if (file.exists() && file.isFile) {
+                    result += entry
+                } else {
+                    staleIndices += pageIndex
+                }
+            }
+        }
+        if (staleIndices.isNotEmpty()) {
+            val whereClause = "$COL_SITE_REPORT_ID=? AND $COL_SITE_PAGE_INDEX=?"
+            val writable = dbHelper.writableDatabase
+            staleIndices.forEach { index ->
+                writable.delete(TABLE_SITE_CACHE, whereClause, arrayOf(safeReportId, index.toString()))
+            }
+        }
+        return result
+    }
+
+    fun cleanupExpiredSitePages(maxAgeMillis: Long = THIRTY_DAYS_MILLIS) {
+        if (maxAgeMillis <= 0L) return
+        val cutoff = System.currentTimeMillis() - maxAgeMillis
+        val db = dbHelper.writableDatabase
+        val expiredEntries = mutableListOf<CachedSitePage>()
+        db.query(
+            TABLE_SITE_CACHE,
+            arrayOf(
+                COL_SITE_REPORT_ID,
+                COL_SITE_PAGE_INDEX,
+                COL_SITE_REMOTE_URL,
+                COL_SITE_LOCAL_PATH,
+                COL_SITE_UPDATED_AT
+            ),
+            "$COL_SITE_UPDATED_AT<?",
+            arrayOf(cutoff.toString()),
+            null,
+            null,
+            null
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val report = cursor.getString(0) ?: continue
+                val pageIndex = cursor.getInt(1)
+                val remote = cursor.getString(2) ?: ""
+                val localPath = cursor.getString(3) ?: continue
+                val updatedAt = cursor.getLong(4)
+                expiredEntries += CachedSitePage(report, pageIndex, remote, localPath, updatedAt)
+            }
+        }
+        if (expiredEntries.isEmpty()) return
+        val whereClause = "$COL_SITE_REPORT_ID=? AND $COL_SITE_PAGE_INDEX=?"
+        expiredEntries.forEach { entry ->
+            val file = entry.resolveFile(appContext.cacheDir)
+            if (file.exists() && file.isFile) {
+                runCatching { file.delete() }
+            }
+            db.delete(
+                TABLE_SITE_CACHE,
+                whereClause,
+                arrayOf(entry.reportId, entry.pageIndex.toString())
+            )
+        }
+    }
+
+    fun clearSitePages(reportId: String?) {
+        val safeReportId = reportId?.trim()?.takeIf { it.isNotEmpty() } ?: return
+        val entries = getCachedSitePages(safeReportId)
+        entries.forEach { entry ->
+            val file = entry.resolveFile(appContext.cacheDir)
+            if (file.exists() && file.isFile) {
+                runCatching { file.delete() }
+            }
+        }
+        dbHelper.writableDatabase.delete(
+            TABLE_SITE_CACHE,
+            "$COL_SITE_REPORT_ID=?",
+            arrayOf(safeReportId)
+        )
     }
 
     fun findExistingReportId(storageKey: String): String? {
@@ -975,6 +1154,34 @@ private class DailyReportDraftStorage(context: Context) {
         }
     }
 
+    private fun getCachedSitePageInternal(reportId: String, pageIndex: Int): CachedSitePage? {
+        val db = dbHelper.readableDatabase
+        db.query(
+            TABLE_SITE_CACHE,
+            arrayOf(COL_SITE_REMOTE_URL, COL_SITE_LOCAL_PATH, COL_SITE_UPDATED_AT),
+            "$COL_SITE_REPORT_ID=? AND $COL_SITE_PAGE_INDEX=?",
+            arrayOf(reportId, pageIndex.toString()),
+            null,
+            null,
+            null
+        ).use { cursor ->
+            if (cursor.moveToFirst()) {
+                val remote = cursor.getString(0) ?: ""
+                val localPath = cursor.getString(1) ?: return null
+                val updatedAt = cursor.getLong(2)
+                return CachedSitePage(reportId, pageIndex, remote, localPath, updatedAt)
+            }
+        }
+        return null
+    }
+
+    private fun buildSitePageFileName(reportId: String, pageIndex: Int): String {
+        val sanitizedId = reportId.take(MAX_REPORT_ID_LENGTH_FOR_FILE).map { ch ->
+            if (SAFE_FILE_CHARS.indexOf(ch) >= 0) ch else '_'
+        }.joinToString("")
+        return "sitepage_${sanitizedId}_${pageIndex}.webp"
+    }
+
     private class DraftDbHelper(ctx: Context) : SQLiteOpenHelper(ctx, DB_NAME, null, DB_VERSION) {
         override fun onCreate(db: SQLiteDatabase) {
             db.execSQL(
@@ -989,11 +1196,36 @@ private class DailyReportDraftStorage(context: Context) {
                 )
                 """.trimIndent()
             )
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS $TABLE_SITE_CACHE (
+                    $COL_SITE_REPORT_ID TEXT NOT NULL,
+                    $COL_SITE_PAGE_INDEX INTEGER NOT NULL,
+                    $COL_SITE_REMOTE_URL TEXT NOT NULL,
+                    $COL_SITE_LOCAL_PATH TEXT NOT NULL,
+                    $COL_SITE_UPDATED_AT INTEGER NOT NULL,
+                    PRIMARY KEY($COL_SITE_REPORT_ID, $COL_SITE_PAGE_INDEX)
+                )
+                """.trimIndent()
+            )
         }
 
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-            if (oldVersion != newVersion) {
-                db.execSQL("DROP TABLE IF EXISTS $TABLE_NAME")
+            if (oldVersion < 2 && newVersion >= 2) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS $TABLE_SITE_CACHE (
+                        $COL_SITE_REPORT_ID TEXT NOT NULL,
+                        $COL_SITE_PAGE_INDEX INTEGER NOT NULL,
+                        $COL_SITE_REMOTE_URL TEXT NOT NULL,
+                        $COL_SITE_LOCAL_PATH TEXT NOT NULL,
+                        $COL_SITE_UPDATED_AT INTEGER NOT NULL,
+                        PRIMARY KEY($COL_SITE_REPORT_ID, $COL_SITE_PAGE_INDEX)
+                    )
+                    """.trimIndent()
+                )
+            }
+            if (oldVersion > newVersion) {
                 onCreate(db)
             }
         }
