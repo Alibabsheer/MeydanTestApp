@@ -2,9 +2,15 @@ package com.example.meydantestapp.repository
 
 import android.content.Context
 import android.net.Uri
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import com.example.meydantestapp.utils.ImageUtils
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageException
@@ -12,6 +18,7 @@ import com.google.firebase.storage.StorageMetadata
 import com.google.firebase.storage.StorageReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.tasks.await
+import java.util.concurrent.TimeUnit
 import java.io.IOException
 
 /**
@@ -96,6 +103,8 @@ class DailyReportUploadWorker(
                 setProgressAsync(workDataOf(KEY_PROGRESS to after))
             }
 
+            runPostUploadCleanup(uriStrings)
+
             Result.success(
                 workDataOf(
                     KEY_RESULT_URLS to uploadedUrls.toTypedArray(),
@@ -113,6 +122,12 @@ class DailyReportUploadWorker(
                 Result.failure(workDataOf(KEY_ERROR_MESSAGE to (e.message ?: "upload-failed")))
             }
         }
+    }
+
+    private fun runPostUploadCleanup(uriStrings: List<String>) {
+        if (uriStrings.isEmpty()) return
+        ImageUtils.cleanupCacheUris(applicationContext, uriStrings)
+        DailyReportCacheCleanupWorker.enqueue(applicationContext)
     }
 
     private fun shouldRetry(e: Exception): Boolean {
@@ -147,5 +162,45 @@ class DailyReportUploadWorker(
                 throw e
             }
         }
+    }
+}
+
+/**
+ * عمل دوري لتنظيف ملفات cache القديمة التي لم تُحذف بعد عمليات الرفع.
+ */
+class DailyReportCacheCleanupWorker(
+    appContext: Context,
+    params: WorkerParameters
+) : CoroutineWorker(appContext, params) {
+
+    companion object {
+        private const val UNIQUE_NAME = "daily-report-cache-cleanup"
+        private const val MAX_FILE_AGE_MILLIS = 7L * 24L * 60L * 60L * 1000L
+        private const val INTERVAL_HOURS = 24L
+
+        fun enqueue(context: Context) {
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
+                .setRequiresBatteryNotLow(true)
+                .build()
+
+            val request = PeriodicWorkRequestBuilder<DailyReportCacheCleanupWorker>(
+                INTERVAL_HOURS, TimeUnit.HOURS
+            )
+                .setConstraints(constraints)
+                .setInitialDelay(6L, TimeUnit.HOURS)
+                .build()
+
+            WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                UNIQUE_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                request
+            )
+        }
+    }
+
+    override suspend fun doWork(): Result {
+        val deleted = ImageUtils.cleanupOldCacheFiles(applicationContext, MAX_FILE_AGE_MILLIS)
+        return Result.success(workDataOf("deleted" to deleted))
     }
 }

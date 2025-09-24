@@ -52,6 +52,7 @@ object ImageUtils {
     private const val DEFAULT_MAX_DIM = 2560
     private const val DEFAULT_JPEG_QUALITY = 92
     private const val DEFAULT_WEBP_QUALITY = 90
+    private val DEFAULT_CACHE_SUBDIRS = listOf("images", "pages", "reports")
 
     // ================ مواضع صندوق التراكب ================ //
     enum class OverlayGravity { TOP_LEFT, TOP_CENTER, TOP_RIGHT, CENTER, BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT }
@@ -653,6 +654,95 @@ object ImageUtils {
         return FileProvider.getUriForFile(context, "${'$'}{context.packageName}.fileprovider", outFile)
     }
 
+    /** يحسب أكبر بُعد مناسب لفكّ الترميز بناءً على شاشة الجهاز لتقليل استهلاك الذاكرة. */
+    fun displayAwareMaxDim(context: Context, scale: Float = 1.2f, minDim: Int = 720): Int {
+        val dm = context.resources.displayMetrics
+        val base = max(dm.widthPixels, dm.heightPixels).coerceAtLeast(minDim)
+        val scaled = (base * scale.coerceAtLeast(1.0f)).roundToInt()
+        return scaled.coerceIn(minDim, DEFAULT_MAX_DIM)
+    }
+
+    /** يحذف الملفات المؤقتة المرتبطة بواجهات FileProvider داخل مجلد cache. */
+    fun cleanupCacheUris(context: Context, uriStrings: Collection<String>): Int {
+        if (uriStrings.isEmpty()) return 0
+        val cacheDir = context.cacheDir
+        val authority = "${'$'}{context.packageName}.fileprovider"
+        var deleted = 0
+
+        uriStrings.distinct().forEach { raw ->
+            if (raw.isBlank()) return@forEach
+            val uri = runCatching { Uri.parse(raw) }.getOrNull() ?: return@forEach
+            val target = when (uri.scheme) {
+                ContentResolver.SCHEME_FILE -> uri.path?.let { File(it) }
+                ContentResolver.SCHEME_CONTENT -> {
+                    if (uri.authority == authority) {
+                        val relative = uri.path?.trimStart('/') ?: return@forEach
+                        if (DEFAULT_CACHE_SUBDIRS.any { relative.startsWith("${it}/") }) {
+                            File(cacheDir, relative)
+                        } else {
+                            null
+                        }
+                    } else {
+                        null
+                    }
+                }
+                else -> null
+            } ?: return@forEach
+
+            if (target.exists() && target.isFile && isInside(cacheDir, target)) {
+                if (runCatching { target.delete() }.getOrDefault(false)) {
+                    deleted++
+                }
+            }
+        }
+
+        DEFAULT_CACHE_SUBDIRS.forEach { subDir ->
+            val dir = File(cacheDir, subDir)
+            if (dir.exists()) {
+                val children = dir.listFiles()
+                if (children != null && children.isEmpty()) {
+                    runCatching { dir.delete() }
+                }
+            }
+        }
+
+        return deleted
+    }
+
+    /**
+     * يحذف الملفات الأقدم من maxAgeMillis داخل مجلدات cache المحددة.
+     * @return عدد الملفات التي تم حذفها.
+     */
+    fun cleanupOldCacheFiles(context: Context, maxAgeMillis: Long): Int {
+        if (maxAgeMillis <= 0) return 0
+        val cutoff = System.currentTimeMillis() - maxAgeMillis
+        val cacheDir = context.cacheDir
+        var deleted = 0
+
+        fun purgeDir(dir: File) {
+            val files = dir.listFiles() ?: return
+            files.forEach { file ->
+                if (!isInside(cacheDir, file)) return@forEach
+                if (file.isDirectory) {
+                    purgeDir(file)
+                    if (file.listFiles().isNullOrEmpty()) {
+                        runCatching { file.delete() }
+                    }
+                } else if (file.isFile && file.lastModified() < cutoff) {
+                    if (runCatching { file.delete() }.getOrDefault(false)) {
+                        deleted++
+                    }
+                }
+            }
+        }
+
+        DEFAULT_CACHE_SUBDIRS.map { File(cacheDir, it) }
+            .filter { it.exists() && isInside(cacheDir, it) }
+            .forEach { purgeDir(it) }
+
+        return deleted
+    }
+
     // ================ Helpers ================ //
 
     private fun readExifOrientation(inputStream: InputStream): Int {
@@ -757,6 +847,16 @@ object ImageUtils {
             c.drawText(line, rect.left + pad, y, paint)
             remaining = remaining.substring(count).trimStart()
             y += (paint.fontMetrics.descent - paint.fontMetrics.ascent) * 1.05f
+        }
+    }
+
+    private fun isInside(parent: File, child: File): Boolean {
+        return try {
+            val parentPath = parent.canonicalPath
+            val childPath = child.canonicalPath
+            childPath.startsWith(parentPath)
+        } catch (_: Exception) {
+            false
         }
     }
 }
