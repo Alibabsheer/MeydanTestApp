@@ -1,15 +1,15 @@
 package com.example.meydantestapp
 
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfDocument
 import android.graphics.pdf.PdfRenderer
-import android.graphics.drawable.Drawable
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.view.LayoutInflater
 import android.view.View
@@ -40,6 +40,7 @@ import com.example.meydantestapp.utils.Constants
 import com.example.meydantestapp.utils.ImageUtils
 import com.google.firebase.firestore.FirebaseFirestore
 import com.otaliastudios.zoom.ZoomLayout
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -62,6 +63,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
     // ===== VM / Data =====
     private lateinit var viewModel: ViewDailyReportViewModel
     private val db by lazy { FirebaseFirestore.getInstance() }
+    private val draftStorage by lazy { DailyReportDraftStorage(applicationContext) }
 
     // وضع العرض الحالي
     private enum class DisplayMode { SITE_PAGES, PDF_RENDER }
@@ -145,16 +147,55 @@ class ViewDailyReportActivity : AppCompatActivity() {
         }
 
         lifecycleScope.launch {
-            val fromReport = DailyReportRepository.normalizePageUrls(report.sitepages)
+            val cachedPages = withContext(Dispatchers.IO) {
+                val reportId = report.id
+                if (reportId.isNullOrBlank()) {
+                    emptyList()
+                } else {
+                    draftStorage.cleanupExpiredSitePages()
+                    draftStorage.getCachedSitePages(reportId)
+                }
+            }
+
+            val fromReport = runCatching {
+                DailyReportRepository.normalizePageUrls(report.sitepages)
+            }.onFailure {
+                Log.w("ViewDailyReportActivity", "normalizePageUrls(report) failed", it)
+            }.getOrDefault(emptyList())
+
             val extraRaw: ArrayList<String>? = intent.getStringArrayListExtra("site_pages")
-            val fromExtra = DailyReportRepository.normalizePageUrls(extraRaw)
+            val fromExtra = runCatching {
+                DailyReportRepository.normalizePageUrls(extraRaw)
+            }.onFailure {
+                Log.w("ViewDailyReportActivity", "normalizePageUrls(extra) failed", it)
+            }.getOrDefault(emptyList())
+
             val chosenSitePages = when {
                 fromReport.isNotEmpty() -> fromReport
                 fromExtra.isNotEmpty() -> fromExtra
                 else -> emptyList()
             }
-            if (chosenSitePages.isNotEmpty()) {
-                displaySitePages(chosenSitePages, report.id)
+
+            val fallbackFromCache = cachedPages
+                .sortedBy { it.pageIndex }
+                .mapNotNull { entry ->
+                    when {
+                        entry.remoteUrl.isNotBlank() -> entry.remoteUrl
+                        else -> {
+                            val file = entry.resolveFile(cacheDir)
+                            if (file.exists() && file.isFile) file.toURI().toString() else null
+                        }
+                    }
+                }
+
+            val urlsForDisplay = when {
+                chosenSitePages.isNotEmpty() -> chosenSitePages
+                fallbackFromCache.isNotEmpty() -> fallbackFromCache
+                else -> emptyList()
+            }
+
+            if (urlsForDisplay.isNotEmpty()) {
+                displaySitePages(urlsForDisplay, report.id, cachedPages)
                 tryResolveOrganizationAndLoadLogo(report, explicitOrgId)
             } else {
                 setupPdfRenderFlow(report, explicitOrgId)
@@ -224,7 +265,11 @@ class ViewDailyReportActivity : AppCompatActivity() {
     // ---------------------------------------------------------------------
     // 2A) Display pre-composed site pages (full images per template)
     // ---------------------------------------------------------------------
-    private fun displaySitePages(urls: List<String>, reportId: String?) {
+    private fun displaySitePages(
+        urls: List<String>,
+        reportId: String?,
+        cachedPages: List<DailyReportDraftStorage.CachedSitePage>
+    ) {
         currentMode = DisplayMode.SITE_PAGES
         renderJob?.cancel()
         sitePageUrls.clear()
@@ -232,12 +277,29 @@ class ViewDailyReportActivity : AppCompatActivity() {
         sharePdfButton.isEnabled = true // يمكن التصدير إلى PDF من هذه الصفحات
 
         var adapter: SitePagesAdapter? = null
-        adapter = SitePagesAdapter(this, sitePageUrls, reportId) { pos ->
+        adapter = SitePagesAdapter(
+            context = this,
+            scope = lifecycleScope,
+            urls = sitePageUrls,
+            reportId = reportId,
+            cachedPages = cachedPages,
+            draftStorage = draftStorage,
+            networkChecker = { isNetworkAvailable() }
+        ) { pos ->
             lifecycleScope.launch {
-                val retried = DailyReportRepository.normalizePageUrls(listOf(sitePageUrls[pos])).firstOrNull()
-                    ?: sitePageUrls[pos]
+                val adapterRef = adapter ?: return@launch
+                val candidate = adapterRef.remoteSourceAt(pos) ?: sitePageUrls[pos]
+                if (candidate.startsWith("file:")) {
+                    adapterRef.notifyItemChanged(pos)
+                    return@launch
+                }
+                val retried = runCatching {
+                    DailyReportRepository.normalizePageUrls(listOf(candidate)).firstOrNull()
+                }.onFailure {
+                    Log.w("ViewDailyReportActivity", "Retry normalize failed", it)
+                }.getOrNull() ?: candidate
                 sitePageUrls[pos] = retried
-                adapter?.updateAt(pos, retried)
+                adapterRef.updateAt(pos, retried)
             }
         }
         recycler.adapter = adapter
@@ -432,6 +494,21 @@ class ViewDailyReportActivity : AppCompatActivity() {
         if (loading) sharePdfButton.isEnabled = false
     }
 
+    private fun isNetworkAvailable(): Boolean {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val network = cm.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(network) ?: return false
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+        } else {
+            @Suppress("DEPRECATION")
+            val info = cm.activeNetworkInfo
+            info != null && info.isConnected
+        }
+    }
+
     /**
      * يُرجع سطرًا واحدًا كما طُلِب:
      * "درجة الحرارة : 45 °C    حالة الطقس : غائم"
@@ -508,8 +585,12 @@ class ViewDailyReportActivity : AppCompatActivity() {
      */
     private class SitePagesAdapter(
         private val context: android.content.Context,
+        private val scope: CoroutineScope,
         private val urls: MutableList<String>,
         private val reportId: String?,
+        cachedPages: List<DailyReportDraftStorage.CachedSitePage>,
+        private val draftStorage: DailyReportDraftStorage,
+        private val networkChecker: () -> Boolean,
         private val onRetry: (position: Int) -> Unit
     ) : RecyclerView.Adapter<SitePagesAdapter.Holder>() {
 
@@ -524,6 +605,14 @@ class ViewDailyReportActivity : AppCompatActivity() {
             val progressBar: ProgressBar = v.findViewById(R.id.progressBar)
             val errorContainer: View = v.findViewById(R.id.errorContainer)
             val retryButton: Button = v.findViewById(R.id.retryButton)
+            val errorText: TextView = v.findViewById(R.id.errorText)
+        }
+
+        private val cachedByIndex = cachedPages.associateBy { it.pageIndex }.toMutableMap()
+        private val remoteByIndex = mutableMapOf<Int, String?>().apply {
+            urls.forEachIndexed { index, value ->
+                this[index] = cachedByIndex[index]?.remoteUrl?.takeIf { it.isNotBlank() } ?: value
+            }
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
@@ -533,59 +622,124 @@ class ViewDailyReportActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(holder: Holder, position: Int) {
             val url = urls[position]
+            val remoteSource = remoteByIndex[position]
+            val cachedEntry = cachedByIndex[position]
+            val fallbackFile = cachedEntry?.resolveFile(holder.pageImage.context.cacheDir)
+                ?.takeIf { it.exists() && it.isFile }
+
             holder.progressBar.visibility = View.VISIBLE
             holder.errorContainer.visibility = View.GONE
-
             holder.pageImage.setImageDrawable(null)
+
             val (overrideW, overrideH) = computeOverrideSize(holder.pageImage)
 
-            Glide.with(holder.pageImage.context)
-                .load(url)
+            val modelToLoad: Any? = when {
+                !remoteSource.isNullOrBlank() -> remoteSource
+                fallbackFile != null -> fallbackFile
+                url.startsWith("file:") -> Uri.parse(url)
+                url.isNotBlank() -> url
+                else -> null
+            }
+
+            if (modelToLoad == null) {
+                holder.progressBar.visibility = View.GONE
+                holder.errorContainer.visibility = View.VISIBLE
+                holder.errorText.text = "تعذّر تحميل الصفحة"
+                holder.retryButton.setOnClickListener {
+                    val adapterPos = holder.bindingAdapterPosition
+                    if (adapterPos != RecyclerView.NO_POSITION) {
+                        onRetry(adapterPos)
+                    }
+                }
+                return
+            }
+
+            var request = Glide.with(holder.pageImage.context)
+                .asBitmap()
+                .load(modelToLoad)
                 .dontAnimate()
                 .override(overrideW, overrideH)
                 .thumbnail(0.25f)
-                .listener(object : RequestListener<Drawable> {
-                    override fun onLoadFailed(
-                        e: GlideException?,
-                        model: Any?,
-                        target: Target<Drawable>,
-                        isFirstResource: Boolean
-                    ): Boolean {
-                        holder.progressBar.visibility = View.GONE
-                        holder.errorContainer.visibility = View.VISIBLE
-                        holder.retryButton.setOnClickListener {
-                            val adapterPos = holder.bindingAdapterPosition
-                            if (adapterPos != RecyclerView.NO_POSITION) {
-                                onRetry(adapterPos)
-                            }
-                        }
-                        val adapterPos = holder.bindingAdapterPosition
-                        Log.e(
-                            "SitePagesAdapter",
-                            "Load failed report=$reportId page=$adapterPos url=$url",
-                            e
-                        )
-                        return false
-                    }
-
-                    override fun onResourceReady(
-                        resource: Drawable,
-                        model: Any,
-                        target: Target<Drawable>,
-                        dataSource: DataSource,
-                        isFirstResource: Boolean
-                    ): Boolean {
-                        holder.progressBar.visibility = View.GONE
-                        holder.errorContainer.visibility = View.GONE
-                        val adapterPos = holder.bindingAdapterPosition
-                        Log.d("SitePagesAdapter", "Loaded report=$reportId page=$adapterPos")
-                        return false
-                    }
-                })
-                .placeholder(R.drawable.ic_image_placeholder)
-                .error(R.drawable.ic_error)
                 .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
                 .fitCenter()
+
+            if (fallbackFile != null && !remoteSource.isNullOrBlank()) {
+                request = request.error(
+                    Glide.with(holder.pageImage.context)
+                        .asBitmap()
+                        .load(fallbackFile)
+                        .dontAnimate()
+                        .override(overrideW, overrideH)
+                        .fitCenter()
+                )
+            } else {
+                request = request.error(R.drawable.ic_error)
+            }
+
+            request = request.listener(object : RequestListener<Bitmap> {
+                override fun onLoadFailed(
+                    e: GlideException?,
+                    model: Any?,
+                    target: Target<Bitmap>,
+                    isFirstResource: Boolean
+                ): Boolean {
+                    holder.progressBar.visibility = View.GONE
+                    holder.errorContainer.visibility = View.VISIBLE
+                    holder.errorText.text = if (!networkChecker()) {
+                        "لا يوجد اتصال"
+                    } else {
+                        "تعذّر تحميل الصفحة"
+                    }
+                    holder.retryButton.setOnClickListener {
+                        val adapterPos = holder.bindingAdapterPosition
+                        if (adapterPos != RecyclerView.NO_POSITION) {
+                            onRetry(adapterPos)
+                        }
+                    }
+                    val adapterPos = holder.bindingAdapterPosition
+                    Log.e(
+                        "SitePagesAdapter",
+                        "Load failed report=$reportId page=$adapterPos model=$modelToLoad",
+                        e
+                    )
+                    return false
+                }
+
+                override fun onResourceReady(
+                    resource: Bitmap,
+                    model: Any,
+                    target: Target<Bitmap>,
+                    dataSource: DataSource,
+                    isFirstResource: Boolean
+                ): Boolean {
+                    holder.progressBar.visibility = View.GONE
+                    holder.errorContainer.visibility = View.GONE
+                    val adapterPos = holder.bindingAdapterPosition
+                    if (adapterPos != RecyclerView.NO_POSITION && !reportId.isNullOrBlank()) {
+                        scope.launch(Dispatchers.IO) {
+                            val cached = draftStorage.cacheSitePageBitmap(
+                                reportId,
+                                adapterPos,
+                                remoteSource?.takeIf { it.isNotBlank() } ?: url,
+                                resource
+                            )
+                            if (cached != null) {
+                                withContext(Dispatchers.Main) {
+                                    cachedByIndex[adapterPos] = cached
+                                    if (cached.remoteUrl.isNotBlank()) {
+                                        remoteByIndex[adapterPos] = cached.remoteUrl
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Log.d("SitePagesAdapter", "Loaded report=$reportId page=$adapterPos")
+                    return false
+                }
+            })
+
+            request
+                .placeholder(R.drawable.ic_image_placeholder)
                 .into(holder.pageImage)
 
             holder.pageImage.setOnLongClickListener {
@@ -593,29 +747,32 @@ class ViewDailyReportActivity : AppCompatActivity() {
                 if (adapterPos == RecyclerView.NO_POSITION) {
                     return@setOnLongClickListener true
                 }
-                Thread {
+                scope.launch(Dispatchers.IO) {
                     try {
+                        val downloadSource: Any = remoteByIndex[adapterPos]?.takeIf { !it.isNullOrBlank() }
+                            ?: cachedByIndex[adapterPos]?.resolveFile(context.cacheDir)
+                            ?: url
                         val future = Glide.with(holder.pageImage.context)
                             .asBitmap()
-                            .load(url)
+                            .load(downloadSource)
                             .diskCacheStrategy(DiskCacheStrategy.ALL)
                             .submit(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
                         val bmp = future.get()
                         val name = "SitePage_${adapterPos + 1}_${System.currentTimeMillis()}.jpg"
                         val uri = ImageUtils.saveToGallery(context, bmp, name, 92)
-                        Handler(Looper.getMainLooper()).post {
+                        withContext(Dispatchers.Main) {
                             if (uri != null) {
                                 Toast.makeText(context, "تم حفظ الصورة في الاستديو", Toast.LENGTH_SHORT).show()
                             } else {
-                                Toast.makeText(context, "تعذر حفظ الصورة", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "تعذر فظ الصورة", Toast.LENGTH_SHORT).show()
                             }
                         }
                     } catch (_: Exception) {
-                        Handler(Looper.getMainLooper()).post {
+                        withContext(Dispatchers.Main) {
                             Toast.makeText(context, "تعذر تنزيل الصورة", Toast.LENGTH_SHORT).show()
                         }
                     }
-                }.start()
+                }
                 true
             }
         }
@@ -628,8 +785,11 @@ class ViewDailyReportActivity : AppCompatActivity() {
 
         fun updateAt(position: Int, newUrl: String) {
             urls[position] = newUrl
+            remoteByIndex[position] = newUrl
             notifyItemChanged(position)
         }
+
+        fun remoteSourceAt(position: Int): String? = remoteByIndex[position]
 
         override fun getItemCount(): Int = urls.size
 
@@ -644,4 +804,6 @@ class ViewDailyReportActivity : AppCompatActivity() {
             return overrideWidth to overrideHeight
         }
     }
+
+
 }
