@@ -51,7 +51,7 @@ class DailyReportUploadWorker(
         }
 
         val target = inputData.getString(KEY_UPLOAD_TARGET)?.let {
-            runCatching { DailyReportUploadTarget.valueOf(it) }.getOrNull()
+            runCatching { DailyReportUploadSpec.valueOf(it) }.getOrNull()
         } ?: return Result.failure(workDataOf(KEY_ERROR_MESSAGE to "unknown-target"))
 
         val uriStrings = inputData.getStringArray(KEY_URI_LIST)?.toList().orEmpty()

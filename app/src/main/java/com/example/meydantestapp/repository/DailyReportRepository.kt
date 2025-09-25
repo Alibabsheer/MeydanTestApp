@@ -49,7 +49,7 @@ class DailyReportRepository {
         private const val STATE_UPLOADING = "uploading"
         private const val STATE_COMPLETED = "completed"
 
-        private fun buildUploadTag(reportId: String, target: DailyReportUploadTarget): String {
+        private fun buildUploadTag(reportId: String, target: DailyReportUploadSpec): String {
             return "daily-report-${target.name.lowercase(Locale.ROOT)}-$reportId"
         }
     }
@@ -274,7 +274,7 @@ class DailyReportRepository {
     fun buildUploadWorkRequest(
         reportId: String,
         uris: List<Uri>,
-        target: DailyReportUploadTarget
+        target: DailyReportUploadSpec
     ): OneTimeWorkRequest? {
         if (uris.isEmpty()) return null
 
@@ -299,7 +299,7 @@ class DailyReportRepository {
             .build()
     }
 
-    fun uploadWorkTag(reportId: String, target: DailyReportUploadTarget): String =
+    fun uploadWorkTag(reportId: String, target: DailyReportUploadSpec): String =
         buildUploadTag(reportId, target)
 
     fun extractUploadedUrls(output: Data): List<String> =

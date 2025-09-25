@@ -5,7 +5,7 @@ import java.util.Locale
 /**
  * توصيف أهداف رفع الصور الخاصة بالتقارير اليومية.
  */
-enum class DailyReportUploadTarget(
+enum class DailyReportUploadSpec(
     val pathSegment: String,
     val contentType: String,
     private val namePattern: String
