@@ -153,6 +153,90 @@ class ReportPdfBuilder(
     @SuppressLint("BidiSpoofing")
     private fun ltrIsolate(text: String): String = "⁦$text⁩" // U+2066..U+2069
 
+    private fun normalizeArabicCommaSpacing(input: String): String {
+        if (input.isEmpty()) return input
+        var text = input.replace(',', '،')
+        text = text.replace(Regex("\\s+،"), "،")
+        if (!text.contains('،')) return text
+        val sb = StringBuilder(text.length)
+        var index = 0
+        while (index < text.length) {
+            val ch = text[index]
+            if (ch == '،') {
+                sb.append('،')
+                index++
+                while (index < text.length && text[index].isWhitespace()) {
+                    index++
+                }
+                if (index < text.length) {
+                    sb.append(' ')
+                }
+            } else {
+                sb.append(ch)
+                index++
+            }
+        }
+        return sb.toString()
+    }
+
+    private fun normalizeRtlMixedText(input: String): String {
+        if (input.isEmpty()) return input
+        val builder = StringBuilder(input.length + 8)
+        val run = StringBuilder()
+        var runKind = 0 // 0 = neutral, 1 = RTL, 2 = LTR
+
+        fun flush() {
+            if (run.isEmpty()) return
+            if (runKind == 2) {
+                builder.append('\u2066').append(run).append('\u2069')
+            } else {
+                builder.append(run)
+            }
+            run.setLength(0)
+            runKind = 0
+        }
+
+        fun classify(ch: Char): Int = when (Character.getDirectionality(ch)) {
+            Character.DIRECTIONALITY_LEFT_TO_RIGHT,
+            Character.DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING,
+            Character.DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE,
+            Character.DIRECTIONALITY_EUROPEAN_NUMBER,
+            Character.DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR,
+            Character.DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR,
+            Character.DIRECTIONALITY_ARABIC_NUMBER -> 2
+            Character.DIRECTIONALITY_RIGHT_TO_LEFT,
+            Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC,
+            Character.DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING,
+            Character.DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE -> 1
+            else -> 0
+        }
+
+        for (ch in input) {
+            val type = classify(ch)
+            if (run.isEmpty()) {
+                run.append(ch)
+                runKind = if (type == 0) 0 else type
+                continue
+            }
+
+            if (type == 0) {
+                run.append(ch)
+            } else if (runKind == 0) {
+                run.append(ch)
+                runKind = type
+            } else if (runKind == type) {
+                run.append(ch)
+            } else {
+                flush()
+                run.append(ch)
+                runKind = type
+            }
+        }
+
+        flush()
+        return builder.toString()
+    }
+
     private fun createLayout(
         text: CharSequence,
         paint: TextPaint,
@@ -368,7 +452,13 @@ class ReportPdfBuilder(
 
             val valueTrimmed = valueRaw.trim()
             val prefersLTR = preferLTR(valueTrimmed)
-            val valueText = if (prefersLTR) ltrIsolate(valueTrimmed) else valueTrimmed
+            val normalizedValue = if (prefersLTR) {
+                valueTrimmed
+            } else {
+                val withComma = normalizeArabicCommaSpacing(valueTrimmed)
+                normalizeRtlMixedText(withComma)
+            }
+            val valueText = if (prefersLTR) ltrIsolate(normalizedValue) else normalizedValue
 
             val maxLabelWidth = (contentWidth * 0.45f).toInt()
             val measuredLabel = bodyPaint.measureText(labelText).roundToInt() + horizontalPadding * 2
