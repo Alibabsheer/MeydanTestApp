@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
@@ -21,9 +22,14 @@ object PermissionUtils {
     }
     
     fun isStoragePermissionGranted(context: Context): Boolean {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
         return ContextCompat.checkSelfPermission(
             context,
-            Manifest.permission.READ_EXTERNAL_STORAGE
+            permission
         ) == PackageManager.PERMISSION_GRANTED
     }
     
@@ -43,9 +49,14 @@ object PermissionUtils {
     }
     
     fun requestStoragePermission(activity: Activity) {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
         ActivityCompat.requestPermissions(
             activity,
-            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
+            arrayOf(permission),
             REQUEST_CODE_STORAGE
         )
     }
@@ -69,9 +80,14 @@ object PermissionUtils {
     }
     
     fun shouldShowStoragePermissionRationale(activity: Activity): Boolean {
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
         return ActivityCompat.shouldShowRequestPermissionRationale(
             activity,
-            Manifest.permission.READ_EXTERNAL_STORAGE
+            permission
         )
     }
     
@@ -91,7 +107,7 @@ object PermissionUtils {
     ) {
         when (requestCode) {
             REQUEST_CODE_CAMERA, REQUEST_CODE_STORAGE, REQUEST_CODE_LOCATION -> {
-                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
                     onGranted()
                 } else {
                     onDenied()
