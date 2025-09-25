@@ -34,7 +34,10 @@ class ReportPdfBuilder(
     private val context: Context,
     private val pageWidth: Int = 2480,   // A4 @ 300dpi
     private val pageHeight: Int = 3508,
-    private val margin: Int = 24        // ≈ 8.5mm (قبل التحجيم)
+    private val pageMarginMm: Float = 22f,
+    private val fieldHorizontalPaddingPt: Float = 5f,
+    private val fieldVerticalPaddingPt: Float = 3.5f,
+    private val fieldLineSpacingPt: Float = 6f
 ) {
 
     private val basePageWidth = 595f
@@ -44,9 +47,14 @@ class ReportPdfBuilder(
         pageHeight / basePageHeight
     ).coerceAtLeast(1f)
 
+    private val pointsPerMillimeter = 72f / 25.4f
+
     private fun dp(value: Int): Int = (value * pageScale).roundToInt()
     private fun dpF(value: Float): Float = value * pageScale
     private fun sp(value: Float): Float = value * pageScale
+    private fun mmToPoints(valueMm: Float): Float = valueMm * pointsPerMillimeter
+    private fun pxFromMm(valueMm: Float): Int = dpF(mmToPoints(valueMm)).roundToInt()
+    private fun pxFromPt(valuePt: Float): Int = dpF(valuePt).roundToInt()
 
     /* ---------- نموذج بيانات التقرير ---------- */
     data class DailyReport(
@@ -362,11 +370,16 @@ class ReportPdfBuilder(
         val defaultLogo = runCatching { BitmapFactory.decodeResource(context.resources, R.drawable.default_logo) }.getOrNull()
         val headerLogo: Bitmap = logo ?: defaultLogo ?: Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
 
-        val marginPx = dp(margin)
+        val marginPx = pxFromMm(pageMarginMm)
         val contentLeft = marginPx
         val contentRight = pageWidth - marginPx
         val contentWidth = contentRight - contentLeft
         val footerBlockHeight = dp(28)
+
+        val fieldHorizontalPadding = fieldHorizontalPaddingPt.let { pxFromPt(it).coerceAtLeast(1) }
+        val fieldVerticalPadding = fieldVerticalPaddingPt.let { pxFromPt(it).coerceAtLeast(1) }
+        val fieldLineSpacing = fieldLineSpacingPt.let { pxFromPt(it).coerceAtLeast(1) }
+        val fieldLineSpacingAdd = dpF(fieldLineSpacingPt)
 
         var pageIndex = 0
         lateinit var page: PdfDocument.Page
@@ -445,8 +458,8 @@ class ReportPdfBuilder(
             if (valueRaw.isNullOrBlank()) return
 
             val horizontalGap = dp(10)
-            val horizontalPadding = dp(4)
-            val verticalPadding = dp(4)
+            val horizontalPadding = fieldHorizontalPadding
+            val verticalPadding = fieldVerticalPadding
             val minValueWidth = dp(72)
             val labelText = "$label:"
 
@@ -474,12 +487,27 @@ class ReportPdfBuilder(
             val labelAreaWidth = max(1, labelWidth - horizontalPadding * 2)
             val valueAreaWidth = max(1, valueWidth - horizontalPadding * 2)
 
-            val labelLayout = createLayout(labelText, bodyPaint, labelAreaWidth, rtl = true)
+            val labelLayout = createLayout(
+                labelText,
+                bodyPaint,
+                labelAreaWidth,
+                rtl = true,
+                spacingMult = 1f,
+                spacingAdd = fieldLineSpacingAdd
+            )
             val valueAlign = if (prefersLTR) Layout.Alignment.ALIGN_OPPOSITE else Layout.Alignment.ALIGN_NORMAL
-            val valueLayout = createLayout(valueText, bodyPaint, valueAreaWidth, rtl = !prefersLTR, align = valueAlign)
+            val valueLayout = createLayout(
+                valueText,
+                bodyPaint,
+                valueAreaWidth,
+                rtl = !prefersLTR,
+                align = valueAlign,
+                spacingMult = 1f,
+                spacingAdd = fieldLineSpacingAdd
+            )
 
             val rowHeight = max(labelLayout.height, valueLayout.height) + verticalPadding * 2
-            val requiredHeight = rowHeight + dp(2)
+            val requiredHeight = rowHeight + fieldLineSpacing
             var attempts = 0
             while (ensureSpace(requiredHeight)) {
                 val title = currentSectionTitle
@@ -504,7 +532,7 @@ class ReportPdfBuilder(
             valueLayout.draw(canvas)
             canvas.restore()
 
-            y += rowHeight + dp(2)
+            y += rowHeight + fieldLineSpacing
         }
 
         fun drawWeatherRow(tempC: String?, condition: String?) {
@@ -524,8 +552,7 @@ class ReportPdfBuilder(
             val bulletGap = dp(8)
             val bulletRadius = dpF(2.6f)
             val bulletRadiusInt = bulletRadius.roundToInt()
-            val lineSpacingMult = 1.16f
-            val itemSpacing = dp(6)
+            val itemSpacing = fieldLineSpacing
             val bulletPaint = Paint(bodyPaint).apply { style = Paint.Style.FILL }
 
             list.forEach { rawItem ->
@@ -557,7 +584,8 @@ class ReportPdfBuilder(
                     bodyPaint,
                     layoutWidth,
                     rtl = rtl,
-                    spacingMult = lineSpacingMult
+                    spacingMult = 1f,
+                    spacingAdd = fieldLineSpacingAdd
                 )
 
                 while (ensureSpace(layout.height + itemSpacing)) {
