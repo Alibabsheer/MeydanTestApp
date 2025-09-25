@@ -137,6 +137,7 @@ class CreateDailyReportActivity : AppCompatActivity() {
         binding.reportDateInput.setOnClickListener { showDatePicker() }
         binding.saveReportButton.setOnClickListener { onSaveClicked() }
         binding.uploadCancelButton.setOnClickListener { vm.cancelOngoingUpload() }
+        binding.uploadResumeButton.setOnClickListener { vm.resumeUpload() }
 
         // إعداد شبكة القوالب داخل الحاوية الحالية للصور المصغّرة
         setupPhotoGridSection()
@@ -168,6 +169,14 @@ class CreateDailyReportActivity : AppCompatActivity() {
                 SaveState.Saving -> {
                     setInputsEnabled(false)
                     showUploadOverlay(status = "جاري حفظ التقرير...", percent = (vm.uploadProgress.value ?: 90).coerceAtLeast(50), indeterminate = false)
+                }
+                SaveState.Paused -> {
+                    setInputsEnabled(false)
+                    showUploadOverlay(
+                        status = vm.uploadStatusMessage.value ?: "تم إيقاف عملية الرفع.",
+                        percent = vm.uploadProgress.value ?: 0,
+                        indeterminate = false
+                    )
                 }
                 SaveState.Success -> {
                     showUploadOverlay(status = "اكتمل الحفظ", percent = 100, indeterminate = false)
@@ -221,6 +230,14 @@ class CreateDailyReportActivity : AppCompatActivity() {
                 binding.uploadCancelButton.visibility = if (cancelable) View.VISIBLE else View.GONE
             } else {
                 binding.uploadCancelButton.visibility = View.GONE
+            }
+        }
+
+        vm.uploadResumable.observe(this) { resumable ->
+            if (binding.uploadOverlay.visibility == View.VISIBLE) {
+                binding.uploadResumeButton.visibility = if (resumable) View.VISIBLE else View.GONE
+            } else {
+                binding.uploadResumeButton.visibility = View.GONE
             }
         }
 
@@ -746,11 +763,13 @@ class CreateDailyReportActivity : AppCompatActivity() {
         binding.uploadProgressBar.progress = percent.coerceIn(0, 100)
         binding.uploadPercentText.text = if (indeterminate) "..." else "$percent%"
         binding.uploadCancelButton.visibility = View.GONE
+        binding.uploadResumeButton.visibility = View.GONE
     }
 
     private fun hideUploadOverlay() {
         binding.uploadOverlay.visibility = View.GONE
         binding.uploadCancelButton.visibility = View.GONE
+        binding.uploadResumeButton.visibility = View.GONE
     }
 
     private fun showResultBanner(success: Boolean, text: String) {

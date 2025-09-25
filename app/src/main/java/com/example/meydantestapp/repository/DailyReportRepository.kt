@@ -1,17 +1,18 @@
 package com.example.meydantestapp.repository
 
 import android.net.Uri
-import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.Data
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.BackoffPolicy
 import com.example.meydantestapp.utils.Constants
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -40,6 +41,18 @@ import kotlin.math.roundToInt
  * - sitepagesmeta: [ { templateId, pageIndex, slots: [ {originalUrl, caption, slotIndex} ] } ]
  */
 class DailyReportRepository {
+
+    companion object {
+        private const val FIELD_UPLOAD_STATE = "uploadState"
+        private const val FIELD_UPLOAD_STARTED_AT = "uploadStartedAt"
+        private const val FIELD_UPLOAD_COMPLETED_AT = "uploadCompletedAt"
+        private const val STATE_UPLOADING = "uploading"
+        private const val STATE_COMPLETED = "completed"
+
+        private fun buildUploadTag(reportId: String, target: DailyReportUploadTarget): String {
+            return "daily-report-${target.name.lowercase(Locale.ROOT)}-$reportId"
+        }
+    }
 
     private val firestore = FirebaseFirestore.getInstance()
     private val storage = FirebaseStorage.getInstance()
@@ -213,10 +226,30 @@ class DailyReportRepository {
             val data = enriched.toMutableMap().apply {
                 this[Constants.FIELD_REPORT_INDEX] = nextSeq
                 this[Constants.FIELD_REPORT_NUMBER] = "DailyReport-$nextSeq"
+                this[FIELD_UPLOAD_STATE] = STATE_COMPLETED
+                this[FIELD_UPLOAD_COMPLETED_AT] = FieldValue.serverTimestamp()
             }
             tx.set(reportRef, data, SetOptions.merge())
             null
         }.await()
+    }
+
+    suspend fun stageDailyReportDocument(
+        organizationId: String,
+        projectId: String,
+        reportId: String,
+        baseData: Map<String, Any>
+    ): Result<Unit> = runCatching {
+        val enriched = enrichAndSanitize(baseData)
+        val data = enriched.toMutableMap().apply {
+            this[FIELD_UPLOAD_STATE] = STATE_UPLOADING
+            this[FIELD_UPLOAD_STARTED_AT] = FieldValue.serverTimestamp()
+            this[FIELD_UPLOAD_COMPLETED_AT] = FieldValue.delete()
+        }
+        dailyReportsCol(organizationId, projectId)
+            .document(reportId)
+            .set(data, SetOptions.merge())
+            .await()
     }
 
     /** منع تكرار تقرير لنفس التاريخ داخل Subcollection (date محفوظ كـ Long ms) */
@@ -227,9 +260,11 @@ class DailyReportRepository {
     ): Result<Boolean> = runCatching {
         val snap = dailyReportsCol(organizationId, projectId)
             .whereEqualTo("date", dateMillis)
-            .limit(1)
             .get().await()
-        !snap.isEmpty
+        snap.documents.any { doc ->
+            val state = doc.getString(FIELD_UPLOAD_STATE)
+            state.isNullOrBlank() || state != STATE_UPLOADING
+        }
     }
 
     // ============================
@@ -260,9 +295,12 @@ class DailyReportRepository {
             .setConstraints(constraints)
             .setInputData(inputData)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
-            .addTag("daily-report-${target.name.lowercase(Locale.ROOT)}-$reportId")
+            .addTag(buildUploadTag(reportId, target))
             .build()
     }
+
+    fun uploadWorkTag(reportId: String, target: DailyReportUploadTarget): String =
+        buildUploadTag(reportId, target)
 
     fun extractUploadedUrls(output: Data): List<String> =
         output.getStringArray(DailyReportUploadWorker.KEY_RESULT_URLS)?.toList().orEmpty()

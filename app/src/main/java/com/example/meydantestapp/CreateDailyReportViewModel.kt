@@ -14,9 +14,9 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
-import androidx.work.OneTimeWorkRequest
 import com.example.meydantestapp.models.PhotoEntry
 import com.example.meydantestapp.models.PhotoTemplates
 import com.example.meydantestapp.models.TemplateId
@@ -66,10 +66,23 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
 
     private var currentUploadWorkId: UUID? = null
     private var uploadObservationJob: Job? = null
+    private var lastSaveArgs: SaveReportArgs? = null
 
     private data class UploadOutcome(
         val urls: List<String>,
         val cleanupUris: List<String>
+    )
+
+    private data class SaveReportArgs(
+        val organizationId: String,
+        val projectId: String,
+        val activities: List<String>?,
+        val skilledLabor: String?,
+        val unskilledLabor: String?,
+        val totalLabor: String?,
+        val equipmentList: List<String>?,
+        val challengesList: List<String>?,
+        val notesList: List<String>?
     )
 
     // ===== UI State عامة =====
@@ -103,6 +116,9 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _uploadCancelable = MutableLiveData(false)
     val uploadCancelable: LiveData<Boolean> = _uploadCancelable
+
+    private val _uploadResumable = MutableLiveData(false)
+    val uploadResumable: LiveData<Boolean> = _uploadResumable
 
     private val _saveState = MutableLiveData(SaveState.Idle)
     val saveState: LiveData<SaveState> = _saveState
@@ -272,6 +288,20 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
         challengesList: List<String>?,
         notesList: List<String>?
     ) {
+        val argsSnapshot = SaveReportArgs(
+            organizationId = organizationId,
+            projectId = projectId,
+            activities = activities?.toList(),
+            skilledLabor = skilledLabor,
+            unskilledLabor = unskilledLabor,
+            totalLabor = totalLabor,
+            equipmentList = equipmentList?.toList(),
+            challengesList = challengesList?.toList(),
+            notesList = notesList?.toList()
+        )
+        lastSaveArgs = argsSnapshot
+        _uploadResumable.value = false
+
         val currentDateIso = _date.value
         val cleanedActivities = activities?.map { it.trim() }?.filter { it.isNotBlank() }.orElseEmpty()
         if (currentDateIso.isNullOrBlank() || cleanedActivities.isEmpty()) {
@@ -290,6 +320,7 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
             _uploadStatusMessage.postValue("جاري تجهيز الصور للرفع...")
             _uploadIndeterminate.postValue(true)
             _uploadCancelable.postValue(false)
+            _uploadResumable.postValue(false)
             try {
                 fun String?.nullIfBlank(): String? = if (this.isNullOrBlank()) null else this
 
@@ -310,6 +341,35 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     ?: legacyDraft?.reportId?.takeIf { it.isNotBlank() }
                     ?: draftStorage.findExistingReportId(storageKey)?.takeIf { it.isNotBlank() }
                     ?: System.currentTimeMillis().toString()
+
+                var staged = false
+
+                suspend fun ensureStage(): Boolean {
+                    if (staged) return true
+                    val baseData = mapOf(
+                        "id" to reportId,
+                        "projectId" to projectId,
+                        "organizationId" to organizationId,
+                        "date" to dateMillis,
+                        "createdAt" to Timestamp.now(),
+                        "createdBy" to (auth.currentUser?.uid ?: ""),
+                        "isArchived" to false
+                    )
+                    val result = reportsRepo.stageDailyReportDocument(
+                        organizationId,
+                        projectId,
+                        reportId,
+                        baseData
+                    )
+                    if (result.isSuccess) {
+                        staged = true
+                        return true
+                    }
+                    _message.postValue("تعذر بدء رفع الصور.")
+                    _saveState.postValue(SaveState.FailureOther)
+                    _uploadResumable.postValue(false)
+                    return false
+                }
 
                 // 2) حصر العناصر المملوءة في القالب
                 val filledEntries: List<PhotoEntry> = _gridSlots.value.orEmpty().mapNotNull { it }
@@ -353,6 +413,9 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
 
                     // رفع كصفحة واحدة (MVP)
                     if (pageUploadUris.isNotEmpty()) {
+                        if (!ensureStage()) {
+                            return@launch
+                        }
                         val request = reportsRepo.buildUploadWorkRequest(
                             reportId,
                             pageUploadUris,
@@ -406,6 +469,9 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                         }
                     }
                     if (preparedUploadUris.isNotEmpty()) {
+                        if (!ensureStage()) {
+                            return@launch
+                        }
                         val request = reportsRepo.buildUploadWorkRequest(
                             reportId,
                             preparedUploadUris,
@@ -509,14 +575,17 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     _lastReportId.postValue(reportId)
                     _message.postValue("تم حفظ التقرير بنجاح.")
                     draftStorage.clearAll(storageKey)
+                    lastSaveArgs = null
+                    _uploadResumable.postValue(false)
                 } else {
                     _saveState.postValue(SaveState.FailureOther)
                     _message.postValue("فشل حفظ التقرير.")
                 }
 
             } catch (e: CancellationException) {
-                _saveState.postValue(SaveState.FailureOther)
-                _message.postValue("تم إلغاء رفع الصور.")
+                _saveState.postValue(SaveState.Paused)
+                _uploadResumable.postValue(true)
+                _message.postValue("تم إيقاف رفع الصور. يمكنك الاستئناف لاحقًا.")
             } catch (e: Exception) {
                 if (e is FirebaseNetworkException) {
                     _saveState.postValue(SaveState.FailureNetwork)
@@ -526,6 +595,7 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     val reason = e.message ?: "سبب غير معروف"
                     _message.postValue("فشل حفظ التقرير: $reason")
                 }
+                _uploadResumable.postValue(false)
             } finally {
                 _loading.postValue(false)
                 uploadObservationJob?.cancel()
@@ -578,6 +648,7 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
     ): UploadOutcome {
         observeUpload(request.id, queuedMessage, runningMessage)
         currentUploadWorkId = request.id
+        workManager.cancelAllWorkByTag(reportsRepo.uploadWorkTag(reportId, target))
         workManager.enqueue(request)
 
         val finalInfo = workManager.getWorkInfoByIdFlow(request.id).first { it.state.isFinished }
@@ -594,6 +665,7 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                 _uploadIndeterminate.postValue(false)
                 _uploadProgress.postValue(100)
                 _uploadCancelable.postValue(false)
+                _uploadResumable.postValue(false)
                 draftStorage.clearDraft(storageKey, target)
                 UploadOutcome(
                     urls = reportsRepo.extractUploadedUrls(finalInfo.outputData),
@@ -601,9 +673,10 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                 )
             }
             WorkInfo.State.CANCELLED -> {
-                _uploadStatusMessage.postValue("تم إلغاء عملية الرفع")
+                _uploadStatusMessage.postValue("تم إيقاف عملية الرفع. اضغط استئناف للمتابعة.")
                 _uploadIndeterminate.postValue(false)
                 _uploadCancelable.postValue(false)
+                _uploadResumable.postValue(true)
                 draftStorage.saveDraft(storageKey, target, reportId, originalUriStrings)
                 throw CancellationException("upload-cancelled")
             }
@@ -611,6 +684,7 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                 _uploadStatusMessage.postValue("تعذر رفع الصور")
                 _uploadIndeterminate.postValue(false)
                 _uploadCancelable.postValue(false)
+                _uploadResumable.postValue(false)
                 val reason = reportsRepo.extractUploadError(finalInfo.outputData)
                 draftStorage.saveDraft(storageKey, target, reportId, originalUriStrings)
                 throw IllegalStateException(reason ?: "upload-failed")
@@ -623,6 +697,26 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
         val workId = currentUploadWorkId ?: return
         workManager.cancelWorkById(workId)
         _uploadCancelable.postValue(false)
+        _uploadStatusMessage.postValue("جاري إيقاف عملية الرفع...")
+    }
+
+    fun resumeUpload() {
+        if (_loading.value == true) return
+        val args = lastSaveArgs ?: run {
+            _message.value = "لا يوجد رفع متوقف لاستئنافه."
+            return
+        }
+        saveReport(
+            organizationId = args.organizationId,
+            projectId = args.projectId,
+            activities = args.activities?.toList(),
+            skilledLabor = args.skilledLabor,
+            unskilledLabor = args.unskilledLabor,
+            totalLabor = args.totalLabor,
+            equipmentList = args.equipmentList?.toList(),
+            challengesList = args.challengesList?.toList(),
+            notesList = args.notesList?.toList()
+        )
     }
 
     override fun onCleared() {
@@ -1233,7 +1327,13 @@ class DailyReportDraftStorage(context: Context) {
 }
 
 enum class SaveState {
-    Idle, Uploading, Saving, Success, FailureNetwork, FailureOther
+    Idle,
+    Uploading,
+    Saving,
+    Paused,
+    Success,
+    FailureNetwork,
+    FailureOther
 }
 
 // ------- Extensions -------
