@@ -519,12 +519,64 @@ class ReportPdfBuilder(
             val list = items?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
             drawSectionHeader(title)
             if (list.isEmpty()) { endSectionDivider(); return }
-            list.forEach { item ->
-                val cleaned = if (preferLTR(item)) item.replace(Regex("""([0-9A-Za-z+/:-]+)""")) { m -> ltrIsolate(m.value) } else item
-                val h = drawWrapped(canvas, "• $cleaned", bodyPaint, contentLeft, y, contentWidth, rtl = true, spacingMult = 1.1f)
-                ensureSpace(h)
-                y += h + dp(1)
-                if (y > bottomLimit() - dp(10)) { finishPage(); startPageWithHeader(); drawSectionHeader(title) }
+
+            val bulletIndent = dp(14)
+            val bulletGap = dp(8)
+            val bulletRadius = dpF(2.6f)
+            val bulletRadiusInt = bulletRadius.roundToInt()
+            val lineSpacingMult = 1.16f
+            val itemSpacing = dp(6)
+            val bulletPaint = Paint(bodyPaint).apply { style = Paint.Style.FILL }
+
+            list.forEach { rawItem ->
+                val prefersLTR = preferLTR(rawItem)
+                val normalized = if (prefersLTR) {
+                    ltrIsolate(rawItem)
+                } else {
+                    val withComma = normalizeArabicCommaSpacing(rawItem)
+                    normalizeRtlMixedText(withComma)
+                }
+
+                val rtl = !prefersLTR
+                val textLeft: Int
+                val layoutWidth: Int
+                val bulletCenterX: Float
+                if (prefersLTR) {
+                    bulletCenterX = (contentLeft + bulletIndent).toFloat()
+                    textLeft = contentLeft + bulletIndent + bulletRadiusInt + bulletGap
+                    layoutWidth = (contentRight - textLeft).coerceAtLeast(1)
+                } else {
+                    bulletCenterX = (contentRight - bulletIndent).toFloat()
+                    val textRight = contentRight - (bulletIndent + bulletRadiusInt + bulletGap)
+                    layoutWidth = (textRight - contentLeft).coerceAtLeast(1)
+                    textLeft = contentLeft
+                }
+
+                val layout = createLayout(
+                    normalized,
+                    bodyPaint,
+                    layoutWidth,
+                    rtl = rtl,
+                    spacingMult = lineSpacingMult
+                )
+
+                while (ensureSpace(layout.height + itemSpacing)) {
+                    drawSectionHeader(title)
+                }
+
+                val firstLineTop = layout.getLineTop(0)
+                val firstLineBottom = layout.getLineBottom(0)
+                val firstLineHeight = (firstLineBottom - firstLineTop).coerceAtLeast(1)
+                val bulletCenterY = y + firstLineHeight / 2f
+
+                canvas.drawCircle(bulletCenterX, bulletCenterY, bulletRadius, bulletPaint)
+
+                canvas.save()
+                canvas.translate(textLeft.toFloat(), y.toFloat())
+                layout.draw(canvas)
+                canvas.restore()
+
+                y += layout.height + itemSpacing
             }
             endSectionDivider()
         }
