@@ -596,8 +596,8 @@ class ViewDailyReportActivity : AppCompatActivity() {
 
         companion object {
             private const val PAGE_ASPECT_RATIO = 1.4142f
-            private const val MAX_OVERRIDE_DIM = 2048
             private const val MIN_OVERRIDE_DP = 320
+            private const val DOWNLOAD_THUMBNAIL = 0.25f
         }
 
         class Holder(v: View) : RecyclerView.ViewHolder(v) {
@@ -614,6 +614,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
                 this[index] = cachedByIndex[index]?.remoteUrl?.takeIf { it.isNotBlank() } ?: value
             }
         }
+        private val displayOverrideMax = ImageUtils.displayAwareMaxDim(context)
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
             val v = LayoutInflater.from(parent.context).inflate(R.layout.item_pdf_page, parent, false)
@@ -659,7 +660,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
                 .load(modelToLoad)
                 .dontAnimate()
                 .override(overrideW, overrideH)
-                .thumbnail(0.25f)
+                .thumbnail(DOWNLOAD_THUMBNAIL)
                 .diskCacheStrategy(DiskCacheStrategy.AUTOMATIC)
                 .fitCenter()
 
@@ -752,11 +753,14 @@ class ViewDailyReportActivity : AppCompatActivity() {
                         val downloadSource: Any = remoteByIndex[adapterPos]?.takeIf { !it.isNullOrBlank() }
                             ?: cachedByIndex[adapterPos]?.resolveFile(context.cacheDir)
                             ?: url
+                        val targetWidth = displayOverrideMax
+                        val targetHeight = (targetWidth * PAGE_ASPECT_RATIO).roundToInt().coerceAtLeast(targetWidth)
                         val future = Glide.with(holder.pageImage.context)
                             .asBitmap()
                             .load(downloadSource)
                             .diskCacheStrategy(DiskCacheStrategy.ALL)
-                            .submit(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
+                            .thumbnail(DOWNLOAD_THUMBNAIL)
+                            .submit(targetWidth, targetHeight)
                         val bmp = future.get()
                         val name = "SitePage_${adapterPos + 1}_${System.currentTimeMillis()}.jpg"
                         val uri = ImageUtils.saveToGallery(context, bmp, name, 92)
@@ -764,7 +768,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
                             if (uri != null) {
                                 Toast.makeText(context, "تم حفظ الصورة في الاستديو", Toast.LENGTH_SHORT).show()
                             } else {
-                                Toast.makeText(context, "تعذر فظ الصورة", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "تعذر حفظ الصورة", Toast.LENGTH_SHORT).show()
                             }
                         }
                     } catch (_: Exception) {
@@ -798,8 +802,9 @@ class ViewDailyReportActivity : AppCompatActivity() {
             val minWidth = (MIN_OVERRIDE_DP * dm.density).roundToInt().coerceAtLeast(1)
             val fallbackWidth = (dm.widthPixels * 0.9f).roundToInt().coerceAtLeast(minWidth)
             val measuredWidth = imageView.width.takeIf { it > 0 } ?: fallbackWidth
-            val overrideWidth = measuredWidth.coerceIn(minWidth, MAX_OVERRIDE_DIM)
-            val overrideHeight = (overrideWidth * PAGE_ASPECT_RATIO).roundToInt().coerceAtMost(MAX_OVERRIDE_DIM)
+            val overrideWidth = measuredWidth.coerceIn(minWidth, displayOverrideMax)
+            val overrideHeight = (overrideWidth * PAGE_ASPECT_RATIO).roundToInt()
+                .coerceAtMost(displayOverrideMax)
                 .coerceAtLeast(minWidth)
             return overrideWidth to overrideHeight
         }
