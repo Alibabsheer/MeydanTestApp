@@ -288,6 +288,7 @@ class ReportPdfBuilder(
         lateinit var page: PdfDocument.Page
         lateinit var canvas: Canvas
         var y = 0
+        var currentSectionTitle: String? = null
 
         fun bottomLimit() = pageHeight - marginPx - footerBlockHeight
 
@@ -328,11 +329,23 @@ class ReportPdfBuilder(
             pdf.finishPage(page)
         }
 
-        fun ensureSpace(required: Int) { if (y + required > bottomLimit()) { finishPage(); startPageWithHeader() } }
+        fun ensureSpace(required: Int): Boolean {
+            return if (y + required > bottomLimit()) {
+                finishPage()
+                startPageWithHeader()
+                true
+            } else {
+                false
+            }
+        }
 
         fun drawSectionHeader(text: String) {
+            currentSectionTitle = text
             val h = (headerPaint.fontMetrics.bottom - headerPaint.fontMetrics.top).roundToInt()
-            ensureSpace(h + dp(4))
+            if (ensureSpace(h + dp(4))) {
+                // إذا انتقلنا لصفحة جديدة، نضمن تكرار العنوان الحالي قبل رسم المحتوى التالي.
+                currentSectionTitle = text
+            }
             canvas.drawText(text, contentRight.toFloat(), y + headerPaint.textSize, headerPaint)
             y += h + dp(2)
         }
@@ -341,87 +354,75 @@ class ReportPdfBuilder(
             val ly = y + dp(2)
             canvas.drawLine(contentLeft.toFloat(), ly.toFloat(), contentRight.toFloat(), ly.toFloat(), dividerPaint)
             y += dp(6)
+            currentSectionTitle = null
         }
 
         fun drawKeyValue(label: String, valueRaw: String?) {
             if (valueRaw.isNullOrBlank()) return
 
-            val gap = dp(6)
-            val cellPad = dp(6)
-            val labelColW = (contentWidth * 0.35f).toInt()
-            val valueColW = contentWidth - labelColW - gap
-
+            val horizontalGap = dp(10)
+            val horizontalPadding = dp(4)
+            val verticalPadding = dp(4)
+            val minValueWidth = dp(72)
             val labelText = "$label:"
-            val v = valueRaw.trim()
-            val vPrefLTR = preferLTR(v)
-            val valueText = if (vPrefLTR) ltrIsolate(v) else v
 
-            val labelLayout = createLayout(labelText, bodyPaint, labelColW - cellPad * 2, rtl = true)
-            val valueLayout = createLayout(valueText, bodyPaint, valueColW - cellPad * 2, rtl = !vPrefLTR)
+            val valueTrimmed = valueRaw.trim()
+            val prefersLTR = preferLTR(valueTrimmed)
+            val valueText = if (prefersLTR) ltrIsolate(valueTrimmed) else valueTrimmed
 
-            val rowH = max(labelLayout.height, valueLayout.height) + cellPad * 2
-            ensureSpace(rowH + dp(2))
+            val maxLabelWidth = (contentWidth * 0.45f).toInt()
+            val measuredLabel = bodyPaint.measureText(labelText).roundToInt() + horizontalPadding * 2
+            var labelWidth = max(dp(64), min(maxLabelWidth, measuredLabel))
 
-            val labelRect = Rect(
-                contentLeft + valueColW + gap, y,
-                contentLeft + valueColW + gap + labelColW, y + rowH
-            )
-            val valueRect = Rect(
-                contentLeft, y,
-                contentLeft + valueColW, y + rowH
-            )
+            var valueWidth = contentWidth - labelWidth - horizontalGap
+            if (valueWidth < minValueWidth) {
+                val adjustedLabelWidth = (contentWidth - horizontalGap - minValueWidth).coerceAtLeast(dp(48))
+                labelWidth = min(labelWidth, adjustedLabelWidth)
+                valueWidth = contentWidth - labelWidth - horizontalGap
+            }
 
-            canvas.drawRect(labelRect, invisibleBorderPaint)
-            canvas.drawRect(valueRect, invisibleBorderPaint)
+            val labelAreaWidth = max(1, labelWidth - horizontalPadding * 2)
+            val valueAreaWidth = max(1, valueWidth - horizontalPadding * 2)
+
+            val labelLayout = createLayout(labelText, bodyPaint, labelAreaWidth, rtl = true)
+            val valueAlign = if (prefersLTR) Layout.Alignment.ALIGN_OPPOSITE else Layout.Alignment.ALIGN_NORMAL
+            val valueLayout = createLayout(valueText, bodyPaint, valueAreaWidth, rtl = !prefersLTR, align = valueAlign)
+
+            val rowHeight = max(labelLayout.height, valueLayout.height) + verticalPadding * 2
+            val requiredHeight = rowHeight + dp(2)
+            var attempts = 0
+            while (ensureSpace(requiredHeight)) {
+                val title = currentSectionTitle
+                if (title != null && attempts < 3) {
+                    drawSectionHeader(title)
+                    attempts++
+                } else {
+                    break
+                }
+            }
+
+            val labelLeft = contentRight - labelWidth
+            val valueLeft = contentLeft
 
             canvas.save()
-            canvas.translate((labelRect.left + cellPad).toFloat(), (labelRect.top + cellPad).toFloat())
+            canvas.translate((labelLeft + horizontalPadding).toFloat(), (y + verticalPadding).toFloat())
             labelLayout.draw(canvas)
             canvas.restore()
 
             canvas.save()
-            canvas.translate((valueRect.left + cellPad).toFloat(), (valueRect.top + cellPad).toFloat())
+            canvas.translate((valueLeft + horizontalPadding).toFloat(), (y + verticalPadding).toFloat())
             valueLayout.draw(canvas)
             canvas.restore()
 
-            y += rowH + dp(2)
+            y += rowHeight + dp(2)
         }
 
         fun drawWeatherRow(tempC: String?, condition: String?) {
-            val colPercents = floatArrayOf(0.22f, 0.28f, 0.22f, 0.28f)
-            val cellPad = dp(6)
+            val temperatureText = (tempC?.trim()?.ifBlank { null })?.let { "$it°C" } ?: "—"
+            val conditionText = condition?.trim()?.ifBlank { "—" } ?: "—"
 
-            val colWidths = IntArray(4)
-            var used = 0
-            for (i in 0 until 4) { colWidths[i] = (contentWidth * colPercents[i]).toInt(); used += colWidths[i] }
-            colWidths[3] += (contentWidth - used)
-
-            val labelTemp = "درجة الحرارة:"
-            val valueTemp = (tempC?.trim()?.ifBlank { null })?.let { ltrIsolate("$it°C") } ?: "—"
-            val labelCond = "حالة الطقس:"
-            val valueCond = condition?.trim()?.ifBlank { "—" } ?: "—"
-
-            val layouts = arrayOf(
-                createLayout(labelTemp, bodyPaint, colWidths[0] - cellPad * 2, rtl = true),
-                createLayout(valueTemp, bodyPaint, colWidths[1] - cellPad * 2, rtl = false),
-                createLayout(labelCond, bodyPaint, colWidths[2] - cellPad * 2, rtl = true),
-                createLayout(valueCond, bodyPaint, colWidths[3] - cellPad * 2, rtl = true)
-            )
-
-            val rowH = (layouts.maxOf { it.height }) + cellPad * 2
-            ensureSpace(rowH + dp(2))
-
-            var curLeft = contentLeft
-            for (i in 0 until 4) {
-                val rect = Rect(curLeft, y, curLeft + colWidths[i], y + rowH)
-                canvas.drawRect(rect, invisibleBorderPaint)
-                canvas.save()
-                canvas.translate((rect.left + cellPad).toFloat(), (rect.top + cellPad).toFloat())
-                layouts[i].draw(canvas)
-                canvas.restore()
-                curLeft += colWidths[i]
-            }
-            y += rowH + dp(2)
+            drawKeyValue("درجة الحرارة", temperatureText)
+            drawKeyValue("حالة الطقس", conditionText)
         }
 
         fun drawBulletedSection(title: String, items: List<String>?) {
@@ -439,18 +440,21 @@ class ReportPdfBuilder(
         }
 
         fun drawLabor(skilled: String?, unskilled: String?, total: String?) {
-            val rows = listOfNotNull(
-                skilled?.takeIf { it.isNotBlank() }?.let { "عمالة ماهرة: ${ltrIsolate(it.trim())}" },
-                unskilled?.takeIf { it.isNotBlank() }?.let { "عمالة غير ماهرة: ${ltrIsolate(it.trim())}" },
-                total?.takeIf { it.isNotBlank() }?.let { "الإجمالي: ${ltrIsolate(it.trim())}" }
+            val items = listOf(
+                "عمالة ماهرة" to skilled,
+                "عمالة غير ماهرة" to unskilled,
+                "الإجمالي" to total
             )
             drawSectionHeader("العمالة")
-            if (rows.isEmpty()) { endSectionDivider(); return }
-            rows.forEach { row ->
-                val h = drawWrapped(canvas, row, bodyPaint, contentLeft, y, contentWidth, rtl = true, spacingMult = 1.05f)
-                ensureSpace(h)
-                y += h + dp(1)
-                if (y > bottomLimit() - dp(10)) { finishPage(); startPageWithHeader(); drawSectionHeader("العمالة") }
+            var rendered = false
+            items.forEach { (label, value) ->
+                val cleaned = value?.trim()?.takeIf { it.isNotEmpty() } ?: return@forEach
+                drawKeyValue(label, cleaned)
+                rendered = true
+            }
+            if (!rendered) {
+                endSectionDivider()
+                return
             }
             endSectionDivider()
         }
