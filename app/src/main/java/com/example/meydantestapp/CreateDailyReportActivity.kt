@@ -2,17 +2,21 @@ package com.example.meydantestapp
 
 import android.Manifest
 import android.app.DatePickerDialog
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.Toast
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
@@ -81,35 +85,31 @@ class CreateDailyReportActivity : AppCompatActivity() {
 
     private val requestCameraPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) launchCamera() else Toast.makeText(this, "تم رفض صلاحية الكاميرا.", Toast.LENGTH_SHORT).show()
+            if (granted) {
+                launchCamera()
+            } else {
+                onCameraPermissionDenied()
+            }
         }
 
-    private val pickMultiple =
+    private val pickMultiplePhotoPicker =
+        registerForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_SELECTION)) { uris ->
+            handlePickedImages(uris)
+        }
+
+    private val pickMultipleLegacy =
         registerForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
-            if (!uris.isNullOrEmpty()) {
-                val capacity = selectedTemplate?.slots?.size ?: MAX_SELECTION
-                val trimmed = if (uris.size > MAX_SELECTION) {
-                    Toast.makeText(this, "لا يمكن اختيار أكثر من $MAX_SELECTION صورة دفعة واحدة.", Toast.LENGTH_LONG).show()
-                    uris.take(MAX_SELECTION)
-                } else uris
-
-                // املأ الخانات المتاحة بالترتيب
-                var filled = 0
-                trimmed.forEach { uri ->
-                    if (filled < capacity) {
-                        if (setEntryInNextEmptySlot(uri)) filled++
-                    }
-                }
-            }
+            handlePickedImages(uris)
         }
 
-    private val slotImagePicker =
+    private val slotImagePickerPhotoPicker =
+        registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            handleSlotImageResult(uri)
+        }
+
+    private val slotImagePickerLegacy =
         registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-            val slot = pendingSlotIndex
-            pendingSlotIndex = -1
-            if (uri != null && slot >= 0) {
-                setEntryForSlot(slot, uri)
-            }
+            handleSlotImageResult(uri)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -264,7 +264,7 @@ class CreateDailyReportActivity : AppCompatActivity() {
             template = PhotoTemplates.byId(TemplateId.E4),
             onPickImage = { slot ->
                 pendingSlotIndex = slot
-                slotImagePicker.launch("image/*")
+                launchSlotPicker()
             },
             onCaptionChanged = { slot, cap -> updateCaptionForSlot(slot, cap) },
             onRemoveImage = { slot -> removeEntryForSlot(slot) }
@@ -511,7 +511,10 @@ class CreateDailyReportActivity : AppCompatActivity() {
 
     // ===== الصور (اختيار المصدر العام) =====
     private fun showImageSourceOptions() {
-        val options = arrayOf("التقاط صورة بالكاميرا", "اختيار صور متعددة من المعرض")
+        val options = arrayOf(
+            "التقاط صورة بالكاميرا",
+            if (isPhotoPickerAvailable()) "اختيار صور من ألبوم النظام" else "اختيار صور متعددة من المعرض"
+        )
         AlertDialog.Builder(this)
             .setTitle("إضافة صور")
             .setItems(options) { dlg, which ->
@@ -523,7 +526,53 @@ class CreateDailyReportActivity : AppCompatActivity() {
             }.show()
     }
 
-    private fun pickImages() { pickMultiple.launch("image/*") }
+    private fun pickImages() {
+        if (isPhotoPickerAvailable()) {
+            pickMultiplePhotoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        } else {
+            pickMultipleLegacy.launch("image/*")
+        }
+    }
+
+    private fun handlePickedImages(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+
+        val capacity = selectedTemplate?.slots?.size ?: MAX_SELECTION
+        val trimmed = if (uris.size > MAX_SELECTION) {
+            Toast.makeText(this, "لا يمكن اختيار أكثر من $MAX_SELECTION صورة دفعة واحدة.", Toast.LENGTH_LONG).show()
+            uris.take(MAX_SELECTION)
+        } else {
+            uris
+        }
+
+        var filled = 0
+        trimmed.forEach { uri ->
+            if (filled < capacity) {
+                if (setEntryInNextEmptySlot(uri)) filled++
+            }
+        }
+        if (filled == 0) {
+            Toast.makeText(this, "لم يتم العثور على خانة فارغة لإضافة الصور.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun handleSlotImageResult(uri: Uri?) {
+        val slot = pendingSlotIndex
+        pendingSlotIndex = -1
+        if (uri != null && slot >= 0) {
+            setEntryForSlot(slot, uri)
+        }
+    }
+
+    private fun launchSlotPicker() {
+        if (isPhotoPickerAvailable()) {
+            slotImagePickerPhotoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        } else {
+            slotImagePickerLegacy.launch("image/*")
+        }
+    }
+
+    private fun isPhotoPickerAvailable(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
 
     private fun requestOrLaunchCamera() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
@@ -533,6 +582,35 @@ class CreateDailyReportActivity : AppCompatActivity() {
         } else {
             launchCamera()
         }
+    }
+
+    private fun onCameraPermissionDenied() {
+        if (shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
+            AlertDialog.Builder(this)
+                .setTitle("صلاحية الكاميرا مطلوبة")
+                .setMessage("لنتمكن من التقاط الصور مباشرة، يحتاج التطبيق لصلاحية استخدام الكاميرا.")
+                .setPositiveButton("إعادة المحاولة") { _, _ ->
+                    requestCameraPermission.launch(Manifest.permission.CAMERA)
+                }
+                .setNegativeButton("إلغاء", null)
+                .show()
+        } else {
+            AlertDialog.Builder(this)
+                .setTitle("تم رفض صلاحية الكاميرا")
+                .setMessage("يمكنك منح الصلاحية من إعدادات التطبيق ثم العودة للمحاولة من جديد.")
+                .setPositiveButton("فتح الإعدادات") { _, _ -> openAppSettings() }
+                .setNegativeButton("إلغاء", null)
+                .show()
+        }
+    }
+
+    private fun openAppSettings() {
+        val intent = Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.parse("package:$packageName")
+        )
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(intent)
     }
 
     private fun launchCamera() {
