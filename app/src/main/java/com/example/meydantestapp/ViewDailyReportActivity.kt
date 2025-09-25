@@ -194,12 +194,18 @@ class ViewDailyReportActivity : AppCompatActivity() {
                 else -> emptyList()
             }
 
-            if (urlsForDisplay.isNotEmpty()) {
-                displaySitePages(urlsForDisplay, report.id, cachedPages)
-                tryResolveOrganizationAndLoadLogo(report, explicitOrgId)
+            val reportForRendering = if (urlsForDisplay.isNotEmpty()) {
+                report.copy(sitepages = urlsForDisplay)
             } else {
-                setupPdfRenderFlow(report, explicitOrgId)
+                report
             }
+
+            if (urlsForDisplay.isNotEmpty()) {
+                sitePageUrls.clear()
+                sitePageUrls.addAll(urlsForDisplay)
+            }
+
+            setupPdfRenderFlow(reportForRendering, explicitOrgId)
         }
     }
 
