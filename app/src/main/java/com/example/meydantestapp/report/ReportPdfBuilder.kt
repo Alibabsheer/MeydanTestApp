@@ -19,6 +19,7 @@ import java.net.URL
 import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * ReportPdfBuilder – توليد PDF بقياس A4 (عمودي) بالرسم اليدوي عبر Canvas.
@@ -31,10 +32,21 @@ import kotlin.math.min
  */
 class ReportPdfBuilder(
     private val context: Context,
-    private val pageWidth: Int = 595,   // A4 @ 72dpi
-    private val pageHeight: Int = 842,
-    private val margin: Int = 24        // ≈ 8.5mm
+    private val pageWidth: Int = 2480,   // A4 @ 300dpi
+    private val pageHeight: Int = 3508,
+    private val margin: Int = 24        // ≈ 8.5mm (قبل التحجيم)
 ) {
+
+    private val basePageWidth = 595f
+    private val basePageHeight = 842f
+    private val pageScale: Float = min(
+        pageWidth / basePageWidth,
+        pageHeight / basePageHeight
+    ).coerceAtLeast(1f)
+
+    private fun dp(value: Int): Int = (value * pageScale).roundToInt()
+    private fun dpF(value: Float): Float = value * pageScale
+    private fun sp(value: Float): Float = value * pageScale
 
     /* ---------- نموذج بيانات التقرير ---------- */
     data class DailyReport(
@@ -73,6 +85,7 @@ class ReportPdfBuilder(
             connectTimeout = 8000
             readTimeout = 8000
             doInput = true
+            setRequestProperty("Accept", "image/avif,image/webp,image/*;q=0.8")
         }
         try {
             conn.connect()
@@ -80,11 +93,31 @@ class ReportPdfBuilder(
                 val bytes = input.readBytes()
                 val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-                val maxDim = 4096
+                val targetMax = max(pageWidth, pageHeight)
+                val maxDim = max(2048, targetMax)
                 var sample = 1
                 while ((bounds.outWidth / sample) > maxDim || (bounds.outHeight / sample) > maxDim) sample *= 2
-                val opts = BitmapFactory.Options().apply { inSampleSize = sample }
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+                val opts = BitmapFactory.Options().apply {
+                    inSampleSize = sample
+                    inPreferredConfig = Bitmap.Config.ARGB_8888
+                    inScaled = false
+                }
+                val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+                    ?: return@use null
+                val cap = (targetMax * 1.1f).roundToInt()
+                val needsScale = decoded.width > cap || decoded.height > cap
+                if (!needsScale) {
+                    decoded
+                } else {
+                    val scale = min(cap.toFloat() / decoded.width.toFloat(), cap.toFloat() / decoded.height.toFloat())
+                    val w = max(1f, decoded.width * scale).roundToInt()
+                    val h = max(1f, decoded.height * scale).roundToInt()
+                    Bitmap.createScaledBitmap(decoded, w, h, true).also {
+                        if (it !== decoded) {
+                            decoded.recycle()
+                        }
+                    }
+                }
             }
         } finally { conn.disconnect() }
     }.getOrNull()
@@ -94,12 +127,14 @@ class ReportPdfBuilder(
 
     /* ---------- أدوات نص RTL ---------- */
     private fun arabicPaint(base: TextPaint.() -> Unit): TextPaint =
-        TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        TextPaint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
             val tf = ImageUtils.appTypeface(context)
                 ?: runCatching { ResourcesCompat.getFont(context, R.font.rb) }.getOrNull()
                 ?: Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
             typeface = tf
             textLocale = Locale("ar")
+            isLinearText = true
+            setHinting(Paint.HINTING_ON)
             base()
         }
 
@@ -175,7 +210,15 @@ class ReportPdfBuilder(
         return Rect(left, top, left + w, top + h)
     }
 
-    private fun dp(v: Int) = v // الرسم بنقاط PDF
+    private fun prepareBitmapForRect(bitmap: Bitmap, target: Rect): Bitmap {
+        val targetW = target.width().coerceAtLeast(1)
+        val targetH = target.height().coerceAtLeast(1)
+        if (bitmap.width <= targetW && bitmap.height <= targetH) return bitmap
+        val scale = min(targetW.toFloat() / bitmap.width.toFloat(), targetH.toFloat() / bitmap.height.toFloat())
+        val w = max(1f, bitmap.width * scale).roundToInt()
+        val h = max(1f, bitmap.height * scale).roundToInt()
+        return Bitmap.createScaledBitmap(bitmap, w, h, true)
+    }
 
     /* ---------- إنشاء PDF ---------- */
     fun buildPdf(data: DailyReport, logo: Bitmap?, outFile: File): File {
@@ -188,50 +231,56 @@ class ReportPdfBuilder(
 
         val titlePaint = arabicPaint {
             color = maroon
-            textSize = 13f
+            textSize = sp(13f)
             typeface = Typeface.create(typeface, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
         }
         val headerPaint = arabicPaint {
             color = maroon
-            textSize = 11f
+            textSize = sp(11f)
             typeface = Typeface.create(typeface, Typeface.BOLD)
             textAlign = Paint.Align.RIGHT
         }
         val bodyPaint = arabicPaint {
             color = black
-            textSize = 9.5f
+            textSize = sp(9.5f)
             textAlign = Paint.Align.RIGHT
         }
         val footerPaintLeft = arabicPaint {
             color = black
-            textSize = 8f
+            textSize = sp(8f)
             textAlign = Paint.Align.LEFT
         }
         val footerPaintRight = arabicPaint {
             color = black
-            textSize = 8f
+            textSize = sp(8f)
             textAlign = Paint.Align.RIGHT
         }
         val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.LTGRAY
-            strokeWidth = 1f
+            strokeWidth = dpF(1f)
         }
         val footerDividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
-            strokeWidth = 1.5f
+            strokeWidth = dpF(1.5f)
         }
         val invisibleBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = white
             style = Paint.Style.STROKE
-            strokeWidth = 1f
+            strokeWidth = dpF(1f)
+        }
+
+        val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+            isFilterBitmap = true
+            isDither = true
         }
 
         val defaultLogo = runCatching { BitmapFactory.decodeResource(context.resources, R.drawable.default_logo) }.getOrNull()
         val headerLogo: Bitmap = logo ?: defaultLogo ?: Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
 
-        val contentLeft = margin
-        val contentRight = pageWidth - margin
+        val marginPx = dp(margin)
+        val contentLeft = marginPx
+        val contentRight = pageWidth - marginPx
         val contentWidth = contentRight - contentLeft
         val footerBlockHeight = dp(28)
 
@@ -240,14 +289,14 @@ class ReportPdfBuilder(
         lateinit var canvas: Canvas
         var y = 0
 
-        fun bottomLimit() = pageHeight - margin - footerBlockHeight
+        fun bottomLimit() = pageHeight - marginPx - footerBlockHeight
 
         fun startPageWithHeader() {
             pageIndex += 1
             val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageIndex).create()
             page = pdf.startPage(pageInfo)
             canvas = page.canvas
-            y = margin
+            y = marginPx
 
             val headerH = dp(90)
             val dstRect = Rect(0, y, pageWidth, y + headerH)
@@ -261,18 +310,18 @@ class ReportPdfBuilder(
             val left = dstRect.left + (dstRect.width() - drawW) / 2
             val top = dstRect.top + (dstRect.height() - drawH) / 2
             val drawBmp = Bitmap.createScaledBitmap(headerLogo, drawW, drawH, true)
-            canvas.drawBitmap(drawBmp, left.toFloat(), top.toFloat(), null)
+            canvas.drawBitmap(drawBmp, left.toFloat(), top.toFloat(), bitmapPaint)
 
             y += headerH + dp(6)
             canvas.drawText("التقرير اليومي", (pageWidth / 2f), y + titlePaint.textSize, titlePaint)
-            y += (titlePaint.fontMetrics.bottom - titlePaint.fontMetrics.top).toInt() + dp(4)
+            y += (titlePaint.fontMetrics.bottom - titlePaint.fontMetrics.top).roundToInt() + dp(4)
         }
 
         fun finishPage() {
-            val lineY = pageHeight - margin - footerBlockHeight + dp(4)
+            val lineY = pageHeight - marginPx - footerBlockHeight + dp(4)
             canvas.drawLine(contentLeft.toFloat(), lineY.toFloat(), contentRight.toFloat(), lineY.toFloat(), footerDividerPaint)
 
-            val baseY = pageHeight - margin.toFloat()
+            val baseY = pageHeight - marginPx.toFloat()
             canvas.drawText("صفحة $pageIndex", contentLeft.toFloat(), baseY, footerPaintLeft)
             canvas.drawText("تم إنشاء التقرير في تطبيق ميدان", contentRight.toFloat(), baseY, footerPaintRight)
 
@@ -282,7 +331,7 @@ class ReportPdfBuilder(
         fun ensureSpace(required: Int) { if (y + required > bottomLimit()) { finishPage(); startPageWithHeader() } }
 
         fun drawSectionHeader(text: String) {
-            val h = (headerPaint.fontMetrics.bottom - headerPaint.fontMetrics.top).toInt()
+            val h = (headerPaint.fontMetrics.bottom - headerPaint.fontMetrics.top).roundToInt()
             ensureSpace(h + dp(4))
             canvas.drawText(text, contentRight.toFloat(), y + headerPaint.textSize, headerPaint)
             y += h + dp(2)
@@ -474,12 +523,12 @@ class ReportPdfBuilder(
                                 val top = (bh - newH) / 2
                                 Rect(0, top, bw, top + newH)
                             }
-                            canvas.drawBitmap(bmp, src, dst, null)
+                            canvas.drawBitmap(bmp, src, dst, bitmapPaint)
                         } else {
                             val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                 color = Color.parseColor("#CCCCCC")
                                 style = Paint.Style.STROKE
-                                strokeWidth = 2f
+                                strokeWidth = dpF(2f)
                             }
                             canvas.drawRect(dst, p)
                         }
@@ -503,12 +552,13 @@ class ReportPdfBuilder(
                 val bmp = downloadBmp(url)
                 if (bmp != null && bmp.width > 0 && bmp.height > 0) {
                     val dst = fitInsideRect(area, bmp.width, bmp.height)
-                    canvas.drawBitmap(bmp, null, dst, null)
+                    val prepared = prepareBitmapForRect(bmp, dst)
+                    canvas.drawBitmap(prepared, null, dst, bitmapPaint)
                 } else {
                     val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         color = Color.parseColor("#CCCCCC")
                         style = Paint.Style.STROKE
-                        strokeWidth = 3f
+                        strokeWidth = dpF(3f)
                     }
                     canvas.drawRect(area, p)
                 }
