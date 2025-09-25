@@ -545,22 +545,21 @@ class ReportPdfBuilder(
         fun drawSitePagesSection(urls: List<String>) {
             urls.forEach { url ->
                 startPageWithHeader()
-                drawSectionHeader("صور التقرير اليومي")
 
-                // مساحة الصور من الموضع الحالي حتى ما قبل التذييل
-                val area = Rect(contentLeft, y, contentRight, bottomLimit())
+                // استخدم مستطيل المحتوى الكامل بين الترويسة والتذييل لرسم الصورة
+                val contentRect = Rect(contentLeft, y, contentRight, bottomLimit())
                 val bmp = downloadBmp(url)
                 if (bmp != null && bmp.width > 0 && bmp.height > 0) {
-                    val dst = fitInsideRect(area, bmp.width, bmp.height)
+                    val dst = fitInsideRect(contentRect, bmp.width, bmp.height)
                     val prepared = prepareBitmapForRect(bmp, dst)
                     canvas.drawBitmap(prepared, null, dst, bitmapPaint)
                 } else {
-                    val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    val placeholderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         color = Color.parseColor("#CCCCCC")
                         style = Paint.Style.STROKE
                         strokeWidth = dpF(3f)
                     }
-                    canvas.drawRect(area, p)
+                    canvas.drawRect(contentRect, placeholderPaint)
                 }
 
                 finishPage()
