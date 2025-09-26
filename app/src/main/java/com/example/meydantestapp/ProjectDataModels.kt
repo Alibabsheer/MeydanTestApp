@@ -38,6 +38,7 @@ data class Project(
     var location: String? = null,
     var latitude: Double? = null,
     var longitude: Double? = null,
+    var googleMapsUrl: String? = null,
     var workType: String? = null,
     var startDate: Timestamp? = null,
     var endDate: Timestamp? = null,

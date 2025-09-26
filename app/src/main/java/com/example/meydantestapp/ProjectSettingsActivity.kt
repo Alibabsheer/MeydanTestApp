@@ -22,6 +22,7 @@ import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
 import com.example.meydantestapp.Project
+import com.example.meydantestapp.utils.ProjectLocationUtils
 
 class ProjectSettingsActivity : AppCompatActivity() {
 
@@ -274,6 +275,14 @@ class ProjectSettingsActivity : AppCompatActivity() {
             "updatedAt" to Timestamp.now(),
             "projectNumber" to projectId
         )
+
+        val googleMapsUrl = ProjectLocationUtils.buildGoogleMapsUrl(
+            selectedLatitude,
+            selectedLongitude,
+            null,
+            location
+        )
+        data["googleMapsUrl"] = googleMapsUrl
         if (workType != "جدول كميات" && workType != "مقطوعية") {
             val valueStr = binding.contractValueEditText.text.toString().replace(",", "")
             data["contractValue"] = valueStr.toDoubleOrNull()

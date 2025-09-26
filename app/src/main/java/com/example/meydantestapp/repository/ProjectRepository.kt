@@ -1,7 +1,9 @@
 package com.example.meydantestapp.repository
 
 import com.example.meydantestapp.utils.Constants
+import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.google.firebase.firestore.FieldPath
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
@@ -34,7 +36,12 @@ class ProjectRepository {
         val docRef = orgProjectsRef(organizationId).document()
         val newId = docRef.id
 
-        val clean = projectData.filterValues { it != null }.toMutableMap()
+        val base = projectData.toMutableMap()
+        if (base["googleMapsUrl"] == null) {
+            ProjectLocationUtils.buildGoogleMapsUrl(base)?.let { base["googleMapsUrl"] = it }
+        }
+
+        val clean = base.filterValues { it != null }.toMutableMap()
         val incomingProjectName = (clean["projectName"] ?: clean["name"])?.toString()
         if (!incomingProjectName.isNullOrBlank()) {
             clean["projectName"] = incomingProjectName
@@ -75,8 +82,13 @@ class ProjectRepository {
             "id" to newId,
             "projectId" to newId,
             "projectNumber" to newId
-        ).filterValues { it != null }
-        docRef.set(data).await()
+        )
+
+        if (data["googleMapsUrl"] == null) {
+            ProjectLocationUtils.buildGoogleMapsUrl(data)?.let { data["googleMapsUrl"] = it }
+        }
+
+        docRef.set(data.filterValues { it != null }).await()
         newId
     }
 
@@ -142,6 +154,10 @@ class ProjectRepository {
                 this["projectName"] = pn
                 this["name"] = pn
             }
+            if (shouldRecalculateMapsUrl(this)) {
+                val newUrl = ProjectLocationUtils.buildGoogleMapsUrl(this)
+                this["googleMapsUrl"] = newUrl ?: FieldValue.delete()
+            }
         }
         orgProjectsRef(organizationId).document(projectId)
             .update(normalized as Map<String, Any>)
@@ -161,6 +177,10 @@ class ProjectRepository {
                 if (!pn.isNullOrBlank()) {
                     this["projectName"] = pn
                     this["name"] = pn
+                }
+                if (shouldRecalculateMapsUrl(this)) {
+                    val newUrl = ProjectLocationUtils.buildGoogleMapsUrl(this)
+                    this["googleMapsUrl"] = newUrl ?: FieldValue.delete()
                 }
             }
             doc.reference.update(normalized as Map<String, Any>).await()
@@ -199,7 +219,8 @@ class ProjectRepository {
             "projectNumber" to project["projectNumber"],
             "location" to project["location"],
             "latitude" to project["latitude"],
-            "longitude" to project["longitude"]
+            "longitude" to project["longitude"],
+            "googleMapsUrl" to project["googleMapsUrl"]
         )
     }
 
@@ -223,3 +244,16 @@ class ProjectRepository {
         data
     }
 }
+
+private val LOCATION_MUTATION_KEYS = setOf(
+    "latitude",
+    "longitude",
+    "location",
+    "address",
+    "plusCode",
+    "plus_code",
+    "pluscode"
+)
+
+private fun shouldRecalculateMapsUrl(data: Map<String, *>): Boolean =
+    data.keys.any { it in LOCATION_MUTATION_KEYS }
