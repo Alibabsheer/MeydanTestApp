@@ -116,6 +116,9 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
+    implementation("com.google.openlocationcode:openlocationcode:1.0.4")
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.3")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.3")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.8.3")

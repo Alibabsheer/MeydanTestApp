@@ -24,6 +24,7 @@ import com.example.meydantestapp.repository.DailyReportRepository
 import com.example.meydantestapp.repository.DailyReportUploadTarget
 import com.example.meydantestapp.repository.DailyReportUploadWorker
 import com.example.meydantestapp.repository.WeatherRepository
+import com.example.meydantestapp.utils.MapLinkUtils
 import com.example.meydantestapp.utils.ImageUtils
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.Timestamp
@@ -438,17 +439,31 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                 val projectData = _projectInfo.value.orEmpty()
                 val projectName = (projectData["projectName"] ?: projectData["name"]) as? String
                 val projectNumber = projectData["projectNumber"]?.toString()?.nullIfBlank()
-                val location = projectData["location"]?.toString()?.nullIfBlank()
-                val latitude = when (val v = projectData["latitude"]) {
+                val locationRaw = (projectData["projectLocation"] ?: projectData["location"])?.toString()?.nullIfBlank()
+                val addressText = (projectData["address_text"] ?: projectData["addressText"])?.toString()?.nullIfBlank()
+                val plusCodeRaw = (projectData["plus_code"] ?: projectData["plusCode"])?.toString()?.nullIfBlank()
+                val localityHint = (projectData["locality_hint"] ?: projectData["localityHint"])?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+                val plusCode = plusCodeRaw?.uppercase(Locale.US)
+                val latitude = when (val v = projectData["lat"] ?: projectData["latitude"]) {
                     is Number -> v.toDouble()
                     is String -> v.toDoubleOrNull()
                     else -> null
                 }
-                val longitude = when (val v = projectData["longitude"]) {
+                val longitude = when (val v = projectData["lng"] ?: projectData["longitude"]) {
                     is Number -> v.toDouble()
                     is String -> v.toDoubleOrNull()
                     else -> null
                 }
+                val locationDisplay = MapLinkUtils.formatDisplayLabel(
+                    MapLinkUtils.ProjectLocationInfo(
+                        latitude = latitude,
+                        longitude = longitude,
+                        plusCode = plusCode,
+                        addressText = addressText,
+                        localityHint = localityHint,
+                        displayLabel = locationRaw
+                    )
+                ) ?: locationRaw
 
                 // 6) بناء البيانات الأساسية
                 val data = mutableMapOf<String, Any>(
@@ -468,9 +483,18 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     // من المشروع
                     "projectName" to projectName,
                     "projectNumber" to projectNumber,
-                    "location" to location,
+                    "location" to locationDisplay,
+                    "projectLocation" to locationDisplay,
                     "latitude" to latitude,
                     "longitude" to longitude,
+                    "lat" to latitude,
+                    "lng" to longitude,
+                    "plus_code" to plusCode,
+                    "plusCode" to plusCode,
+                    "address_text" to addressText,
+                    "addressText" to addressText,
+                    "locality_hint" to localityHint,
+                    "localityHint" to localityHint,
 
                     // من الطقس/الواجهة
                     "temperature" to _temperature.value.nullIfBlank(),

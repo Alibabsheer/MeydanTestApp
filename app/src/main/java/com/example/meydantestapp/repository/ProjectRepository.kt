@@ -1,6 +1,7 @@
 package com.example.meydantestapp.repository
 
 import com.example.meydantestapp.utils.Constants
+import com.example.meydantestapp.utils.MapLinkUtils
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -26,6 +27,12 @@ class ProjectRepository {
             .document(organizationId)
             .collection(Constants.COLLECTION_PROJECTS)
 
+    private fun anyToDouble(value: Any?): Double? = when (value) {
+        is Number -> value.toDouble()
+        is String -> value.trim().toDoubleOrNull()
+        else -> null
+    }
+
     /** إنشاء مشروع عبر خريطة بيانات */
     suspend fun createProject(
         organizationId: String,
@@ -39,6 +46,52 @@ class ProjectRepository {
         if (!incomingProjectName.isNullOrBlank()) {
             clean["projectName"] = incomingProjectName
             clean["name"] = incomingProjectName
+        }
+
+        val latValue = anyToDouble(clean["lat"]) ?: anyToDouble(clean["latitude"])
+        val lngValue = anyToDouble(clean["lng"]) ?: anyToDouble(clean["longitude"])
+        val plusCodeValue = (clean["plus_code"] ?: clean["plusCode"])?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+        val addressValue = (clean["address_text"] ?: clean["addressText"])?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+        val localityValue = (clean["locality_hint"] ?: clean["localityHint"])?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+        val locationRaw = (clean["projectLocation"] ?: clean["location"])?.toString()
+        val formattedLocation = MapLinkUtils.formatDisplayLabel(
+            MapLinkUtils.ProjectLocationInfo(
+                latitude = latValue,
+                longitude = lngValue,
+                plusCode = plusCodeValue,
+                addressText = addressValue,
+                localityHint = localityValue,
+                displayLabel = locationRaw
+            )
+        ) ?: locationRaw?.trim()?.takeIf { it.isNotEmpty() }
+
+        if (formattedLocation != null) {
+            clean["location"] = formattedLocation
+            clean["projectLocation"] = formattedLocation
+        }
+
+        if (latValue != null) {
+            clean["lat"] = latValue
+            clean["latitude"] = latValue
+        }
+        if (lngValue != null) {
+            clean["lng"] = lngValue
+            clean["longitude"] = lngValue
+        }
+
+        if (plusCodeValue != null) {
+            clean["plus_code"] = plusCodeValue
+            clean["plusCode"] = plusCodeValue
+        }
+
+        if (addressValue != null) {
+            clean["address_text"] = addressValue
+            clean["addressText"] = addressValue
+        }
+
+        if (localityValue != null) {
+            clean["locality_hint"] = localityValue
+            clean["localityHint"] = localityValue
         }
 
         clean["id"] = newId
@@ -58,18 +111,43 @@ class ProjectRepository {
         organizationId: String,
         location: String? = null,
         latitude: Double? = null,
-        longitude: Double? = null
+        longitude: Double? = null,
+        plusCode: String? = null,
+        addressText: String? = null,
+        localityHint: String? = null
     ): Result<String> = runCatching {
         val docRef = orgProjectsRef(organizationId).document()
         val newId = docRef.id
+        val sanitizedAddress = addressText?.trim()?.takeIf { it.isNotEmpty() }
+        val sanitizedPlusCode = plusCode?.trim()?.takeIf { it.isNotEmpty() }
+        val sanitizedLocality = localityHint?.trim()?.takeIf { it.isNotEmpty() }
+        val formattedLocation = MapLinkUtils.formatDisplayLabel(
+            MapLinkUtils.ProjectLocationInfo(
+                latitude = latitude,
+                longitude = longitude,
+                plusCode = sanitizedPlusCode,
+                addressText = sanitizedAddress,
+                localityHint = sanitizedLocality,
+                displayLabel = location
+            )
+        ) ?: location?.trim()?.takeIf { it.isNotEmpty() }
         val data = mutableMapOf<String, Any?>(
             "projectName" to projectName,
             "name" to projectName,
             "projectDescription" to projectDescription,
             "organizationId" to organizationId,
-            "location" to location,
+            "location" to formattedLocation,
+            "projectLocation" to formattedLocation,
             "latitude" to latitude,
             "longitude" to longitude,
+            "lat" to latitude,
+            "lng" to longitude,
+            "plusCode" to sanitizedPlusCode,
+            "plus_code" to sanitizedPlusCode,
+            "addressText" to sanitizedAddress,
+            "address_text" to sanitizedAddress,
+            "localityHint" to sanitizedLocality,
+            "locality_hint" to sanitizedLocality,
             "createdAt" to System.currentTimeMillis(),
             "status" to "active",
             "id" to newId,
@@ -194,13 +272,51 @@ class ProjectRepository {
     // أدوات مساعدة لدمج حقول المشروع داخل وثيقة التقرير
     fun toEmbeddedReportFields(project: Map<String, Any?>): Map<String, Any?> {
         val pn = (project["projectName"] ?: project["name"])?.toString()
-        return mapOf(
-            "projectName" to pn,
-            "projectNumber" to project["projectNumber"],
-            "location" to project["location"],
-            "latitude" to project["latitude"],
-            "longitude" to project["longitude"]
-        )
+        val latValue = anyToDouble(project["lat"]) ?: anyToDouble(project["latitude"])
+        val lngValue = anyToDouble(project["lng"]) ?: anyToDouble(project["longitude"])
+        val plusCodeValue = (project["plus_code"] ?: project["plusCode"])?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+        val addressValue = (project["address_text"] ?: project["addressText"])?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+        val localityValue = (project["locality_hint"] ?: project["localityHint"])?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+        val locationRaw = (project["projectLocation"] ?: project["location"])?.toString()
+        val formattedLocation = MapLinkUtils.formatDisplayLabel(
+            MapLinkUtils.ProjectLocationInfo(
+                latitude = latValue,
+                longitude = lngValue,
+                plusCode = plusCodeValue,
+                addressText = addressValue,
+                localityHint = localityValue,
+                displayLabel = locationRaw
+            )
+        ) ?: locationRaw?.trim()?.takeIf { it.isNotEmpty() }
+
+        return buildMap {
+            put("projectName", pn)
+            put("projectNumber", project["projectNumber"])
+            if (formattedLocation != null) {
+                put("location", formattedLocation)
+                put("projectLocation", formattedLocation)
+            }
+            if (latValue != null) {
+                put("latitude", latValue)
+                put("lat", latValue)
+            }
+            if (lngValue != null) {
+                put("longitude", lngValue)
+                put("lng", lngValue)
+            }
+            if (plusCodeValue != null) {
+                put("plus_code", plusCodeValue)
+                put("plusCode", plusCodeValue)
+            }
+            if (addressValue != null) {
+                put("address_text", addressValue)
+                put("addressText", addressValue)
+            }
+            if (localityValue != null) {
+                put("locality_hint", localityValue)
+                put("localityHint", localityValue)
+            }
+        }
     }
 
     /** جلب مشروع بالاسم لربط سريع عبر projectName */

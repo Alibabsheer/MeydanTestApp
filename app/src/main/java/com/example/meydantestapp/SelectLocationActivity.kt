@@ -13,6 +13,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.meydantestapp.databinding.ActivitySelectLocationBinding
+import com.example.meydantestapp.utils.MapLinkUtils
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -24,6 +25,7 @@ import com.google.android.libraries.places.api.Places
 import com.google.android.libraries.places.api.model.Place
 import com.google.android.libraries.places.widget.AutocompleteSupportFragment
 import com.google.android.libraries.places.widget.listener.PlaceSelectionListener
+import com.google.openlocationcode.OpenLocationCode
 import java.util.*
 
 class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
@@ -58,15 +60,38 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
 
         // زر حفظ الموقع (FAB)
         binding.btnSaveLocation.setOnClickListener {
-            selectedMarker?.let {
+            selectedMarker?.let { marker ->
+                val lat = marker.position.latitude
+                val lng = marker.position.longitude
                 val geocoder = Geocoder(this, Locale.getDefault())
-                val address = geocoder.getFromLocation(it.position.latitude, it.position.longitude, 1)
-                    ?.firstOrNull()?.getAddressLine(0) ?: ""
+                val address = runCatching {
+                    geocoder.getFromLocation(lat, lng, 1)?.firstOrNull()
+                }.getOrNull()
+                val addressLine = address?.getAddressLine(0)?.trim()?.takeIf { it.isNotEmpty() }
+                val localityHint = buildLocalityHint(address)
+                val plusCode = runCatching { OpenLocationCode.encode(lat, lng) }
+                    .getOrNull()
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
 
-                val intent = Intent()
-                intent.putExtra("latitude", it.position.latitude)
-                intent.putExtra("longitude", it.position.longitude)
-                intent.putExtra("address", address)
+                val displayLabel = MapLinkUtils.formatDisplayLabel(
+                    MapLinkUtils.ProjectLocationInfo(
+                        latitude = lat,
+                        longitude = lng,
+                        plusCode = plusCode,
+                        addressText = addressLine,
+                        displayLabel = addressLine
+                    )
+                ) ?: addressLine ?: plusCode ?: ""
+
+                val intent = Intent().apply {
+                    putExtra("latitude", lat)
+                    putExtra("longitude", lng)
+                    putExtra("address", displayLabel)
+                    putExtra("address_text", addressLine)
+                    putExtra("plus_code", plusCode)
+                    putExtra("locality_hint", localityHint)
+                }
                 setResult(Activity.RESULT_OK, intent)
                 finish()
             }
@@ -203,5 +228,23 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
     override fun onLowMemory() {
         super.onLowMemory()
         mapView.onLowMemory()
+    }
+
+    private fun buildLocalityHint(address: android.location.Address?): String? {
+        if (address == null) return null
+        val pieces = linkedSetOf<String>()
+        fun addPart(value: String?) {
+            val part = value?.trim()
+            if (!part.isNullOrEmpty()) {
+                pieces.add(part)
+            }
+        }
+        addPart(address.subLocality)
+        addPart(address.locality)
+        addPart(address.subAdminArea)
+        addPart(address.adminArea)
+        addPart(address.countryName)
+        if (pieces.isEmpty()) return null
+        return pieces.joinToString(separator = "، ")
     }
 }

@@ -9,7 +9,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.meydantestapp.databinding.ActivityDailyReportsBinding
 import com.example.meydantestapp.utils.Constants
+import com.example.meydantestapp.utils.MapLinkUtils
 import com.google.firebase.auth.FirebaseAuth
+import java.util.Locale
 
 /**
  * DailyReportsActivity
@@ -149,6 +151,36 @@ class DailyReportsActivity : AppCompatActivity() {
                 if (skilled != null && unskilled != null) skilled + unskilled else null
             }
 
+            val addressText = (this["address_text"] as? String)?.takeIf { it.isNotBlank() }
+                ?: (this["addressText"] as? String)?.takeIf { it.isNotBlank() }
+            val plusCodeRaw = (this["plus_code"] as? String)?.takeIf { it.isNotBlank() }
+                ?: (this["plusCode"] as? String)?.takeIf { it.isNotBlank() }
+            val localityHint = (this["locality_hint"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+                ?: (this["localityHint"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+            val plusCode = plusCodeRaw?.uppercase(Locale.US)
+            val latValue = when (val v = this["lat"] ?: this["latitude"]) {
+                is Number -> v.toDouble()
+                is String -> v.toDoubleOrNull()
+                else -> null
+            }
+            val lngValue = when (val v = this["lng"] ?: this["longitude"]) {
+                is Number -> v.toDouble()
+                is String -> v.toDoubleOrNull()
+                else -> null
+            }
+            val locationRaw = (this["projectLocation"] as? String)?.takeIf { it.isNotBlank() }
+                ?: (this["location"] as? String)?.takeIf { it.isNotBlank() }
+            val locationDisplay = MapLinkUtils.formatDisplayLabel(
+                MapLinkUtils.ProjectLocationInfo(
+                    latitude = latValue,
+                    longitude = lngValue,
+                    plusCode = plusCode,
+                    addressText = addressText,
+                    displayLabel = locationRaw,
+                    localityHint = localityHint
+                )
+            ) ?: locationRaw
+
             DailyReport(
                 id = this["id"] as? String,
                 reportNumber = this["reportNumber"] as? String,
@@ -171,10 +203,14 @@ class DailyReportsActivity : AppCompatActivity() {
                 // الحقول الجديدة المطلوبة لعرض "معلومات التقرير"
                 createdBy = (this["createdBy"] as? String),
                 createdByName = (this["createdByName"] as? String)?.takeIf { it.isNotBlank() },
-                projectLocation = (
-                        (this["projectLocation"] as? String)?.takeIf { it.isNotBlank() }
-                            ?: (this["location"] as? String)?.takeIf { it.isNotBlank() }
-                        ),
+                projectLocation = locationDisplay,
+                projectAddressText = addressText,
+                projectPlusCode = plusCode,
+                projectLat = latValue,
+                projectLng = lngValue,
+                projectLocalityHint = localityHint,
+                latitude = latValue,
+                longitude = lngValue,
                 organizationName = (this["organizationName"] as? String)
             )
         } catch (_: Exception) {

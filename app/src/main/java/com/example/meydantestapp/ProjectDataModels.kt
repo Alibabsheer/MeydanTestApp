@@ -3,6 +3,7 @@ package com.example.meydantestapp
 import android.os.Parcelable
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.Exclude
+import com.google.firebase.firestore.PropertyName
 import kotlinx.parcelize.Parcelize
 import kotlinx.parcelize.RawValue
 
@@ -38,6 +39,11 @@ data class Project(
     var location: String? = null,
     var latitude: Double? = null,
     var longitude: Double? = null,
+    @get:PropertyName("lat") @set:PropertyName("lat") var lat: Double? = null,
+    @get:PropertyName("lng") @set:PropertyName("lng") var lng: Double? = null,
+    @get:PropertyName("plus_code") @set:PropertyName("plus_code") var plusCode: String? = null,
+    @get:PropertyName("address_text") @set:PropertyName("address_text") var addressText: String? = null,
+    @get:PropertyName("locality_hint") @set:PropertyName("locality_hint") var localityHint: String? = null,
     var workType: String? = null,
     var startDate: Timestamp? = null,
     var endDate: Timestamp? = null,
@@ -78,6 +84,13 @@ data class DailyReport(
     val createdBy: String? = null,
     val createdByName: String? = null,      // اسم مُنشئ التقرير (إن توفر)
     val projectLocation: String? = null,    // موقع المشروع لعرضه في الشاشة/الـ PDF
+    @get:PropertyName("address_text") val projectAddressText: String? = null,
+    @get:PropertyName("plus_code") val projectPlusCode: String? = null,
+    @get:PropertyName("lat") val projectLat: Double? = null,
+    @get:PropertyName("lng") val projectLng: Double? = null,
+    @get:PropertyName("locality_hint") val projectLocalityHint: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
     val organizationName: String? = null,
     val isArchived: Boolean? = false        // لأرشفة التقارير بعد إنشاء الأسبوعي
 ) : Parcelable

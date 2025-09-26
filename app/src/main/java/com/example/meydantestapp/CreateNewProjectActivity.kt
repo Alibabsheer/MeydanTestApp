@@ -25,6 +25,9 @@ class CreateNewProjectActivity : AppCompatActivity() {
 
     private var selectedLatitude: Double? = null
     private var selectedLongitude: Double? = null
+    private var selectedPlusCode: String? = null
+    private var selectedAddressText: String? = null
+    private var selectedLocalityHint: String? = null
 
     private lateinit var selectLocationLauncher: ActivityResultLauncher<Intent>
     private lateinit var importExcelLauncher: ActivityResultLauncher<Intent>
@@ -116,8 +119,11 @@ class CreateNewProjectActivity : AppCompatActivity() {
             if (result.resultCode == RESULT_OK) {
                 val data = result.data
                 val selectedAddress = data?.getStringExtra("address") ?: ""
-                selectedLatitude = data?.getDoubleExtra("latitude", 0.0)
-                selectedLongitude = data?.getDoubleExtra("longitude", 0.0)
+                selectedLatitude = data?.getDoubleExtra("latitude", 0.0)?.takeIf { it != 0.0 }
+                selectedLongitude = data?.getDoubleExtra("longitude", 0.0)?.takeIf { it != 0.0 }
+                selectedPlusCode = data?.getStringExtra("plus_code")?.trim()?.takeIf { it.isNotEmpty() }
+                selectedAddressText = data?.getStringExtra("address_text")?.trim()?.takeIf { it.isNotEmpty() }
+                selectedLocalityHint = data?.getStringExtra("locality_hint")?.trim()?.takeIf { it.isNotEmpty() }
                 binding.etProjectLocation.setText(selectedAddress)
             }
         }
@@ -313,6 +319,9 @@ class CreateNewProjectActivity : AppCompatActivity() {
             location = location,
             latitude = selectedLatitude,
             longitude = selectedLongitude,
+            plusCode = selectedPlusCode,
+            addressText = selectedAddressText,
+            localityHint = selectedLocalityHint,
             startDateStr = startDateStr,
             endDateStr = endDateStr,
             workType = workType,

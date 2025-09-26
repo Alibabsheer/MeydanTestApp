@@ -12,6 +12,14 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import com.example.meydantestapp.R
 import com.example.meydantestapp.utils.ImageUtils
+import com.example.meydantestapp.utils.MapLinkUtils
+import com.tom_roush.pdfbox.cos.COSArray
+import com.tom_roush.pdfbox.cos.COSFloat
+import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.pdmodel.common.PDRectangle
+import com.tom_roush.pdfbox.pdmodel.interactive.action.PDActionURI
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDBorderStyleDictionary
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
@@ -61,6 +69,11 @@ class ReportPdfBuilder(
         val organizationName: String? = null,
         val projectName: String? = null,
         val projectLocation: String? = null,
+        val projectAddressText: String? = null,
+        val projectPlusCode: String? = null,
+        val projectLat: Double? = null,
+        val projectLng: Double? = null,
+        val projectLocalityHint: String? = null,
         val reportNumber: String? = null,
         val dateText: String? = null,
 
@@ -245,6 +258,12 @@ class ReportPdfBuilder(
         return builder.toString()
     }
 
+    private data class LinkAnnotation(
+        val pageIndex: Int,
+        val rect: RectF,
+        val url: String
+    )
+
     private fun createLayout(
         text: CharSequence,
         paint: TextPaint,
@@ -312,9 +331,42 @@ class ReportPdfBuilder(
         return Bitmap.createScaledBitmap(bitmap, w, h, true)
     }
 
+    private fun applyLinkAnnotations(pdfFile: File, annotations: List<LinkAnnotation>) {
+        if (annotations.isEmpty()) return
+        PDDocument.load(pdfFile).use { document ->
+            annotations.forEach { ann ->
+                val pageIndexZero = (ann.pageIndex - 1).coerceAtLeast(0)
+                if (pageIndexZero >= document.numberOfPages) return@forEach
+                val page = document.getPage(pageIndexZero)
+                val mediaBox = page.mediaBox
+                val rect = ann.rect
+                val width = rect.width()
+                val height = rect.height()
+                if (width <= 0f || height <= 0f) return@forEach
+                val lowerLeftX = rect.left
+                val lowerLeftY = mediaBox.height - rect.bottom
+                val pdfRect = PDRectangle(lowerLeftX, lowerLeftY, width, height)
+                val border = PDBorderStyleDictionary().apply { width = 0f }
+                val link = PDAnnotationLink().apply {
+                    rectangle = pdfRect
+                    borderStyle = border
+                    border = COSArray().apply {
+                        add(COSFloat(0f))
+                        add(COSFloat(0f))
+                        add(COSFloat(0f))
+                    }
+                    action = PDActionURI().apply { uri = ann.url }
+                }
+                page.annotations.add(link)
+            }
+            document.save(pdfFile)
+        }
+    }
+
     /* ---------- إنشاء PDF ---------- */
     fun buildPdf(data: DailyReport, logo: Bitmap?, outFile: File): File {
         val pdf = PdfDocument()
+        val pendingLinkAnnotations = mutableListOf<LinkAnnotation>()
 
         /* ========== تهيئة ألوان وخطوط ========== */
         val maroon = ContextCompat.getColor(context, R.color.brand_red_light_theme)
@@ -454,8 +506,10 @@ class ReportPdfBuilder(
             currentSectionTitle = null
         }
 
-        fun drawKeyValue(label: String, valueRaw: String?) {
-            if (valueRaw.isNullOrBlank()) return
+        fun drawKeyValue(label: String, valueRaw: String?, linkUrl: String? = null) {
+            val trimmedValue = valueRaw?.trim()
+            val sanitizedLink = linkUrl?.takeIf { isHttpUrl(it) }
+            if (trimmedValue.isNullOrEmpty() && sanitizedLink.isNullOrEmpty()) return
 
             val horizontalGap = dp(10)
             val horizontalPadding = fieldHorizontalPadding
@@ -463,15 +517,28 @@ class ReportPdfBuilder(
             val minValueWidth = dp(72)
             val labelText = "$label:"
 
-            val valueTrimmed = valueRaw.trim()
-            val prefersLTR = preferLTR(valueTrimmed)
-            val normalizedValue = if (prefersLTR) {
+            val valueTrimmed = trimmedValue ?: ""
+            val hasValueText = valueTrimmed.isNotEmpty()
+            val prefersLTR = hasValueText && preferLTR(valueTrimmed)
+            val normalizedValue = if (!hasValueText) {
+                ""
+            } else if (prefersLTR) {
                 valueTrimmed
             } else {
                 val withComma = normalizeArabicCommaSpacing(valueTrimmed)
                 normalizeRtlMixedText(withComma)
             }
-            val valueText = if (prefersLTR) ltrIsolate(normalizedValue) else normalizedValue
+            val valueText = if (!hasValueText) {
+                ""
+            } else if (prefersLTR) {
+                ltrIsolate(normalizedValue)
+            } else {
+                normalizedValue
+            }
+
+            val finalValueText = valueText
+
+            val layoutRtl = if (hasValueText) !prefersLTR else false
 
             val maxLabelWidth = (contentWidth * 0.45f).toInt()
             val measuredLabel = bodyPaint.measureText(labelText).roundToInt() + horizontalPadding * 2
@@ -497,10 +564,10 @@ class ReportPdfBuilder(
             )
             val valueAlign = if (prefersLTR) Layout.Alignment.ALIGN_OPPOSITE else Layout.Alignment.ALIGN_NORMAL
             val valueLayout = createLayout(
-                valueText,
+                finalValueText,
                 bodyPaint,
                 valueAreaWidth,
-                rtl = !prefersLTR,
+                rtl = layoutRtl,
                 align = valueAlign,
                 spacingMult = 1f,
                 spacingAdd = fieldLineSpacingAdd
@@ -521,6 +588,7 @@ class ReportPdfBuilder(
 
             val labelLeft = contentRight - labelWidth
             val valueLeft = contentLeft
+            val rowTop = y
 
             canvas.save()
             canvas.translate((labelLeft + horizontalPadding).toFloat(), (y + verticalPadding).toFloat())
@@ -531,6 +599,16 @@ class ReportPdfBuilder(
             canvas.translate((valueLeft + horizontalPadding).toFloat(), (y + verticalPadding).toFloat())
             valueLayout.draw(canvas)
             canvas.restore()
+
+            if (hasValueText && sanitizedLink != null) {
+                val annotationRect = RectF(
+                    valueLeft.toFloat(),
+                    rowTop.toFloat(),
+                    contentRight.toFloat(),
+                    (rowTop + rowHeight).toFloat()
+                )
+                pendingLinkAnnotations.add(LinkAnnotation(pageIndex, annotationRect, sanitizedLink))
+            }
 
             y += rowHeight + fieldLineSpacing
         }
@@ -752,7 +830,20 @@ class ReportPdfBuilder(
         drawSectionHeader("معلومات التقرير")
         drawKeyValue("اسم المؤسسة", data.organizationName)
         drawKeyValue("اسم المشروع", data.projectName)
-        drawKeyValue("موقع المشروع", data.projectLocation)
+        val locationInfo = MapLinkUtils.ProjectLocationInfo(
+            latitude = data.projectLat,
+            longitude = data.projectLng,
+            plusCode = data.projectPlusCode,
+            addressText = data.projectAddressText,
+            displayLabel = data.projectLocation,
+            localityHint = data.projectLocalityHint
+        )
+        val projectLocationText = MapLinkUtils.formatDisplayLabel(locationInfo) ?: data.projectLocation
+        val rawLink = MapLinkUtils.buildGoogleMapsLink(locationInfo)
+        val projectLocationLink = rawLink?.takeUnless { link ->
+            projectLocationText?.trim()?.equals(link, ignoreCase = true) == true
+        }
+        drawKeyValue("موقع المشروع", projectLocationText, projectLocationLink)
         drawKeyValue("رقم التقرير", data.reportNumber)
         drawKeyValue("تاريخ التقرير", data.dateText)
         drawWeatherRow(tempToUse, condToUse)
@@ -787,6 +878,11 @@ class ReportPdfBuilder(
         outFile.parentFile?.mkdirs()
         FileOutputStream(outFile).use { pdf.writeTo(it) }
         pdf.close()
+        val annotations = pendingLinkAnnotations.toList()
+        pendingLinkAnnotations.clear()
+        if (annotations.isNotEmpty()) {
+            applyLinkAnnotations(outFile, annotations)
+        }
         return outFile
     }
 }

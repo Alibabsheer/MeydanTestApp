@@ -15,6 +15,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.addTextChangedListener
 import com.example.meydantestapp.databinding.ActivityProjectSettingsBinding
+import com.example.meydantestapp.utils.MapLinkUtils
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -29,6 +30,9 @@ class ProjectSettingsActivity : AppCompatActivity() {
 
     private var selectedLatitude: Double? = null
     private var selectedLongitude: Double? = null
+    private var selectedPlusCode: String? = null
+    private var selectedAddressText: String? = null
+    private var selectedLocalityHint: String? = null
 
     private lateinit var selectLocationLauncher: ActivityResultLauncher<Intent>
 
@@ -54,8 +58,11 @@ class ProjectSettingsActivity : AppCompatActivity() {
             if (result.resultCode == RESULT_OK) {
                 val data = result.data
                 val selectedAddress = data?.getStringExtra("address") ?: ""
-                selectedLatitude = data?.getDoubleExtra("latitude", 0.0)
-                selectedLongitude = data?.getDoubleExtra("longitude", 0.0)
+                selectedLatitude = data?.getDoubleExtra("latitude", 0.0)?.takeIf { it != 0.0 }
+                selectedLongitude = data?.getDoubleExtra("longitude", 0.0)?.takeIf { it != 0.0 }
+                selectedPlusCode = data?.getStringExtra("plus_code")?.trim()?.takeIf { it.isNotEmpty() }
+                selectedAddressText = data?.getStringExtra("address_text")?.trim()?.takeIf { it.isNotEmpty() }
+                selectedLocalityHint = data?.getStringExtra("locality_hint")?.trim()?.takeIf { it.isNotEmpty() }
                 binding.projectLocationEditText.setText(selectedAddress)
                 enableSaveButton()
             }
@@ -200,9 +207,22 @@ class ProjectSettingsActivity : AppCompatActivity() {
                 val project = doc.toObject(Project::class.java)
                 project?.let {
                     binding.projectNameEditText.setText(it.projectName ?: "")
-                    binding.projectLocationEditText.setText(it.location ?: "")
-                    selectedLatitude = it.latitude
-                    selectedLongitude = it.longitude
+                    selectedPlusCode = it.plusCode ?: it.projectPlusCode
+                    selectedAddressText = it.addressText ?: it.projectAddressText
+                    selectedLocalityHint = it.localityHint ?: it.projectLocalityHint
+                    selectedLatitude = it.lat ?: it.latitude
+                    selectedLongitude = it.lng ?: it.longitude
+                    val displayLocation = MapLinkUtils.formatDisplayLabel(
+                        MapLinkUtils.ProjectLocationInfo(
+                            latitude = selectedLatitude,
+                            longitude = selectedLongitude,
+                            plusCode = selectedPlusCode,
+                            addressText = selectedAddressText,
+                            localityHint = selectedLocalityHint,
+                            displayLabel = it.location
+                        )
+                    ) ?: it.location
+                    binding.projectLocationEditText.setText(displayLocation ?: "")
                     binding.startDateEditText.setText(it.startDate?.toDate()?.let { d -> dateFormatter.format(d) } ?: "")
                     binding.endDateEditText.setText(it.endDate?.toDate()?.let { d -> dateFormatter.format(d) } ?: "")
                     currentProjectWorkType = it.workType
@@ -263,11 +283,31 @@ class ProjectSettingsActivity : AppCompatActivity() {
         val userId = auth.currentUser?.uid ?: return finishWithToast("خطأ: المستخدم غير مسجل الدخول.")
         val startTs = runCatching { dateFormatter.parse(startStr)?.let { Timestamp(it) } }.getOrNull()
         val endTs = runCatching { dateFormatter.parse(endStr)?.let { Timestamp(it) } }.getOrNull()
+        val sanitizedLocality = selectedLocalityHint?.trim()?.takeIf { it.isNotEmpty() }
+        val normalizedLocation = MapLinkUtils.formatDisplayLabel(
+            MapLinkUtils.ProjectLocationInfo(
+                latitude = selectedLatitude,
+                longitude = selectedLongitude,
+                plusCode = selectedPlusCode,
+                addressText = selectedAddressText,
+                localityHint = sanitizedLocality,
+                displayLabel = location
+            )
+        ) ?: location
         val data = mutableMapOf<String, Any?>(
             "name" to name,
-            "location" to location,
+            "location" to normalizedLocation,
+            "projectLocation" to normalizedLocation,
             "latitude" to selectedLatitude,
             "longitude" to selectedLongitude,
+            "lat" to selectedLatitude,
+            "lng" to selectedLongitude,
+            "plusCode" to selectedPlusCode,
+            "plus_code" to selectedPlusCode,
+            "addressText" to selectedAddressText,
+            "address_text" to selectedAddressText,
+            "localityHint" to sanitizedLocality,
+            "locality_hint" to sanitizedLocality,
             "workType" to workType,
             "startDate" to startTs,
             "endDate" to endTs,

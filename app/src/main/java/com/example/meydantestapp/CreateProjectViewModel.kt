@@ -5,6 +5,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.meydantestapp.repository.ProjectRepository
+import com.example.meydantestapp.utils.MapLinkUtils
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
@@ -39,6 +40,9 @@ class CreateProjectViewModel(
         location: String,
         latitude: Double?,
         longitude: Double?,
+        plusCode: String?,
+        addressText: String?,
+        localityHint: String?,
         startDateStr: String,
         endDateStr: String,
         workType: String,
@@ -61,11 +65,35 @@ class CreateProjectViewModel(
             return
         }
 
+        val sanitizedAddress = addressText?.trim()?.takeIf { it.isNotEmpty() }
+        val sanitizedPlusCode = plusCode?.trim()?.takeIf { it.isNotEmpty() }
+        val sanitizedLocality = localityHint?.trim()?.takeIf { it.isNotEmpty() }
+
+        val locationLabel = MapLinkUtils.formatDisplayLabel(
+            MapLinkUtils.ProjectLocationInfo(
+                latitude = latitude,
+                longitude = longitude,
+                plusCode = sanitizedPlusCode,
+                addressText = sanitizedAddress,
+                localityHint = sanitizedLocality,
+                displayLabel = location
+            )
+        ) ?: location.trim().takeIf { it.isNotEmpty() }
+
         val projectData = hashMapOf<String, Any?>(
             "projectName" to projectName,
-            "location" to location,
+            "location" to locationLabel,
+            "projectLocation" to locationLabel,
             "latitude" to latitude,
             "longitude" to longitude,
+            "lat" to latitude,
+            "lng" to longitude,
+            "plusCode" to sanitizedPlusCode,
+            "plus_code" to sanitizedPlusCode,
+            "addressText" to sanitizedAddress,
+            "address_text" to sanitizedAddress,
+            "localityHint" to sanitizedLocality,
+            "locality_hint" to sanitizedLocality,
             "startDate" to startTs,
             "endDate" to endTs,
             "workType" to workType,

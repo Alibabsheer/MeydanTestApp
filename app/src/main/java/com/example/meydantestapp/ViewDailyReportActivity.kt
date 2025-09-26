@@ -38,6 +38,7 @@ import com.example.meydantestapp.report.ReportPdfBuilder
 import com.example.meydantestapp.repository.DailyReportRepository
 import com.example.meydantestapp.utils.Constants
 import com.example.meydantestapp.utils.ImageUtils
+import com.example.meydantestapp.utils.MapLinkUtils
 import com.google.firebase.firestore.FirebaseFirestore
 import com.otaliastudios.zoom.ZoomLayout
 import kotlinx.coroutines.CoroutineScope
@@ -327,10 +328,26 @@ class ViewDailyReportActivity : AppCompatActivity() {
                 val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
                 val dateText = report.date?.let { df.format(java.util.Date(it)) }
 
+                val locationDisplay = MapLinkUtils.formatDisplayLabel(
+                    MapLinkUtils.ProjectLocationInfo(
+                        latitude = report.projectLat ?: report.latitude,
+                        longitude = report.projectLng ?: report.longitude,
+                        plusCode = report.projectPlusCode,
+                        addressText = report.projectAddressText,
+                        localityHint = report.projectLocalityHint,
+                        displayLabel = report.projectLocation
+                    )
+                ) ?: report.projectLocation
+
                 val builderInput = ReportPdfBuilder.DailyReport(
                     organizationName = report.organizationName,
                     projectName = report.projectName,
-                    projectLocation = report.projectLocation,
+                    projectLocation = locationDisplay,
+                    projectAddressText = report.projectAddressText,
+                    projectPlusCode = report.projectPlusCode,
+                    projectLat = report.projectLat ?: report.latitude,
+                    projectLng = report.projectLng ?: report.longitude,
+                    projectLocalityHint = report.projectLocalityHint,
                     reportNumber = report.reportNumber,
                     dateText = dateText,
                     weatherText = formatWeatherLine(report.temperature, report.weatherStatus),
