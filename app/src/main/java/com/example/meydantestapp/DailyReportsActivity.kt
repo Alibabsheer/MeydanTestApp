@@ -175,6 +175,7 @@ class DailyReportsActivity : AppCompatActivity() {
                         (this["projectLocation"] as? String)?.takeIf { it.isNotBlank() }
                             ?: (this["location"] as? String)?.takeIf { it.isNotBlank() }
                         ),
+                googleMapsUrl = (this["googleMapsUrl"] as? String)?.takeIf { it.isNotBlank() },
                 organizationName = (this["organizationName"] as? String)
             )
         } catch (_: Exception) {

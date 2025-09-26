@@ -79,6 +79,7 @@ data class DailyReport(
     val createdBy: String? = null,
     val createdByName: String? = null,      // اسم مُنشئ التقرير (إن توفر)
     val projectLocation: String? = null,    // موقع المشروع لعرضه في الشاشة/الـ PDF
+    val googleMapsUrl: String? = null,      // رابط خرائط Google للموقع (اختياري)
     val organizationName: String? = null,
     val isArchived: Boolean? = false        // لأرشفة التقارير بعد إنشاء الأسبوعي
 ) : Parcelable
