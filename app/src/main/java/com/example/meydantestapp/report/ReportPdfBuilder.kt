@@ -12,6 +12,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import com.example.meydantestapp.R
 import com.example.meydantestapp.utils.ImageUtils
+import com.example.meydantestapp.utils.MapLinkUtils
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
@@ -454,8 +455,10 @@ class ReportPdfBuilder(
             currentSectionTitle = null
         }
 
-        fun drawKeyValue(label: String, valueRaw: String?) {
-            if (valueRaw.isNullOrBlank()) return
+        fun drawKeyValue(label: String, valueRaw: String?, linkUrl: String? = null) {
+            val trimmedValue = valueRaw?.trim()
+            val sanitizedLink = linkUrl?.takeIf { isHttpUrl(it) }
+            if (trimmedValue.isNullOrEmpty() && sanitizedLink.isNullOrEmpty()) return
 
             val horizontalGap = dp(10)
             val horizontalPadding = fieldHorizontalPadding
@@ -463,15 +466,42 @@ class ReportPdfBuilder(
             val minValueWidth = dp(72)
             val labelText = "$label:"
 
-            val valueTrimmed = valueRaw.trim()
-            val prefersLTR = preferLTR(valueTrimmed)
-            val normalizedValue = if (prefersLTR) {
+            val valueTrimmed = trimmedValue ?: ""
+            val hasValueText = valueTrimmed.isNotEmpty()
+            val prefersLTR = hasValueText && preferLTR(valueTrimmed)
+            val normalizedValue = if (!hasValueText) {
+                ""
+            } else if (prefersLTR) {
                 valueTrimmed
             } else {
                 val withComma = normalizeArabicCommaSpacing(valueTrimmed)
                 normalizeRtlMixedText(withComma)
             }
-            val valueText = if (prefersLTR) ltrIsolate(normalizedValue) else normalizedValue
+            val valueText = if (!hasValueText) {
+                ""
+            } else if (prefersLTR) {
+                ltrIsolate(normalizedValue)
+            } else {
+                normalizedValue
+            }
+
+            val linkToAppend = sanitizedLink
+                ?.takeUnless { link ->
+                    valueTrimmed.equals(link, ignoreCase = true) || valueTrimmed.contains(link, ignoreCase = true)
+                }
+                ?.let { ltrIsolate(it) }
+
+            val finalValueText = when {
+                linkToAppend == null -> valueText
+                valueText.isEmpty() -> linkToAppend
+                else -> buildString {
+                    append(valueText)
+                    append('\n')
+                    append(linkToAppend)
+                }
+            }
+
+            val layoutRtl = if (hasValueText) !prefersLTR else false
 
             val maxLabelWidth = (contentWidth * 0.45f).toInt()
             val measuredLabel = bodyPaint.measureText(labelText).roundToInt() + horizontalPadding * 2
@@ -497,10 +527,10 @@ class ReportPdfBuilder(
             )
             val valueAlign = if (prefersLTR) Layout.Alignment.ALIGN_OPPOSITE else Layout.Alignment.ALIGN_NORMAL
             val valueLayout = createLayout(
-                valueText,
+                finalValueText,
                 bodyPaint,
                 valueAreaWidth,
-                rtl = !prefersLTR,
+                rtl = layoutRtl,
                 align = valueAlign,
                 spacingMult = 1f,
                 spacingAdd = fieldLineSpacingAdd
@@ -752,7 +782,12 @@ class ReportPdfBuilder(
         drawSectionHeader("معلومات التقرير")
         drawKeyValue("اسم المؤسسة", data.organizationName)
         drawKeyValue("اسم المشروع", data.projectName)
-        drawKeyValue("موقع المشروع", data.projectLocation)
+        val projectLocationText = data.projectLocation
+        val mapLink = MapLinkUtils.buildGoogleMapsQuery(projectLocationText)
+        val projectLocationLink = mapLink?.takeUnless { link ->
+            projectLocationText?.trim().equals(link, ignoreCase = true)
+        }
+        drawKeyValue("موقع المشروع", projectLocationText, projectLocationLink)
         drawKeyValue("رقم التقرير", data.reportNumber)
         drawKeyValue("تاريخ التقرير", data.dateText)
         drawWeatherRow(tempToUse, condToUse)
