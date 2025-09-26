@@ -331,6 +331,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
                     organizationName = report.organizationName,
                     projectName = report.projectName,
                     projectLocation = report.projectLocation,
+                    projectLocationGoogleMapsUrl = report.googleMapsUrl,
                     reportNumber = report.reportNumber,
                     dateText = dateText,
                     weatherText = formatWeatherLine(report.temperature, report.weatherStatus),

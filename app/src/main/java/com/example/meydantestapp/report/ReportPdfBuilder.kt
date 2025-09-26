@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.*
 import android.graphics.pdf.PdfDocument
+import android.net.Uri
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextDirectionHeuristics
@@ -14,6 +15,8 @@ import com.example.meydantestapp.R
 import com.example.meydantestapp.utils.ImageUtils
 import java.io.File
 import java.io.FileOutputStream
+import java.lang.reflect.Constructor
+import java.lang.reflect.Method
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
@@ -61,6 +64,7 @@ class ReportPdfBuilder(
         val organizationName: String? = null,
         val projectName: String? = null,
         val projectLocation: String? = null,
+        val projectLocationGoogleMapsUrl: String? = null,
         val reportNumber: String? = null,
         val dateText: String? = null,
 
@@ -320,6 +324,7 @@ class ReportPdfBuilder(
         val maroon = ContextCompat.getColor(context, R.color.brand_red_light_theme)
         val black = ContextCompat.getColor(context, R.color.black)
         val white = Color.WHITE
+        val hyperlinkBlue = Color.parseColor("#0B57D0")
 
         val titlePaint = arabicPaint {
             color = maroon
@@ -454,8 +459,12 @@ class ReportPdfBuilder(
             currentSectionTitle = null
         }
 
-        fun drawKeyValue(label: String, valueRaw: String?) {
+        fun drawKeyValue(label: String, valueRaw: String?, linkUrlRaw: String? = null) {
             if (valueRaw.isNullOrBlank()) return
+
+            val linkUrl = linkUrlRaw?.trim()?.let { trimmed ->
+                if (isHttpUrl(trimmed)) trimmed else null
+            }
 
             val horizontalGap = dp(10)
             val horizontalPadding = fieldHorizontalPadding
@@ -472,6 +481,15 @@ class ReportPdfBuilder(
                 normalizeRtlMixedText(withComma)
             }
             val valueText = if (prefersLTR) ltrIsolate(normalizedValue) else normalizedValue
+
+            val valuePaint = if (linkUrl != null) {
+                TextPaint(bodyPaint).apply {
+                    color = hyperlinkBlue
+                    isUnderlineText = true
+                }
+            } else {
+                bodyPaint
+            }
 
             val maxLabelWidth = (contentWidth * 0.45f).toInt()
             val measuredLabel = bodyPaint.measureText(labelText).roundToInt() + horizontalPadding * 2
@@ -498,7 +516,7 @@ class ReportPdfBuilder(
             val valueAlign = if (prefersLTR) Layout.Alignment.ALIGN_OPPOSITE else Layout.Alignment.ALIGN_NORMAL
             val valueLayout = createLayout(
                 valueText,
-                bodyPaint,
+                valuePaint,
                 valueAreaWidth,
                 rtl = !prefersLTR,
                 align = valueAlign,
@@ -531,6 +549,19 @@ class ReportPdfBuilder(
             canvas.translate((valueLeft + horizontalPadding).toFloat(), (y + verticalPadding).toFloat())
             valueLayout.draw(canvas)
             canvas.restore()
+
+            if (linkUrl != null && valueLayout.height > 0) {
+                val leftF = (valueLeft + horizontalPadding).toFloat()
+                val topF = (y + verticalPadding).toFloat()
+                val rawRight = leftF + valueLayout.width.toFloat()
+                val maxRight = (valueLeft + valueWidth - horizontalPadding).toFloat()
+                val rightF = min(rawRight, maxRight)
+                val bottomF = topF + valueLayout.height.toFloat()
+                val rect = RectF(leftF, topF, rightF, bottomF)
+                if (rect.intersect(0f, 0f, pageWidth.toFloat(), pageHeight.toFloat())) {
+                    PdfLinkAnnotationSupport.addLink(page, rect, linkUrl)
+                }
+            }
 
             y += rowHeight + fieldLineSpacing
         }
@@ -752,7 +783,7 @@ class ReportPdfBuilder(
         drawSectionHeader("معلومات التقرير")
         drawKeyValue("اسم المؤسسة", data.organizationName)
         drawKeyValue("اسم المشروع", data.projectName)
-        drawKeyValue("موقع المشروع", data.projectLocation)
+        drawKeyValue("موقع المشروع", data.projectLocation, data.projectLocationGoogleMapsUrl)
         drawKeyValue("رقم التقرير", data.reportNumber)
         drawKeyValue("تاريخ التقرير", data.dateText)
         drawWeatherRow(tempToUse, condToUse)
@@ -788,5 +819,38 @@ class ReportPdfBuilder(
         FileOutputStream(outFile).use { pdf.writeTo(it) }
         pdf.close()
         return outFile
+    }
+
+    private object PdfLinkAnnotationSupport {
+        private var reflectionAvailable: Boolean? = null
+        private var annotationConstructor: Constructor<*>? = null
+        private var addAnnotationMethod: Method? = null
+
+        fun addLink(page: PdfDocument.Page, rect: RectF, url: String) {
+            if (rect.width() <= 0f || rect.height() <= 0f) return
+            val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return
+            if (!ensureReflection()) return
+            runCatching {
+                val annotation = annotationConstructor?.newInstance(rect, uri) ?: return
+                addAnnotationMethod?.invoke(page, annotation)
+            }
+        }
+
+        private fun ensureReflection(): Boolean {
+            reflectionAvailable?.let { return it }
+            val available = runCatching {
+                val annotationBase = Class.forName("android.graphics.pdf.PdfDocument\$Annotation")
+                val linkAnnotation = Class.forName("android.graphics.pdf.PdfDocument\$LinkAnnotation")
+                annotationConstructor = linkAnnotation.getConstructor(RectF::class.java, Uri::class.java)
+                addAnnotationMethod = PdfDocument.Page::class.java.getMethod("addAnnotation", annotationBase)
+                true
+            }.getOrDefault(false)
+            if (!available) {
+                annotationConstructor = null
+                addAnnotationMethod = null
+            }
+            reflectionAvailable = available
+            return available
+        }
     }
 }
