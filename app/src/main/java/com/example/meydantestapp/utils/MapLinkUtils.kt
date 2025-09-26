@@ -25,7 +25,7 @@ object MapLinkUtils {
             return "https://maps.google.com/?q=$plusCode"
         }
 
-        val sanitizedInput = trimmed.replace("\n", " ").replace("\r", " ").replace("\s+".toRegex(), " ")
+        val sanitizedInput = trimmed.replace("\n", " ").replace("\r", " ").replace("""\s+""".toRegex(), " ")
         val encoded = runCatching {
             URLEncoder.encode(sanitizedInput, StandardCharsets.UTF_8.name())
         }.getOrNull() ?: return null
