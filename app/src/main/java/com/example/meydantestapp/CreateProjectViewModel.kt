@@ -5,6 +5,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.meydantestapp.repository.ProjectRepository
+import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
@@ -71,6 +72,10 @@ class CreateProjectViewModel(
             "workType" to workType,
             "createdAt" to Timestamp.now()
         )
+
+        ProjectLocationUtils.buildGoogleMapsUrl(projectData)?.let { url ->
+            projectData["googleMapsUrl"] = url
+        }
 
         when (workType) {
             "جدول كميات" -> {
