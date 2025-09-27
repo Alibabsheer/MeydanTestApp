@@ -1,59 +1,50 @@
 package com.example.meydantestapp.utils
 
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
+import kotlin.math.isFinite
 
 /**
  * Utilities for handling project location metadata.
  */
 object ProjectLocationUtils {
 
-    private val addressKeys = listOf("location", "address", "projectLocation")
-    private val plusCodeKeys = listOf("plusCode", "plus_code", "pluscode")
-
-    fun buildGoogleMapsUrl(
-        latitude: Double?,
-        longitude: Double?,
-        plusCode: String?,
-        address: String?
-    ): String? {
-        val lat = latitude
-        val lng = longitude
-        if (lat != null && lng != null) {
-            return "https://www.google.com/maps/search/?api=1&query=$lat,$lng"
+    /**
+     * Builds a Google Maps deep-link using latitude & longitude if both are non-null.
+     * Returns `null` when one of the coordinates is missing to avoid generating broken URLs.
+     */
+    fun buildGoogleMapsUrl(latitude: Double?, longitude: Double?): String? {
+        val lat = latitude?.takeIf { it.isFinite() }
+        val lng = longitude?.takeIf { it.isFinite() }
+        return if (lat != null && lng != null) {
+            "https://www.google.com/maps/search/?api=1&query=$lat,$lng"
+        } else {
+            null
         }
-
-        val normalizedPlusCode = plusCode?.trim()?.takeIf { it.isNotEmpty() }
-        if (!normalizedPlusCode.isNullOrEmpty()) {
-            val encoded = URLEncoder.encode(normalizedPlusCode, StandardCharsets.UTF_8.toString())
-            return "https://www.google.com/maps/search/?api=1&query=$encoded"
-        }
-
-        val normalizedAddress = address?.trim()?.takeIf { it.isNotEmpty() }
-        if (!normalizedAddress.isNullOrEmpty()) {
-            val encoded = URLEncoder.encode(normalizedAddress, StandardCharsets.UTF_8.toString())
-            return "https://www.google.com/maps/search/?api=1&query=$encoded"
-        }
-
-        return null
     }
 
+    /**
+     * Convenience overload that extracts coordinates from a Firestore map/document snapshot.
+     */
     fun buildGoogleMapsUrl(data: Map<String, *>): String? {
         val latitude = extractDouble(data["latitude"])
         val longitude = extractDouble(data["longitude"])
-        val plusCode = plusCodeKeys.asSequence()
-            .mapNotNull { (data[it] as? String)?.trim()?.takeIf { value -> value.isNotEmpty() } }
-            .firstOrNull()
-        val address = addressKeys.asSequence()
-            .mapNotNull { (data[it] as? String)?.trim()?.takeIf { value -> value.isNotEmpty() } }
-            .firstOrNull()
-
-        return buildGoogleMapsUrl(latitude, longitude, plusCode, address)
+        return buildGoogleMapsUrl(latitude, longitude)
     }
+
+    fun normalizeAddressText(value: String?): String? = value
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+
+    fun normalizePlusCode(value: String?): String? = value
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+
+    fun normalizeLatitude(value: Any?): Double? = extractDouble(value)
+
+    fun normalizeLongitude(value: Any?): Double? = extractDouble(value)
 
     private fun extractDouble(value: Any?): Double? = when (value) {
         is Number -> value.toDouble()
         is String -> value.toDoubleOrNull()
         else -> null
-    }
+    }?.takeUnless { it.isNaN() || it.isInfinite() }
 }

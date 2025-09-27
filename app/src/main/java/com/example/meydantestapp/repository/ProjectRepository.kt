@@ -37,6 +37,23 @@ class ProjectRepository {
         val newId = docRef.id
 
         val base = projectData.toMutableMap()
+        val normalizedAddress = ProjectLocationUtils.normalizeAddressText(
+            (base["addressText"] ?: base["location"]) as? String
+        )
+        val normalizedPlusCode = ProjectLocationUtils.normalizePlusCode(base["plusCode"] as? String)
+        if (normalizedAddress != null) {
+            base["addressText"] = normalizedAddress
+            base["location"] = normalizedAddress
+        } else {
+            base.remove("addressText")
+            base.remove("location")
+        }
+        if (normalizedPlusCode != null) {
+            base["plusCode"] = normalizedPlusCode
+        } else {
+            base.remove("plusCode")
+        }
+
         if (base["googleMapsUrl"] == null) {
             ProjectLocationUtils.buildGoogleMapsUrl(base)?.let { base["googleMapsUrl"] = it }
         }
@@ -69,12 +86,14 @@ class ProjectRepository {
     ): Result<String> = runCatching {
         val docRef = orgProjectsRef(organizationId).document()
         val newId = docRef.id
+        val normalizedAddress = ProjectLocationUtils.normalizeAddressText(location)
         val data = mutableMapOf<String, Any?>(
             "projectName" to projectName,
             "name" to projectName,
             "projectDescription" to projectDescription,
             "organizationId" to organizationId,
-            "location" to location,
+            "location" to normalizedAddress,
+            "addressText" to normalizedAddress,
             "latitude" to latitude,
             "longitude" to longitude,
             "createdAt" to System.currentTimeMillis(),
@@ -154,6 +173,26 @@ class ProjectRepository {
                 this["projectName"] = pn
                 this["name"] = pn
             }
+            if (containsKey("addressText") || containsKey("location")) {
+                val normalizedAddress = ProjectLocationUtils.normalizeAddressText(
+                    (this["addressText"] ?: this["location"]) as? String
+                )
+                if (normalizedAddress != null) {
+                    this["addressText"] = normalizedAddress
+                    this["location"] = normalizedAddress
+                } else {
+                    this["addressText"] = FieldValue.delete()
+                    this["location"] = FieldValue.delete()
+                }
+            }
+            if (containsKey("plusCode")) {
+                val normalizedPlusCode = ProjectLocationUtils.normalizePlusCode(this["plusCode"] as? String)
+                if (normalizedPlusCode != null) {
+                    this["plusCode"] = normalizedPlusCode
+                } else {
+                    this["plusCode"] = FieldValue.delete()
+                }
+            }
             if (shouldRecalculateMapsUrl(this)) {
                 val newUrl = ProjectLocationUtils.buildGoogleMapsUrl(this)
                 this["googleMapsUrl"] = newUrl ?: FieldValue.delete()
@@ -177,6 +216,26 @@ class ProjectRepository {
                 if (!pn.isNullOrBlank()) {
                     this["projectName"] = pn
                     this["name"] = pn
+                }
+                if (containsKey("addressText") || containsKey("location")) {
+                    val normalizedAddress = ProjectLocationUtils.normalizeAddressText(
+                        (this["addressText"] ?: this["location"]) as? String
+                    )
+                    if (normalizedAddress != null) {
+                        this["addressText"] = normalizedAddress
+                        this["location"] = normalizedAddress
+                    } else {
+                        this["addressText"] = FieldValue.delete()
+                        this["location"] = FieldValue.delete()
+                    }
+                }
+                if (containsKey("plusCode")) {
+                    val normalizedPlusCode = ProjectLocationUtils.normalizePlusCode(this["plusCode"] as? String)
+                    if (normalizedPlusCode != null) {
+                        this["plusCode"] = normalizedPlusCode
+                    } else {
+                        this["plusCode"] = FieldValue.delete()
+                    }
                 }
                 if (shouldRecalculateMapsUrl(this)) {
                     val newUrl = ProjectLocationUtils.buildGoogleMapsUrl(this)
@@ -214,12 +273,17 @@ class ProjectRepository {
     // أدوات مساعدة لدمج حقول المشروع داخل وثيقة التقرير
     fun toEmbeddedReportFields(project: Map<String, Any?>): Map<String, Any?> {
         val pn = (project["projectName"] ?: project["name"])?.toString()
+        val address = ProjectLocationUtils.normalizeAddressText(
+            (project["addressText"] ?: project["location"]) as? String
+        )
         return mapOf(
             "projectName" to pn,
             "projectNumber" to project["projectNumber"],
-            "location" to project["location"],
+            "location" to address,
+            "addressText" to address,
             "latitude" to project["latitude"],
             "longitude" to project["longitude"],
+            "plusCode" to project["plusCode"],
             "googleMapsUrl" to project["googleMapsUrl"]
         )
     }
@@ -247,12 +311,7 @@ class ProjectRepository {
 
 private val LOCATION_MUTATION_KEYS = setOf(
     "latitude",
-    "longitude",
-    "location",
-    "address",
-    "plusCode",
-    "plus_code",
-    "pluscode"
+    "longitude"
 )
 
 private fun shouldRecalculateMapsUrl(data: Map<String, *>): Boolean =

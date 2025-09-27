@@ -5,7 +5,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
-import android.util.Log
 import android.view.View
 import android.widget.EditText
 import android.widget.Toast
@@ -15,9 +14,11 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.addTextChangedListener
 import com.example.meydantestapp.databinding.ActivityProjectSettingsBinding
+import androidx.core.view.isVisible
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FieldValue
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
@@ -30,6 +31,8 @@ class ProjectSettingsActivity : AppCompatActivity() {
 
     private var selectedLatitude: Double? = null
     private var selectedLongitude: Double? = null
+    private var selectedPlusCode: String? = null
+    private var isUpdatingLocationText = false
 
     private lateinit var selectLocationLauncher: ActivityResultLauncher<Intent>
 
@@ -55,10 +58,16 @@ class ProjectSettingsActivity : AppCompatActivity() {
             if (result.resultCode == RESULT_OK) {
                 val data = result.data
                 val selectedAddress = data?.getStringExtra("address") ?: ""
-                selectedLatitude = data?.getDoubleExtra("latitude", 0.0)
-                selectedLongitude = data?.getDoubleExtra("longitude", 0.0)
-                binding.projectLocationEditText.setText(selectedAddress)
+                selectedLatitude = data.getNullableDouble("latitude")
+                selectedLongitude = data.getNullableDouble("longitude")
+                selectedPlusCode = ProjectLocationUtils.normalizePlusCode(
+                    data?.getStringExtra("plusCode")
+                )
+                withLocationTextUpdate {
+                    binding.projectLocationEditText.setText(selectedAddress)
+                }
                 enableSaveButton()
+                updateClearLocationVisibility()
             }
         }
 
@@ -95,6 +104,7 @@ class ProjectSettingsActivity : AppCompatActivity() {
             toggleEditTextState(binding.projectLocationEditText, true)
             binding.projectLocationEditText.setOnClickListener { navigateToSelectLocation() }
         }
+        binding.clearLocationButton.setOnClickListener { clearLocation() }
         binding.startDateLayout.setEndIconOnClickListener {
             toggleEditTextState(binding.startDateEditText, true)
             binding.startDateEditText.setOnClickListener { showDatePickerDialog(binding.startDateEditText) }
@@ -117,8 +127,14 @@ class ProjectSettingsActivity : AppCompatActivity() {
         }
 
         binding.projectLocationEditText.addTextChangedListener {
+            if (!isUpdatingLocationText) {
+                selectedLatitude = null
+                selectedLongitude = null
+                selectedPlusCode = null
+            }
             hasUnsavedChanges = true
             enableSaveButton()
+            updateClearLocationVisibility()
         }
 
         binding.startDateEditText.addTextChangedListener {
@@ -162,6 +178,8 @@ class ProjectSettingsActivity : AppCompatActivity() {
         binding.deleteProjectButton.setOnClickListener {
             confirmAndDeleteProject()
         }
+
+        updateClearLocationVisibility()
     }
 
     override fun onResume() {
@@ -173,10 +191,9 @@ class ProjectSettingsActivity : AppCompatActivity() {
 
     private fun enableSaveButton() {
         val name = binding.projectNameEditText.text.toString().trim()
-        val location = binding.projectLocationEditText.text.toString().trim()
         val startStr = binding.startDateEditText.text.toString().trim()
         val endStr = binding.endDateEditText.text.toString().trim()
-        binding.saveChangesButton.isEnabled = name.isNotEmpty() && location.isNotEmpty() && startStr.isNotEmpty() && endStr.isNotEmpty()
+        binding.saveChangesButton.isEnabled = name.isNotEmpty() && startStr.isNotEmpty() && endStr.isNotEmpty()
     }
 
     private fun toggleEditTextState(editText: EditText, enable: Boolean) {
@@ -201,14 +218,16 @@ class ProjectSettingsActivity : AppCompatActivity() {
                 val project = doc.toObject(Project::class.java)
                 project?.let {
                     binding.projectNameEditText.setText(it.projectName ?: "")
-                    binding.projectLocationEditText.setText(it.location ?: "")
+                    val address = it.addressText ?: it.location ?: ""
+                    withLocationTextUpdate {
+                        binding.projectLocationEditText.setText(address)
+                    }
                     selectedLatitude = it.latitude
                     selectedLongitude = it.longitude
+                    selectedPlusCode = it.plusCode
                     binding.startDateEditText.setText(it.startDate?.toDate()?.let { d -> dateFormatter.format(d) } ?: "")
                     binding.endDateEditText.setText(it.endDate?.toDate()?.let { d -> dateFormatter.format(d) } ?: "")
                     currentProjectWorkType = it.workType
-
-                    Log.d("PROJECT_TYPE", "نوع العمل المحمل: ${it.workType}")
 
                     binding.projectTypeEditText.apply {
                         isEnabled = true
@@ -230,6 +249,7 @@ class ProjectSettingsActivity : AppCompatActivity() {
 
                     }
                     binding.viewContractTableButton.isEnabled = true
+                    updateClearLocationVisibility()
                 }
             } else finishWithToast("المشروع غير موجود.")
         }.addOnFailureListener { e -> finishWithToast("فشل في جلب بيانات المشروع: ${e.message}") }
@@ -253,42 +273,74 @@ class ProjectSettingsActivity : AppCompatActivity() {
 
     private fun saveProjectChangesToFirestore() {
         val name = binding.projectNameEditText.text.toString().trim()
-        val location = binding.projectLocationEditText.text.toString().trim()
         val startStr = binding.startDateEditText.text.toString().trim()
         val endStr = binding.endDateEditText.text.toString().trim()
         val workType = currentProjectWorkType ?: ""
-        if (name.isEmpty() || location.isEmpty() || startStr.isEmpty() || endStr.isEmpty() || workType.isEmpty()) {
+        if (name.isEmpty() || startStr.isEmpty() || endStr.isEmpty() || workType.isEmpty()) {
             Toast.makeText(this, "الرجاء تعبئة جميع الحقول المطلوبة.", Toast.LENGTH_LONG).show()
             return
         }
         val userId = auth.currentUser?.uid ?: return finishWithToast("خطأ: المستخدم غير مسجل الدخول.")
         val startTs = runCatching { dateFormatter.parse(startStr)?.let { Timestamp(it) } }.getOrNull()
         val endTs = runCatching { dateFormatter.parse(endStr)?.let { Timestamp(it) } }.getOrNull()
+        if (startTs == null || endTs == null) {
+            Toast.makeText(this, "تعذر قراءة التواريخ المدخلة.", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val normalizedAddress = ProjectLocationUtils.normalizeAddressText(
+            binding.projectLocationEditText.text?.toString()
+        )
+        val normalizedPlusCode = ProjectLocationUtils.normalizePlusCode(selectedPlusCode)
+        val lat = selectedLatitude
+        val lng = selectedLongitude
+        val googleMapsUrl = ProjectLocationUtils.buildGoogleMapsUrl(lat, lng)
+
         val data = mutableMapOf<String, Any?>(
             "name" to name,
-            "location" to location,
-            "latitude" to selectedLatitude,
-            "longitude" to selectedLongitude,
+            "projectName" to name,
+            "location" to normalizedAddress,
+            "addressText" to normalizedAddress,
+            "latitude" to lat,
+            "longitude" to lng,
+            "plusCode" to normalizedPlusCode,
             "workType" to workType,
             "startDate" to startTs,
             "endDate" to endTs,
             "updatedAt" to Timestamp.now(),
-            "projectNumber" to projectId
+            "projectNumber" to projectId,
+            "googleMapsUrl" to googleMapsUrl
         )
 
-        val googleMapsUrl = ProjectLocationUtils.buildGoogleMapsUrl(
-            selectedLatitude,
-            selectedLongitude,
-            null,
-            location
-        )
-        data["googleMapsUrl"] = googleMapsUrl
         if (workType != "جدول كميات" && workType != "مقطوعية") {
             val valueStr = binding.contractValueEditText.text.toString().replace(",", "")
-            data["contractValue"] = valueStr.toDoubleOrNull()
+            val parsed = valueStr.toDoubleOrNull()
+            data["contractValue"] = parsed ?: FieldValue.delete()
         }
+        if (normalizedAddress == null) {
+            data["location"] = FieldValue.delete()
+            data["addressText"] = FieldValue.delete()
+        }
+        if (lat == null) {
+            data["latitude"] = FieldValue.delete()
+        }
+        if (lng == null) {
+            data["longitude"] = FieldValue.delete()
+        }
+        if (normalizedPlusCode == null) {
+            data["plusCode"] = FieldValue.delete()
+        }
+        if (googleMapsUrl == null) {
+            data["googleMapsUrl"] = FieldValue.delete()
+        }
+
+        val updatePayload = mutableMapOf<String, Any>()
+        data.forEach { (key, value) ->
+            updatePayload[key] = value ?: FieldValue.delete()
+        }
+
         db.collection("organizations").document(userId).collection("projects").document(projectId)
-            .update(data).addOnSuccessListener {
+            .update(updatePayload).addOnSuccessListener {
                 Toast.makeText(this, "تم تحديث تفاصيل المشروع بنجاح.", Toast.LENGTH_SHORT).show()
                 toggleEditTextState(binding.projectNameEditText, false)
                 toggleEditTextState(binding.projectLocationEditText, false)
@@ -312,6 +364,41 @@ class ProjectSettingsActivity : AppCompatActivity() {
             .addOnFailureListener {
                 Toast.makeText(this, "فشل في تحديث المشروع: ${it.message}", Toast.LENGTH_LONG).show()
             }
+    }
+
+    private fun clearLocation() {
+        selectedLatitude = null
+        selectedLongitude = null
+        selectedPlusCode = null
+        withLocationTextUpdate {
+            binding.projectLocationEditText.setText("")
+        }
+        hasUnsavedChanges = true
+        enableSaveButton()
+        updateClearLocationVisibility()
+    }
+
+    private fun updateClearLocationVisibility() {
+        val hasAddress = !binding.projectLocationEditText.text.isNullOrBlank()
+        binding.clearLocationButton.isVisible = hasAddress ||
+            selectedLatitude != null ||
+            selectedLongitude != null ||
+            !selectedPlusCode.isNullOrBlank()
+    }
+
+    private fun Intent?.getNullableDouble(key: String): Double? {
+        if (this == null || !hasExtra(key)) return null
+        val value = getDoubleExtra(key, Double.NaN)
+        return if (value.isNaN()) null else value
+    }
+
+    private inline fun withLocationTextUpdate(block: () -> Unit) {
+        isUpdatingLocationText = true
+        try {
+            block()
+        } finally {
+            isUpdatingLocationText = false
+        }
     }
 
     private fun navigateToContractTable() {
