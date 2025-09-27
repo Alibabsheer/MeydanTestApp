@@ -1,0 +1,56 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 595 842] >>endobj
+3 0 obj<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>endobj
+4 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+5 0 obj<< /Length 9072 >>
+stream
+BT /F1 10 Tf 1 0 0 1 50 800 Tm (Daily Report Audit \(Screen + PDF\)) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 772 Tm ([1] Current flow \(screen & PDF\)) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 758 Tm (1. ViewDailyReportActivity wires up the recycler/zoom UI, pulls the DailyReport parcelable and optional organization ID from the intent, then normalizes available sitepages URLs \(intent, report payload, cached storage\) via DailyReportRepository.normalizePageUrls, caching them for later use. Evidence: https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ViewDailyReportActivity.kt#L63-L139) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 744 Tm (2. The activity asks ViewDailyReportViewModel for the organization logo \(Firestore + Storage\) and, once the first logo bitmap \(or null\) arrives, calls generateAndDisplayPdf exactly once to avoid double renders. Evidence: https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ViewDailyReportActivity.kt#L141-L229) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 730 Tm (3. generateAndDisplayPdf maps the runtime model to ReportPdfBuilder.DailyReport, populating textual/list fields from the screen model \(DailyReport parcelable\) and the formatted date/combined weather string before invoking the builder on a background thread. Evidence: https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ViewDailyReportActivity.kt#L231-L353) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 716 Tm (4. ReportPdfBuilder.buildPdf prepares typography, margins, header/logo scaling, hyperlink paint, and layout helpers \(createLayout, drawKeyValue, drawBulletedSection, drawLabor\). It streams pages: startPageWithHeader draws the logo plus the Arabic title, helpers render metadata/bullets, and finishPage appends footer text. Photo handling downloads bitmaps, crops legacy photos into grids, or fits sitepages images inside the reserved photo rectangle. Evidence: https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L87-L447) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 702 Tm (5. Legacy photos go through drawLegacyPhotos \(grid builder\) while templated pages call drawSitePagesSection, which starts a fresh A4 page for each image and fits it inside the margins without cropping. Evidence: https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L326-L420) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 674 Tm ([2] Static vs imported table \(label -> value source -> drawing code\)) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 660 Tm ("Ism al-Muassasa" \(organization name\) -> data.organizationName -> drawKeyValue call https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L521-L528) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 646 Tm ("Ism al-Mashrua" \(project name\) -> data.projectName -> drawKeyValue call https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L521-L528) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 632 Tm ("Mawqi al-Mashrua" \(project location\) -> data.projectLocation + hyperlink -> drawKeyValue call https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L521-L546) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 618 Tm ("Raqm al-Taqreer" \(report number\) -> data.reportNumber -> drawKeyValue call https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L521-L528) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 604 Tm ("Tarikh al-Taqreer" \(report date\) -> data.dateText -> drawKeyValue call https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L521-L528) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 590 Tm ("Darajat al-Harara" \(temperature\) -> normalized from temperatureC/weatherText -> drawWeatherRow https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L569-L574) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 576 Tm ("Haalat al-Taqs" \(weather condition\) -> data.weatherCondition/weatherText -> drawWeatherRow https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L569-L574) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 562 Tm ("Tam Insha al-Taqreer" \(created by\) -> data.createdBy -> drawKeyValue call https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L521-L528) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 548 Tm ("Nashatat al-Mashrua" \(project activities\) -> data.dailyActivities list -> drawBulletedSection https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L455-L468) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 534 Tm ("Al-Amala" \(labor breakdown\) -> skilled/unskilled/total from data.labor -> drawLabor https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L530-L566) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 520 Tm ("Al-Alat wal-Mawad" \(equipment\) -> data.resourcesUsed list -> drawBulletedSection https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L455-L468) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 506 Tm ("Al-Awaeq wal-Tahaddi" \(challenges\) -> data.challenges list -> drawBulletedSection https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L455-L468) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 492 Tm ("Al-Mulahazat" \(notes\) -> data.notes list -> drawBulletedSection https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L455-L468) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 464 Tm ([3] Formatting issues \(symptoms, cause, reproduction\)) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 450 Tm (1. Temperature unit duplication when temperatureC already contains "C"; drawWeatherRow appends another unit. Evidence: https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L569-L574. Reproduce with temperatureC set to "45 C".) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 436 Tm (2. Mixed RTL/LTR heuristic preferLTR misclassifies Arabic strings starting with digits, forcing incorrect direction. Evidence: https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L153-L160 and #L475-L484. Reproduce with projectLocation "7H2P+9M, Al-Riyadh" \(with Arabic punctuation in app data\).) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 422 Tm (3. Footer lacks total page count and brand sentence; finishPage only draws "Safha X". Evidence: https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L423-L430. Reproduce with multi-page info report.) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 408 Tm (4. Empty list sections still render headers/dividers, leaving blank blocks. Evidence: https://github.com/Alibabsheer/MeydanTestApp/blob/main/app/src/main/java/com/example/meydantestapp/report/ReportPdfBuilder.kt#L455-L468. Reproduce with report containing empty optional lists.) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 380 Tm ([4] Organization & formatting proposals \(remediation outline\)) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 366 Tm (1. Normalize weather row string before drawing to avoid duplicate "C".) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 352 Tm (2. Replace preferLTR heuristic with run-aware isolation so Arabic context remains RTL and Latin substrings stay readable.) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 338 Tm (3. Implement footer renderer that knows total pages and writes "Safha X min Y ? tam insha al-taqreer fi tatbiq Meydan" within margins.) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 324 Tm (4. Skip bulleted section headers/dividers when their lists are empty while keeping populated sections unchanged.) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 296 Tm ([5] Engineering tasks \(copy/paste ready\)) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 282 Tm (- fix\(pdf-weather-format\): normalize C rendering in weather row \(ReportPdfBuilder.kt#L569-L574\). Branch fix/pdf-weather-format. Goal: single "NN C" output.) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 268 Tm (- fix\(pdf-bidi-pref\): improve RTL/LTR heuristics for mixed addresses \(ReportPdfBuilder.kt#L153-L160, #L475-L484\). Branch fix/pdf-bidi-pref. Goal: Arabic order preserved with isolated Latin runs.) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 254 Tm (- fix\(pdf-footer\): render "Safha X min Y ? tam insha al-taqreer fi tatbiq Meydan" consistently \(ReportPdfBuilder.kt#L423-L430\). Branch fix/pdf-footer-pagination.) Tj ET
+BT /F1 10 Tf 1 0 0 1 50 240 Tm (- fix\(pdf-empty-sections\): skip headers for empty lists \(ReportPdfBuilder.kt#L455-L468\). Branch fix/pdf-empty-section-headers.) Tj ET
+endstreamendobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000135 00000 n 
+0000000235 00000 n 
+0000000303 00000 n 
+trailer<< /Size 6 /Root 1 0 R >>
+startxref
+9425
+%%EOF
