@@ -1,7 +1,5 @@
 package com.example.meydantestapp.utils
 
-import kotlin.math.isFinite
-
 /**
  * Utilities for handling project location metadata.
  */
@@ -11,15 +9,8 @@ object ProjectLocationUtils {
      * Builds a Google Maps deep-link using latitude & longitude if both are non-null.
      * Returns `null` when one of the coordinates is missing to avoid generating broken URLs.
      */
-    fun buildGoogleMapsUrl(latitude: Double?, longitude: Double?): String? {
-        val lat = latitude?.takeIf { it.isFinite() }
-        val lng = longitude?.takeIf { it.isFinite() }
-        return if (lat != null && lng != null) {
-            "https://www.google.com/maps/search/?api=1&query=$lat,$lng"
-        } else {
-            null
-        }
-    }
+    fun buildGoogleMapsUrl(latitude: Double?, longitude: Double?): String? =
+        maybeBuildMapsUrl(latitude, longitude)
 
     /**
      * Convenience overload that extracts coordinates from a Firestore map/document snapshot.
@@ -47,4 +38,16 @@ object ProjectLocationUtils {
         is String -> value.toDoubleOrNull()
         else -> null
     }?.takeUnless { it.isNaN() || it.isInfinite() }
+
+    private fun maybeBuildMapsUrl(latitude: Double?, longitude: Double?): String? {
+        val lat = if (latitude.isFiniteSafe()) latitude else null
+        val lng = if (longitude.isFiniteSafe()) longitude else null
+        return if (lat != null && lng != null) {
+            "https://www.google.com/maps/search/?api=1&query=$lat,$lng"
+        } else {
+            null
+        }
+    }
+
+    private fun Double?.isFiniteSafe(): Boolean = this != null && !this.isNaN() && !this.isInfinite()
 }
