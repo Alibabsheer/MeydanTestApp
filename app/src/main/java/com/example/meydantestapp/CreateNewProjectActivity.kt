@@ -12,10 +12,14 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.core.net.toUri // ✅ لاستخدام String.toUri() من KTX
+import androidx.core.widget.addTextChangedListener
 import com.example.meydantestapp.databinding.ActivityCreateNewProjectBinding
+import com.example.meydantestapp.utils.ValidationUtils
 import org.apache.poi.ss.usermodel.DataFormatter
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import java.text.NumberFormat
+import java.text.ParseException
+import java.text.SimpleDateFormat
 import java.util.*
 
 class CreateNewProjectActivity : AppCompatActivity() {
@@ -119,6 +123,8 @@ class CreateNewProjectActivity : AppCompatActivity() {
                 selectedLatitude = data?.getDoubleExtra("latitude", 0.0)
                 selectedLongitude = data?.getDoubleExtra("longitude", 0.0)
                 binding.etProjectLocation.setText(selectedAddress)
+                binding.projectLocationLayout.error = null
+                updateSaveButtonState()
             }
         }
 
@@ -134,6 +140,9 @@ class CreateNewProjectActivity : AppCompatActivity() {
         binding.endDateInput.setOnClickListener { showDatePickerDialog(binding.endDateInput) }
 
         binding.saveProjectButton.setOnClickListener { saveProjectViaViewModel() }
+
+        setupInputListeners()
+        updateSaveButtonState()
 
         binding.contractValueInput.addTextChangedListener(object : TextWatcher {
             private var current = ""
@@ -157,8 +166,8 @@ class CreateNewProjectActivity : AppCompatActivity() {
 
     private fun observeViewModel() {
         viewModel.isLoading.observe(this) { loading ->
-            binding.saveProjectButton.isEnabled = !loading
             binding.progressBar.visibility = if (loading) android.view.View.VISIBLE else android.view.View.GONE
+            updateSaveButtonState()
         }
         viewModel.createSuccess.observe(this) {
             Toast.makeText(this, "تم إنشاء المشروع بنجاح", Toast.LENGTH_SHORT).show()
@@ -298,15 +307,66 @@ class CreateNewProjectActivity : AppCompatActivity() {
         DatePickerDialog(this, { _, year, month, dayOfMonth ->
             val dateStr = "$year-${month + 1}-$dayOfMonth"
             targetEditText.setText(dateStr)
+            when (targetEditText.id) {
+                binding.startDateInput.id -> binding.startDateInputLayout.error = null
+                binding.endDateInput.id -> binding.endDateInputLayout.error = null
+            }
+            updateSaveButtonState()
         }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show()
     }
 
     private fun saveProjectViaViewModel() {
-        val projectName = binding.projectNameInput.text.toString()
-        val location = binding.etProjectLocation.text.toString()
-        val startDateStr = binding.startDateInput.text.toString()
-        val endDateStr = binding.endDateInput.text.toString()
+        val projectName = binding.projectNameInput.text.toString().trim()
+        val location = binding.etProjectLocation.text.toString().trim()
+        val startDateStr = binding.startDateInput.text.toString().trim()
+        val endDateStr = binding.endDateInput.text.toString().trim()
         val workType = binding.workTypeSpinner.selectedItem?.toString() ?: ""
+
+        clearInputErrors()
+
+        var hasError = false
+
+        if (projectName.isBlank()) {
+            binding.projectNameInput.error = "اسم المشروع مطلوب"
+            hasError = true
+        } else if (!ValidationUtils.isValidProjectName(projectName)) {
+            binding.projectNameInput.error = ValidationUtils.getProjectNameErrorMessage(projectName)
+            hasError = true
+        }
+
+        if (location.isBlank()) {
+            binding.projectLocationLayout.error = "موقع المشروع مطلوب"
+            hasError = true
+        }
+
+        val startDate = parseDateOrNull(startDateStr)
+        if (startDateStr.isBlank()) {
+            binding.startDateInputLayout.error = "تاريخ البدء مطلوب"
+            hasError = true
+        } else if (startDate == null) {
+            binding.startDateInputLayout.error = "صيغة تاريخ البدء غير صحيحة"
+            hasError = true
+        }
+
+        val endDate = parseDateOrNull(endDateStr)
+        if (endDateStr.isBlank()) {
+            binding.endDateInputLayout.error = "تاريخ الانتهاء مطلوب"
+            hasError = true
+        } else if (endDate == null) {
+            binding.endDateInputLayout.error = "صيغة تاريخ الانتهاء غير صحيحة"
+            hasError = true
+        }
+
+        if (startDate != null && endDate != null && endDate.before(startDate)) {
+            binding.endDateInputLayout.error = "تاريخ الانتهاء يجب أن يكون بعد تاريخ البدء"
+            hasError = true
+        }
+
+        if (hasError) {
+            Toast.makeText(this, "يرجى تعبئة جميع الحقول المطلوبة بشكل صحيح", Toast.LENGTH_LONG).show()
+            updateSaveButtonState()
+            return
+        }
 
         viewModel.createProject(
             projectName = projectName,
@@ -320,5 +380,61 @@ class CreateNewProjectActivity : AppCompatActivity() {
             lumpSumTableData = lumpSumTableData,
             calculatedContractValue = calculatedContractValue
         )
+    }
+
+    private fun parseDateOrNull(dateStr: String): Date? {
+        if (dateStr.isBlank()) return null
+        return try {
+            SimpleDateFormat("yyyy-M-d", Locale.getDefault()).apply { isLenient = false }.parse(dateStr)
+        } catch (_: ParseException) {
+            null
+        }
+    }
+
+    private fun setupInputListeners() {
+        binding.projectNameInput.addTextChangedListener {
+            if (!it.isNullOrBlank()) {
+                binding.projectNameInput.error = null
+            }
+            updateSaveButtonState()
+        }
+
+        binding.etProjectLocation.addTextChangedListener {
+            if (!it.isNullOrBlank()) {
+                binding.projectLocationLayout.error = null
+            }
+            updateSaveButtonState()
+        }
+
+        binding.startDateInput.addTextChangedListener {
+            if (!it.isNullOrBlank()) {
+                binding.startDateInputLayout.error = null
+            }
+            updateSaveButtonState()
+        }
+
+        binding.endDateInput.addTextChangedListener {
+            if (!it.isNullOrBlank()) {
+                binding.endDateInputLayout.error = null
+            }
+            updateSaveButtonState()
+        }
+    }
+
+    private fun clearInputErrors() {
+        binding.projectNameInput.error = null
+        binding.projectLocationLayout.error = null
+        binding.startDateInputLayout.error = null
+        binding.endDateInputLayout.error = null
+    }
+
+    private fun updateSaveButtonState() {
+        val projectNameFilled = binding.projectNameInput.text?.toString()?.trim()?.isNotEmpty() == true
+        val locationFilled = binding.etProjectLocation.text?.toString()?.trim()?.isNotEmpty() == true
+        val startDateFilled = binding.startDateInput.text?.toString()?.trim()?.isNotEmpty() == true
+        val endDateFilled = binding.endDateInput.text?.toString()?.trim()?.isNotEmpty() == true
+        val isLoading = viewModel.isLoading.value == true
+
+        binding.saveProjectButton.isEnabled = projectNameFilled && locationFilled && startDateFilled && endDateFilled && !isLoading
     }
 }
