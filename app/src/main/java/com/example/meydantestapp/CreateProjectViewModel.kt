@@ -37,7 +37,7 @@ class CreateProjectViewModel(
      */
     fun createProject(
         projectName: String,
-        location: String,
+        addressText: String?,
         latitude: Double?,
         longitude: Double?,
         startDateStr: String,
@@ -45,7 +45,8 @@ class CreateProjectViewModel(
         workType: String,
         quantitiesTableData: List<QuantityItem>?,
         lumpSumTableData: List<LumpSumItem>?,
-        calculatedContractValue: Double?
+        calculatedContractValue: Double?,
+        plusCode: String?
     ) {
         val organizationId = auth.currentUser?.uid
         if (organizationId.isNullOrEmpty()) {
@@ -62,18 +63,22 @@ class CreateProjectViewModel(
             return
         }
 
+        val normalizedAddress = ProjectLocationUtils.normalizeAddressText(addressText)
+        val normalizedPlusCode = ProjectLocationUtils.normalizePlusCode(plusCode)
         val projectData = hashMapOf<String, Any?>(
             "projectName" to projectName,
-            "location" to location,
+            "location" to normalizedAddress,
+            "addressText" to normalizedAddress,
             "latitude" to latitude,
             "longitude" to longitude,
+            "plusCode" to normalizedPlusCode,
             "startDate" to startTs,
             "endDate" to endTs,
             "workType" to workType,
             "createdAt" to Timestamp.now()
         )
 
-        ProjectLocationUtils.buildGoogleMapsUrl(projectData)?.let { url ->
+        ProjectLocationUtils.buildGoogleMapsUrl(latitude, longitude)?.let { url ->
             projectData["googleMapsUrl"] = url
         }
 

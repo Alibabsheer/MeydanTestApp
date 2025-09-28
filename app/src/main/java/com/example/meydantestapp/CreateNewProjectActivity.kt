@@ -14,6 +14,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.core.net.toUri // ✅ لاستخدام String.toUri() من KTX
 import androidx.core.widget.addTextChangedListener
 import com.example.meydantestapp.databinding.ActivityCreateNewProjectBinding
+import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.example.meydantestapp.utils.ValidationUtils
 import org.apache.poi.ss.usermodel.DataFormatter
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
@@ -29,6 +30,7 @@ class CreateNewProjectActivity : AppCompatActivity() {
 
     private var selectedLatitude: Double? = null
     private var selectedLongitude: Double? = null
+    private var selectedPlusCode: String? = null
 
     private lateinit var selectLocationLauncher: ActivityResultLauncher<Intent>
     private lateinit var importExcelLauncher: ActivityResultLauncher<Intent>
@@ -120,8 +122,11 @@ class CreateNewProjectActivity : AppCompatActivity() {
             if (result.resultCode == RESULT_OK) {
                 val data = result.data
                 val selectedAddress = data?.getStringExtra("address") ?: ""
-                selectedLatitude = data?.getDoubleExtra("latitude", 0.0)
-                selectedLongitude = data?.getDoubleExtra("longitude", 0.0)
+                selectedLatitude = data.getNullableDouble("latitude")
+                selectedLongitude = data.getNullableDouble("longitude")
+                selectedPlusCode = ProjectLocationUtils.normalizePlusCode(
+                    data?.getStringExtra("plusCode")
+                )
                 binding.etProjectLocation.setText(selectedAddress)
                 binding.projectLocationLayout.error = null
                 updateSaveButtonState()
@@ -370,7 +375,7 @@ class CreateNewProjectActivity : AppCompatActivity() {
 
         viewModel.createProject(
             projectName = projectName,
-            location = location,
+            addressText = location,
             latitude = selectedLatitude,
             longitude = selectedLongitude,
             startDateStr = startDateStr,
@@ -378,8 +383,15 @@ class CreateNewProjectActivity : AppCompatActivity() {
             workType = workType,
             quantitiesTableData = quantitiesTableData,
             lumpSumTableData = lumpSumTableData,
-            calculatedContractValue = calculatedContractValue
+            calculatedContractValue = calculatedContractValue,
+            plusCode = selectedPlusCode
         )
+    }
+
+    private fun Intent?.getNullableDouble(key: String): Double? {
+        if (this == null || !hasExtra(key)) return null
+        val value = getDoubleExtra(key, Double.NaN)
+        return if (value.isNaN()) null else value
     }
 
     private fun parseDateOrNull(dateStr: String): Date? {

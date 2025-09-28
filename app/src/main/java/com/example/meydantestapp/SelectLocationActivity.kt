@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Address
 import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
@@ -60,13 +61,16 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.btnSaveLocation.setOnClickListener {
             selectedMarker?.let {
                 val geocoder = Geocoder(this, Locale.getDefault())
-                val address = geocoder.getFromLocation(it.position.latitude, it.position.longitude, 1)
-                    ?.firstOrNull()?.getAddressLine(0) ?: ""
+                val geoAddress = geocoder.getFromLocation(it.position.latitude, it.position.longitude, 1)
+                    ?.firstOrNull()
+                val addressText = geoAddress?.getAddressLine(0) ?: ""
+                val plusCode = extractPlusCode(geoAddress)
 
                 val intent = Intent()
                 intent.putExtra("latitude", it.position.latitude)
                 intent.putExtra("longitude", it.position.longitude)
-                intent.putExtra("address", address)
+                intent.putExtra("address", addressText)
+                plusCode?.let { code -> intent.putExtra("plusCode", code) }
                 setResult(Activity.RESULT_OK, intent)
                 finish()
             }
@@ -203,5 +207,20 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
     override fun onLowMemory() {
         super.onLowMemory()
         mapView.onLowMemory()
+    }
+
+    private fun extractPlusCode(address: Address?): String? {
+        if (address == null) return null
+        val extras = address.extras
+        val fromExtras = extras?.let {
+            sequenceOf("plus_code", "PLUS_CODE", "plusCode", "global_code", "compound_code")
+                .mapNotNull { key -> it.getString(key)?.trim()?.takeIf { value -> value.isNotEmpty() } }
+                .firstOrNull()
+        }
+        if (!fromExtras.isNullOrBlank()) {
+            return fromExtras
+        }
+        val feature = address.featureName?.trim()
+        return feature?.takeIf { it.isNotEmpty() && it.contains('+') }
     }
 }

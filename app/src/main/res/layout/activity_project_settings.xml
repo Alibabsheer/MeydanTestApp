@@ -95,6 +95,18 @@
                     android:focusable="false" />
             </com.google.android.material.textfield.TextInputLayout>
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/clearLocationButton"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:text="مسح الموقع"
+                android:textSize="14sp"
+                android:fontFamily="@font/main_font"
+                android:visibility="gone"
+                android:layout_marginBottom="12dp" />
+
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/startDateLayout"
                 android:layout_width="match_parent"

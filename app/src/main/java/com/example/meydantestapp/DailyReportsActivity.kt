@@ -173,6 +173,7 @@ class DailyReportsActivity : AppCompatActivity() {
                 createdByName = (this["createdByName"] as? String)?.takeIf { it.isNotBlank() },
                 projectLocation = (
                         (this["projectLocation"] as? String)?.takeIf { it.isNotBlank() }
+                            ?: (this["addressText"] as? String)?.takeIf { it.isNotBlank() }
                             ?: (this["location"] as? String)?.takeIf { it.isNotBlank() }
                         ),
                 googleMapsUrl = (this["googleMapsUrl"] as? String)?.takeIf { it.isNotBlank() },
