@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.meydantestapp.data.model.Project
 import com.example.meydantestapp.repository.AuthRepository
 import com.example.meydantestapp.repository.ProjectRepository
 import com.example.meydantestapp.utils.Constants
@@ -57,9 +58,9 @@ class OrganizationDashboardViewModel : ViewModel() {
                     // Fetch projects
                     val projectsResult = projectRepository.getProjectsByOrganization(organizationId)
                     if (projectsResult.isSuccess) {
-                        val projects = projectsResult.getOrThrow()
+                        val projects: List<Project> = projectsResult.getOrThrow()
                         _totalProjects.value = projects.size
-                        _activeProjects.value = projects.count { it["status"] == "active" }
+                        _activeProjects.value = projects.count { it.status == "active" }
                     } else {
                         _errorMessage.value = "فشل في جلب المشاريع: ${projectsResult.exceptionOrNull()?.message}"
                     }

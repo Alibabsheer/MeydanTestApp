@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.meydantestapp.data.model.Project
 import com.example.meydantestapp.repository.ProjectRepository
 import kotlinx.coroutines.launch
 
@@ -11,8 +12,8 @@ class ProjectDetailsViewModel : ViewModel() {
 
     private val projectRepository = ProjectRepository()
 
-    private val _projectDetails = MutableLiveData<Map<String, Any>?>()
-    val projectDetails: LiveData<Map<String, Any>?> = _projectDetails
+    private val _projectDetails = MutableLiveData<Project?>()
+    val projectDetails: LiveData<Project?> = _projectDetails
 
     private val _errorMessage = MutableLiveData<String>()
     val errorMessage: LiveData<String> = _errorMessage

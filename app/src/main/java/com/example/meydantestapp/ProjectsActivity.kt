@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.meydantestapp.data.model.Project
 import com.example.meydantestapp.utils.Constants
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.firebase.auth.FirebaseAuth
@@ -37,13 +38,13 @@ class ProjectsActivity : AppCompatActivity() {
             onViewClick = { project ->
                 val intent = Intent(this, ProjectDetailsActivity::class.java)
                 intent.putExtra(Constants.EXTRA_PROJECT_NAME, project.projectName)
-                intent.putExtra(Constants.EXTRA_PROJECT_ID, project.id)
+                intent.putExtra(Constants.EXTRA_PROJECT_ID, project.projectId)
                 currentOrganizationId?.let { intent.putExtra(Constants.EXTRA_ORGANIZATION_ID, it) }
                 startActivity(intent)
             },
             onEditClick = { project ->
                 val intent = Intent(this, ProjectSettingsActivity::class.java)
-                intent.putExtra(Constants.EXTRA_PROJECT_ID, project.id)
+                intent.putExtra(Constants.EXTRA_PROJECT_ID, project.projectId)
                 startActivity(intent)
             }
         )
@@ -90,11 +91,7 @@ class ProjectsActivity : AppCompatActivity() {
         db.collection(Constants.COLLECTION_ORGANIZATIONS).document(orgId)
             .collection(Constants.COLLECTION_PROJECTS).get()
             .addOnSuccessListener { snapshot ->
-                val projects = snapshot.documents.mapNotNull { doc ->
-                    val project = doc.toObject(Project::class.java)
-                    project?.id = doc.id
-                    project
-                }
+                val projects = snapshot.documents.map { Project.from(it) }
                 updateProjectList(projects)
             }
             .addOnFailureListener {
@@ -140,13 +137,13 @@ class ProjectsActivity : AppCompatActivity() {
             onViewClick = { project ->
                 val intent = Intent(this, ProjectDetailsActivity::class.java)
                 intent.putExtra(Constants.EXTRA_PROJECT_NAME, project.projectName)
-                intent.putExtra(Constants.EXTRA_PROJECT_ID, project.id)
+                intent.putExtra(Constants.EXTRA_PROJECT_ID, project.projectId)
                 currentOrganizationId?.let { intent.putExtra(Constants.EXTRA_ORGANIZATION_ID, it) }
                 startActivity(intent)
             },
             onEditClick = { project ->
                 val intent = Intent(this, ProjectSettingsActivity::class.java)
-                intent.putExtra(Constants.EXTRA_PROJECT_ID, project.id)
+                intent.putExtra(Constants.EXTRA_PROJECT_ID, project.projectId)
                 startActivity(intent)
             }
         )

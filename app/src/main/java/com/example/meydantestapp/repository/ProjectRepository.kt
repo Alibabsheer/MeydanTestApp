@@ -1,9 +1,10 @@
 package com.example.meydantestapp.repository
 
+import com.example.meydantestapp.data.model.Project
 import com.example.meydantestapp.utils.Constants
 import com.example.meydantestapp.utils.ProjectLocationUtils
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldPath
-import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
@@ -12,7 +13,7 @@ import kotlinx.coroutines.tasks.await
  * ProjectRepository
  * - هيكل Firestore المتداخل:
  *   organizations/{organizationId}/projects/{projectId}
- * - يعتمد projectName كمفتاح الاسم (ويُنسخ إلى name للتوافق الخلفي).
+ * - يعتمد المخطط القانوني (canonical schema) الذي تُعرّفه فئة Project.
  */
 class ProjectRepository {
 
@@ -22,7 +23,6 @@ class ProjectRepository {
         const val ORGANIZATIONS = "organizations"
     }
 
-    // مرجع مجموعة مشاريع المؤسسة
     private fun orgProjectsRef(organizationId: String) =
         firestore.collection(ORGANIZATIONS)
             .document(organizationId)
@@ -36,42 +36,16 @@ class ProjectRepository {
         val docRef = orgProjectsRef(organizationId).document()
         val newId = docRef.id
 
-        val base = projectData.toMutableMap()
-        val normalizedAddress = ProjectLocationUtils.normalizeAddressText(
-            (base["addressText"] ?: base["location"]) as? String
-        )
-        val normalizedPlusCode = ProjectLocationUtils.normalizePlusCode(base["plusCode"] as? String)
-        if (normalizedAddress != null) {
-            base["addressText"] = normalizedAddress
-            base["location"] = normalizedAddress
-        } else {
-            base.remove("addressText")
-            base.remove("location")
-        }
-        if (normalizedPlusCode != null) {
-            base["plusCode"] = normalizedPlusCode
-        } else {
-            base.remove("plusCode")
-        }
+        val project = projectData.buildProjectForCreate(newId)
+        val canonical = project.toMap().toMutableMap()
 
-        if (base["googleMapsUrl"] == null) {
-            ProjectLocationUtils.buildGoogleMapsUrl(base)?.let { base["googleMapsUrl"] = it }
-        }
+        val extras = projectData.additionalProjectFields().toMutableMap()
+        extras.putIfAbsent("projectNumber", newId)
 
-        val clean = base.filterValues { it != null }.toMutableMap()
-        val incomingProjectName = (clean["projectName"] ?: clean["name"])?.toString()
-        if (!incomingProjectName.isNullOrBlank()) {
-            clean["projectName"] = incomingProjectName
-            clean["name"] = incomingProjectName
-        }
+        canonical.putAll(extras)
+        canonical.entries.removeIf { it.value == null }
 
-        clean["id"] = newId
-        clean["projectId"] = newId
-        clean["projectNumber"] = newId
-        clean.putIfAbsent("createdAt", System.currentTimeMillis())
-        clean.putIfAbsent("status", "active")
-
-        docRef.set(clean).await()
+        docRef.set(canonical).await()
         newId
     }
 
@@ -84,165 +58,100 @@ class ProjectRepository {
         latitude: Double? = null,
         longitude: Double? = null
     ): Result<String> = runCatching {
-        val docRef = orgProjectsRef(organizationId).document()
-        val newId = docRef.id
-        val normalizedAddress = ProjectLocationUtils.normalizeAddressText(location)
-        val data = mutableMapOf<String, Any?>(
+        val baseData = mapOf(
             "projectName" to projectName,
-            "name" to projectName,
-            "projectDescription" to projectDescription,
-            "organizationId" to organizationId,
-            "location" to normalizedAddress,
-            "addressText" to normalizedAddress,
+            "projectLocation" to location,
+            "addressText" to location,
             "latitude" to latitude,
             "longitude" to longitude,
-            "createdAt" to System.currentTimeMillis(),
+            "googleMapsUrl" to ProjectLocationUtils.buildGoogleMapsUrl(latitude, longitude),
             "status" to "active",
-            "id" to newId,
-            "projectId" to newId,
-            "projectNumber" to newId
+            "workType" to "",
+            "startDate" to "",
+            "endDate" to "",
+            "projectDescription" to projectDescription,
+            "organizationId" to organizationId
         )
-
-        if (data["googleMapsUrl"] == null) {
-            ProjectLocationUtils.buildGoogleMapsUrl(data)?.let { data["googleMapsUrl"] = it }
-        }
-
-        docRef.set(data.filterValues { it != null }).await()
-        newId
+        createProject(organizationId, baseData).getOrThrow()
     }
 
     /** جلب مشاريع مؤسسة */
-    suspend fun getProjectsByOrganization(organizationId: String): Result<List<Map<String, Any>>> =
+    suspend fun getProjectsByOrganization(organizationId: String): Result<List<Project>> =
         runCatching {
             val qs = orgProjectsRef(organizationId)
                 .orderBy("createdAt", Query.Direction.DESCENDING)
                 .get().await()
-            qs.documents.map { doc ->
-                val data = doc.data?.toMutableMap() ?: mutableMapOf()
-                data["id"] = doc.id
-                val pn = (data["projectName"] ?: data["name"])?.toString()
-                if (!pn.isNullOrBlank()) {
-                    data["projectName"] = pn
-                    data["name"] = pn
-                }
-                data
-            }
+            qs.documents.map { Project.from(it) }
         }
 
     /** جلب مشروع بمعرّفه ضمن مؤسسة */
-    suspend fun getProjectById(organizationId: String, projectId: String): Result<Map<String, Any>> =
+    suspend fun getProjectById(organizationId: String, projectId: String): Result<Project> =
         runCatching {
             val doc = orgProjectsRef(organizationId).document(projectId).get().await()
             if (!doc.exists()) error("Project not found")
-            val data = doc.data?.toMutableMap() ?: error("Project data is null")
-            data["id"] = doc.id
-            val pn = (data["projectName"] ?: data["name"])?.toString()
-            if (!pn.isNullOrBlank()) {
-                data["projectName"] = pn
-                data["name"] = pn
-            }
-            data
+            Project.from(doc)
         }
 
     /** (توافق عام) جلب مشروع عبر collectionGroup */
-    suspend fun getProjectById(projectId: String): Result<Map<String, Any>> =
+    suspend fun getProjectById(projectId: String): Result<Project> =
         runCatching {
             val snap = firestore.collectionGroup(Constants.COLLECTION_PROJECTS)
                 .whereEqualTo(FieldPath.documentId(), projectId)
                 .get().await()
             val doc = snap.documents.firstOrNull() ?: error("Project not found")
-            val data = doc.data?.toMutableMap() ?: error("Project data is null")
-            data["id"] = doc.id
-            val pn = (data["projectName"] ?: data["name"])?.toString()
-            if (!pn.isNullOrBlank()) {
-                data["projectName"] = pn
-                data["name"] = pn
-            }
-            data
+            Project.from(doc)
         }
 
     /** تحديث مشروع ضمن مؤسسة */
     suspend fun updateProject(
         organizationId: String,
         projectId: String,
-        updates: Map<String, Any>
+        updates: Map<String, Any?>
     ): Result<Unit> = runCatching {
-        val normalized = updates.toMutableMap().apply {
-            val pn = (this["projectName"] ?: this["name"])?.toString()
-            if (!pn.isNullOrBlank()) {
-                this["projectName"] = pn
-                this["name"] = pn
-            }
-            if (containsKey("addressText") || containsKey("location")) {
-                val normalizedAddress = ProjectLocationUtils.normalizeAddressText(
-                    (this["addressText"] ?: this["location"]) as? String
-                )
-                if (normalizedAddress != null) {
-                    this["addressText"] = normalizedAddress
-                    this["location"] = normalizedAddress
-                } else {
-                    this["addressText"] = FieldValue.delete()
-                    this["location"] = FieldValue.delete()
-                }
-            }
-            if (containsKey("plusCode")) {
-                val normalizedPlusCode = ProjectLocationUtils.normalizePlusCode(this["plusCode"] as? String)
-                if (normalizedPlusCode != null) {
-                    this["plusCode"] = normalizedPlusCode
-                } else {
-                    this["plusCode"] = FieldValue.delete()
-                }
-            }
-            if (shouldRecalculateMapsUrl(this)) {
-                val newUrl = ProjectLocationUtils.buildGoogleMapsUrl(this)
-                this["googleMapsUrl"] = newUrl ?: FieldValue.delete()
-            }
-        }
-        orgProjectsRef(organizationId).document(projectId)
-            .update(normalized as Map<String, Any>)
-            .await()
+        val docRef = orgProjectsRef(organizationId).document(projectId)
+        val snapshot = docRef.get().await()
+        if (!snapshot.exists()) error("Project not found")
+
+        val currentProject = Project.from(snapshot)
+        val existingExtras = snapshot.additionalProjectFields().toMutableMap()
+
+        val mergedProject = currentProject
+            .mergeWithUpdates(updates)
+            .copy(projectId = currentProject.projectId.ifBlank { projectId }, updatedAt = Timestamp.now())
+
+        val finalData = mergedProject.toMap().toMutableMap()
+        applyAdditionalProjectUpdates(existingExtras, updates)
+        existingExtras.putIfAbsent("projectNumber", projectId)
+
+        finalData.putAll(existingExtras)
+        finalData.entries.removeIf { it.value == null }
+
+        docRef.set(finalData).await()
     }
 
     /** (توافق عام) تحديث عبر collectionGroup */
-    suspend fun updateProject(projectId: String, updates: Map<String, Any>): Result<Unit> =
+    suspend fun updateProject(projectId: String, updates: Map<String, Any?>): Result<Unit> =
         runCatching {
             val snap = firestore.collectionGroup(Constants.COLLECTION_PROJECTS)
                 .whereEqualTo(FieldPath.documentId(), projectId)
                 .get().await()
             val doc = snap.documents.firstOrNull() ?: error("Project not found")
 
-            val normalized = updates.toMutableMap().apply {
-                val pn = (this["projectName"] ?: this["name"])?.toString()
-                if (!pn.isNullOrBlank()) {
-                    this["projectName"] = pn
-                    this["name"] = pn
-                }
-                if (containsKey("addressText") || containsKey("location")) {
-                    val normalizedAddress = ProjectLocationUtils.normalizeAddressText(
-                        (this["addressText"] ?: this["location"]) as? String
-                    )
-                    if (normalizedAddress != null) {
-                        this["addressText"] = normalizedAddress
-                        this["location"] = normalizedAddress
-                    } else {
-                        this["addressText"] = FieldValue.delete()
-                        this["location"] = FieldValue.delete()
-                    }
-                }
-                if (containsKey("plusCode")) {
-                    val normalizedPlusCode = ProjectLocationUtils.normalizePlusCode(this["plusCode"] as? String)
-                    if (normalizedPlusCode != null) {
-                        this["plusCode"] = normalizedPlusCode
-                    } else {
-                        this["plusCode"] = FieldValue.delete()
-                    }
-                }
-                if (shouldRecalculateMapsUrl(this)) {
-                    val newUrl = ProjectLocationUtils.buildGoogleMapsUrl(this)
-                    this["googleMapsUrl"] = newUrl ?: FieldValue.delete()
-                }
-            }
-            doc.reference.update(normalized as Map<String, Any>).await()
+            val currentProject = Project.from(doc)
+            val existingExtras = doc.additionalProjectFields().toMutableMap()
+
+            val mergedProject = currentProject
+                .mergeWithUpdates(updates)
+                .copy(projectId = currentProject.projectId.ifBlank { projectId }, updatedAt = Timestamp.now())
+
+            val finalData = mergedProject.toMap().toMutableMap()
+            applyAdditionalProjectUpdates(existingExtras, updates)
+            existingExtras.putIfAbsent("projectNumber", projectId)
+
+            finalData.putAll(existingExtras)
+            finalData.entries.removeIf { it.value == null }
+
+            doc.reference.set(finalData).await()
         }
 
     /** حذف مشروع ضمن مؤسسة */
@@ -261,7 +170,7 @@ class ProjectRepository {
     }
 
     /** جلب مشاريع مستخدم */
-    suspend fun getProjectsForUser(userId: String): Result<List<Map<String, Any>>> =
+    suspend fun getProjectsForUser(userId: String): Result<List<Project>> =
         runCatching {
             val userDoc = firestore.collection(Constants.COLLECTION_USERS)
                 .document(userId).get().await()
@@ -272,47 +181,201 @@ class ProjectRepository {
 
     // أدوات مساعدة لدمج حقول المشروع داخل وثيقة التقرير
     fun toEmbeddedReportFields(project: Map<String, Any?>): Map<String, Any?> {
-        val pn = (project["projectName"] ?: project["name"])?.toString()
-        val address = ProjectLocationUtils.normalizeAddressText(
-            (project["addressText"] ?: project["location"]) as? String
-        )
+        val normalizedLocation = normalizeAddress(project["projectLocation"])
+        val normalizedAddress = normalizeAddress(project["addressText"]) ?: normalizedLocation
         return mapOf(
-            "projectName" to pn,
+            "projectName" to (project["projectName"] as? String)?.takeIf { it.isNotBlank() },
             "projectNumber" to project["projectNumber"],
-            "location" to address,
-            "addressText" to address,
+            "projectLocation" to normalizedLocation,
+            "addressText" to normalizedAddress,
             "latitude" to project["latitude"],
             "longitude" to project["longitude"],
             "plusCode" to project["plusCode"],
             "googleMapsUrl" to project["googleMapsUrl"]
-        )
-    }
-
-    /** جلب مشروع بالاسم لربط سريع عبر projectName */
-    suspend fun getProjectByName(
-        organizationId: String,
-        projectName: String
-    ): Result<Map<String, Any>> = runCatching {
-        val snap = orgProjectsRef(organizationId)
-            .whereEqualTo("projectName", projectName)
-            .limit(1)
-            .get().await()
-        val doc = snap.documents.firstOrNull() ?: error("Project not found")
-        val data = doc.data?.toMutableMap() ?: error("Project data is null")
-        data["id"] = doc.id
-        val pn = (data["projectName"] ?: data["name"])?.toString()
-        if (!pn.isNullOrBlank()) {
-            data["projectName"] = pn
-            data["name"] = pn
-        }
-        data
+        ).filterValues { it != null }
     }
 }
 
-private val LOCATION_MUTATION_KEYS = setOf(
-    "latitude",
-    "longitude"
+private val LEGACY_PROJECT_KEYS = setOf(
+    "name",
+    "location"
 )
 
-private fun shouldRecalculateMapsUrl(data: Map<String, *>): Boolean =
-    data.keys.any { it in LOCATION_MUTATION_KEYS }
+private val CANONICAL_PROJECT_KEYS = setOf(
+    "projectId",
+    "projectName",
+    "projectLocation",
+    "latitude",
+    "longitude",
+    "addressText",
+    "plusCode",
+    "googleMapsUrl",
+    "workType",
+    "contractValue",
+    "startDate",
+    "endDate",
+    "status",
+    "createdAt",
+    "updatedAt"
+)
+
+private fun Map<String, Any?>.buildProjectForCreate(projectId: String): Project {
+    val projectName = (this["projectName"] as? String)?.trim().orEmpty()
+    val normalizedLocation = normalizeAddress(this["projectLocation"])
+    val normalizedAddress = normalizeAddress(this["addressText"]) ?: normalizedLocation
+    val latitude = ProjectLocationUtils.normalizeLatitude(this["latitude"])
+    val longitude = ProjectLocationUtils.normalizeLongitude(this["longitude"])
+    val plusCode = ProjectLocationUtils.normalizePlusCode(this["plusCode"] as? String)
+    val googleMapsUrl = (this["googleMapsUrl"] as? String)?.takeIf { it.isNotBlank() }
+        ?: ProjectLocationUtils.buildGoogleMapsUrl(latitude, longitude)
+    val workType = (this["workType"] as? String)?.takeIf { it.isNotBlank() } ?: "Lump Sum"
+    val contractValue = this["contractValue"].toDoubleOrNull()
+    val startDate = this["startDate"].asStringOrNull().orEmpty()
+    val endDate = this["endDate"].asStringOrNull().orEmpty()
+    val status = (this["status"] as? String)?.takeIf { it.isNotBlank() } ?: "active"
+
+    return Project(
+        projectId = projectId,
+        projectName = projectName,
+        projectLocation = normalizedLocation ?: "",
+        latitude = latitude,
+        longitude = longitude,
+        addressText = normalizedAddress,
+        plusCode = plusCode,
+        googleMapsUrl = googleMapsUrl,
+        workType = workType,
+        contractValue = contractValue,
+        startDate = startDate,
+        endDate = endDate,
+        status = status,
+        createdAt = Timestamp.now(),
+        updatedAt = Timestamp.now()
+    )
+}
+
+private fun Project.mergeWithUpdates(updates: Map<String, Any?>): Project {
+    val updatedProjectName = (updates["projectName"] as? String)?.trim()
+        ?.takeIf { it.isNotEmpty() } ?: projectName
+    val hasLocationUpdate = updates.containsKey("projectLocation")
+    val updatedLocation = normalizeAddress(updates["projectLocation"])
+    val resolvedProjectLocation = when {
+        hasLocationUpdate -> updatedLocation ?: ""
+        else -> projectLocation
+    }
+    val hasAddressUpdate = updates.containsKey("addressText")
+    val updatedAddress = normalizeAddress(updates["addressText"])
+    val resolvedAddressText = when {
+        hasAddressUpdate -> updatedAddress
+        else -> addressText
+    }
+    val hasLatitudeUpdate = updates.containsKey("latitude")
+    val resolvedLatitude = if (hasLatitudeUpdate) {
+        ProjectLocationUtils.normalizeLatitude(updates["latitude"])
+    } else {
+        latitude
+    }
+    val hasLongitudeUpdate = updates.containsKey("longitude")
+    val resolvedLongitude = if (hasLongitudeUpdate) {
+        ProjectLocationUtils.normalizeLongitude(updates["longitude"])
+    } else {
+        longitude
+    }
+    val hasPlusCodeUpdate = updates.containsKey("plusCode")
+    val resolvedPlusCode = if (hasPlusCodeUpdate) {
+        ProjectLocationUtils.normalizePlusCode(updates["plusCode"] as? String)
+    } else {
+        plusCode
+    }
+    val hasWorkTypeUpdate = updates.containsKey("workType")
+    val resolvedWorkType = if (hasWorkTypeUpdate) {
+        (updates["workType"] as? String)?.takeIf { it.isNotBlank() } ?: workType
+    } else {
+        workType
+    }
+    val hasContractValueUpdate = updates.containsKey("contractValue")
+    val resolvedContractValue = if (hasContractValueUpdate) {
+        updates["contractValue"].toDoubleOrNull()
+    } else {
+        contractValue
+    }
+    val hasStartDateUpdate = updates.containsKey("startDate")
+    val resolvedStartDate = if (hasStartDateUpdate) {
+        updates["startDate"].asStringOrNull().orEmpty()
+    } else {
+        startDate
+    }
+    val hasEndDateUpdate = updates.containsKey("endDate")
+    val resolvedEndDate = if (hasEndDateUpdate) {
+        updates["endDate"].asStringOrNull().orEmpty()
+    } else {
+        endDate
+    }
+    val hasStatusUpdate = updates.containsKey("status")
+    val resolvedStatus = if (hasStatusUpdate) {
+        (updates["status"] as? String)?.takeIf { it.isNotBlank() } ?: status
+    } else {
+        status
+    }
+    val hasMapsUpdate = updates.containsKey("googleMapsUrl")
+    val resolvedMapsUrl = when {
+        hasMapsUpdate -> (updates["googleMapsUrl"] as? String)?.takeIf { it.isNotBlank() }
+        else -> ProjectLocationUtils.buildGoogleMapsUrl(resolvedLatitude, resolvedLongitude)
+    }
+    val hasCreatedAtUpdate = updates.containsKey("createdAt")
+    val resolvedCreatedAt = if (hasCreatedAtUpdate) {
+        updates["createdAt"] as? Timestamp ?: createdAt
+    } else {
+        createdAt
+    }
+
+    return copy(
+        projectName = updatedProjectName,
+        projectLocation = resolvedProjectLocation,
+        latitude = resolvedLatitude,
+        longitude = resolvedLongitude,
+        addressText = resolvedAddressText,
+        plusCode = resolvedPlusCode,
+        googleMapsUrl = resolvedMapsUrl,
+        workType = resolvedWorkType,
+        contractValue = resolvedContractValue,
+        startDate = resolvedStartDate,
+        endDate = resolvedEndDate,
+        status = resolvedStatus,
+        createdAt = resolvedCreatedAt
+    )
+}
+
+private fun Map<String, Any?>.additionalProjectFields(): Map<String, Any?> =
+    filterKeys { it !in CANONICAL_PROJECT_KEYS && it !in LEGACY_PROJECT_KEYS }
+
+private fun applyAdditionalProjectUpdates(
+    extras: MutableMap<String, Any?>,
+    updates: Map<String, Any?>
+) {
+    updates.additionalProjectFields().forEach { (key, value) ->
+        if (value == null) {
+            extras.remove(key)
+        } else {
+            extras[key] = value
+        }
+    }
+}
+
+private fun normalizeAddress(value: Any?): String? =
+    ProjectLocationUtils.normalizeAddressText((value as? String)?.takeIf { it.isNotBlank() })
+
+private fun Any?.toDoubleOrNull(): Double? = when (this) {
+    is Number -> this.toDouble()
+    is String -> this.toDoubleOrNull()
+    else -> null
+}
+
+private fun Any?.asStringOrNull(): String? = when (this) {
+    null -> null
+    is String -> this
+    else -> this.toString()
+}
+
+private fun com.google.firebase.firestore.DocumentSnapshot.additionalProjectFields(): Map<String, Any?> =
+    (data ?: emptyMap<String, Any?>()).additionalProjectFields()
+

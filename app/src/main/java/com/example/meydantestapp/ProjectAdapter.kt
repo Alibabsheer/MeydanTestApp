@@ -7,6 +7,7 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.meydantestapp.R
+import com.example.meydantestapp.data.model.Project
 
 
 class ProjectAdapter(
@@ -30,7 +31,7 @@ class ProjectAdapter(
     override fun onBindViewHolder(holder: ProjectViewHolder, position: Int) {
         val project = projects[position]
         holder.projectNameText.text = project.projectName
-        holder.projectLocationText.text = project.location
+        holder.projectLocationText.text = project.projectLocation.ifBlank { project.addressText ?: "" }
         holder.editProjectButton.setOnClickListener { onEditClick(project) }
         holder.viewProjectButton.setOnClickListener { onViewClick(project) }
     }
