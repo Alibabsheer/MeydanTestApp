@@ -76,30 +76,30 @@ class ProjectRepository {
     }
 
     /** جلب مشاريع مؤسسة */
-    suspend fun getProjectsByOrganization(organizationId: String): Result<List<Map<String, Any?>>> =
+    suspend fun getProjectsByOrganization(organizationId: String): Result<List<Project>> =
         runCatching {
             val qs = orgProjectsRef(organizationId)
                 .orderBy("createdAt", Query.Direction.DESCENDING)
                 .get().await()
-            qs.documents.map { it.toCanonicalProjectMap() }
+            qs.documents.map { Project.from(it) }
         }
 
     /** جلب مشروع بمعرّفه ضمن مؤسسة */
-    suspend fun getProjectById(organizationId: String, projectId: String): Result<Map<String, Any?>> =
+    suspend fun getProjectById(organizationId: String, projectId: String): Result<Project> =
         runCatching {
             val doc = orgProjectsRef(organizationId).document(projectId).get().await()
             if (!doc.exists()) error("Project not found")
-            doc.toCanonicalProjectMap()
+            Project.from(doc)
         }
 
     /** (توافق عام) جلب مشروع عبر collectionGroup */
-    suspend fun getProjectById(projectId: String): Result<Map<String, Any?>> =
+    suspend fun getProjectById(projectId: String): Result<Project> =
         runCatching {
             val snap = firestore.collectionGroup(Constants.COLLECTION_PROJECTS)
                 .whereEqualTo(FieldPath.documentId(), projectId)
                 .get().await()
             val doc = snap.documents.firstOrNull() ?: error("Project not found")
-            doc.toCanonicalProjectMap()
+            Project.from(doc)
         }
 
     /** تحديث مشروع ضمن مؤسسة */
@@ -170,7 +170,7 @@ class ProjectRepository {
     }
 
     /** جلب مشاريع مستخدم */
-    suspend fun getProjectsForUser(userId: String): Result<List<Map<String, Any?>>> =
+    suspend fun getProjectsForUser(userId: String): Result<List<Project>> =
         runCatching {
             val userDoc = firestore.collection(Constants.COLLECTION_USERS)
                 .document(userId).get().await()
@@ -379,11 +379,3 @@ private fun Any?.asStringOrNull(): String? = when (this) {
 private fun com.google.firebase.firestore.DocumentSnapshot.additionalProjectFields(): Map<String, Any?> =
     (data ?: emptyMap<String, Any?>()).additionalProjectFields()
 
-private fun com.google.firebase.firestore.DocumentSnapshot.toCanonicalProjectMap(): Map<String, Any?> {
-    val project = Project.from(this)
-    val canonical = project.toMap().toMutableMap()
-    val extras = additionalProjectFields()
-    canonical.putAll(extras)
-    canonical.entries.removeIf { it.value == null }
-    return canonical
-}
