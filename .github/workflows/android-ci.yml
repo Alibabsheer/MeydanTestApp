@@ -7,8 +7,49 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+# نحتاج تصريح حذف الـ artifacts القديمة
+permissions:
+  contents: read
+  actions: write
+
 jobs:
+  # Job تمهيدي لتنظيف الـ artifacts القديمة لتفادي امتلاء السعة
+  cleanup:
+    name: Cleanup old artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete artifacts older than 3 days
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const days = 3;
+            const cutoff = Date.now() - days*24*60*60*1000;
+            let page = 1, deleted = 0;
+            while (true) {
+              const { data } = await github.rest.actions.listArtifactsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 100,
+                page
+              });
+              if (!data.artifacts.length) break;
+              for (const a of data.artifacts) {
+                if (!a.expired && Date.parse(a.updated_at) < cutoff) {
+                  await github.rest.actions.deleteArtifact({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    artifact_id: a.id
+                  });
+                  deleted++;
+                }
+              }
+              page++;
+            }
+            core.notice(`Deleted ${deleted} artifacts older than ${days} days`);
+
   build:
+    name: Build (assemble + unit tests)
+    needs: cleanup
     runs-on: ubuntu-latest
 
     steps:
@@ -21,7 +62,7 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # الخطوة الجديدة: توليد google-services.json من السر
+      # توليد google-services.json من السر
       - name: Set up google-services.json
         run: bash scripts/setup-google-services.sh
         env:
@@ -41,8 +82,9 @@ jobs:
       - name: Android Lint (debug)
         run: ./gradlew lintDebug --stacktrace --no-daemon
 
-      - name: Upload build reports
-        if: always()
+      # نرفع التقارير والسجلات فقط عند الفشل لتقليل الاستهلاك
+      - name: Upload build reports (on failure)
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: build-reports
@@ -50,9 +92,10 @@ jobs:
             **/build/reports/**
             **/build/test-results/**
             **/outputs/**
+          retention-days: 3
 
-      - name: Upload Gradle logs (kapt, stubs, classes)
-        if: always()
+      - name: Upload Gradle logs (on failure)
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: gradle-logs
@@ -61,11 +104,15 @@ jobs:
             **/build/tmp/kapt3/classes/**
             **/build/tmp/kapt3/incApCache/**
             **/build/tmp/kapt3/**/kaptGenerateStubs*/kapt.log
+          retention-days: 3
 
-      - name: Upload app build directory (summary)
-        if: always()
+      # اختياري: رفع ملخص build عند النجاح، لكن غير مُسقط للمهمة
+      - name: Upload app build directory (summary, non-blocking)
+        if: ${{ success() }}
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: app-build
           path: app/build/
           if-no-files-found: warn
+          retention-days: 2
