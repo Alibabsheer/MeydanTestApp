@@ -1,24 +1,27 @@
 package com.example.meydantestapp.utils
 
+import androidx.core.text.BidiFormatter
+import androidx.core.text.TextDirectionHeuristicsCompat
+import java.util.Locale
+
 object PdfBidiUtils {
     private val ARABIC = Regex("[\\u0600-\\u06FF]")
-    private val LTR_SEGMENT = Regex("([A-Za-z0-9+./:_#?=\\-]+)")
-    private const val LRM = '\\u200E'
-    private const val RLM = '\\u200F'
+    private val rtlFormatter = BidiFormatter.getInstance(Locale("ar"))
+    private val ltrFormatter = BidiFormatter.getInstance(Locale.ENGLISH)
 
     fun isArabicLikely(s: CharSequence): Boolean = ARABIC.containsMatchIn(s)
 
     @JvmStatic
     fun wrapMixed(text: String, rtlBase: Boolean = true): CharSequence {
         if (text.isEmpty()) return text
-        return if (rtlBase) {
-            text.replace(LTR_SEGMENT) { matchResult ->
-                "$LRM${matchResult.value}$LRM"
-            }
+
+        val formatter = if (rtlBase) rtlFormatter else ltrFormatter
+        val heuristic = if (rtlBase) {
+            TextDirectionHeuristicsCompat.RTL
         } else {
-            text.replace(ARABIC) { matchResult ->
-                "$RLM${matchResult.value}$RLM"
-            }
+            TextDirectionHeuristicsCompat.LTR
         }
+
+        return formatter.unicodeWrap(text, heuristic)
     }
 }

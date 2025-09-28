@@ -85,6 +85,7 @@ jobs:
       # نرفع التقارير والسجلات فقط عند الفشل لتقليل الاستهلاك
       - name: Upload build reports (on failure)
         if: ${{ failure() }}
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: build-reports
@@ -96,6 +97,7 @@ jobs:
 
       - name: Upload Gradle logs (on failure)
         if: ${{ failure() }}
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: gradle-logs
