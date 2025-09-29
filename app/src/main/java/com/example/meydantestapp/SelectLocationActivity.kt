@@ -8,8 +8,11 @@ import android.location.Address
 import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
 import android.view.View
+import android.view.inputmethod.EditorInfo
+import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
@@ -27,7 +30,12 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.libraries.places.api.Places
+import com.google.android.libraries.places.api.model.AutocompleteSessionToken
 import com.google.android.libraries.places.api.model.Place
+import com.google.android.libraries.places.api.net.FetchPlaceRequest
+import com.google.android.libraries.places.api.net.FindAutocompletePredictionsRequest
+import com.google.android.libraries.places.api.net.PlacesClient
 import com.google.android.libraries.places.widget.AutocompleteSupportFragment
 import com.google.android.libraries.places.widget.listener.PlaceSelectionListener
 import java.util.Locale
@@ -44,10 +52,12 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
     private val LOCATION_PERMISSION_REQUEST_CODE = 1002
     private var isMapViewInitialized = false
     private var arePlacesReady = false
-
-    companion object {
-        private const val TAG = "SelectLocationActivity"
-    }
+    private var placesClient: PlacesClient? = null
+    private var autocompleteSessionToken: AutocompleteSessionToken? = null
+    private var autocompleteFragment: AutocompleteSupportFragment? = null
+    private var searchInputView: EditText? = null
+    private var pendingCameraUpdate: PendingCameraUpdate? = null
+    private var searchButtonView: View? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,6 +81,8 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
                 Toast.LENGTH_LONG
             ).show()
         } else {
+            placesClient = Places.createClient(this)
+            autocompleteSessionToken = AutocompleteSessionToken.newInstance()
             fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
             mapView?.onCreate(savedInstanceState)
             isMapViewInitialized = true
@@ -140,17 +152,43 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
         googleMap.setOnMapClickListener { latLng ->
             moveToLocation(latLng, "الموقع المحدد")
         }
+
+        pendingCameraUpdate?.let { pending ->
+            pendingCameraUpdate = null
+            moveToLocation(pending.latLng, pending.title, pending.searchMetadata)
+        }
     }
 
-    private fun moveToLocation(latLng: LatLng, title: String) {
+    private fun moveToLocation(
+        latLng: LatLng,
+        title: String,
+        searchMetadata: SearchMetadata? = null
+    ) {
         val currentMap = map
         if (currentMap == null) {
-            Log.w(TAG, "moveToLocation called before map ready")
+            pendingCameraUpdate = PendingCameraUpdate(latLng, title, searchMetadata)
+            if (searchMetadata != null) {
+                Log.d(
+                    PLACES_TAG,
+                    "Map not ready, queuing camera move for query=\"${searchMetadata.query}\""
+                )
+            } else {
+                Log.w(TAG, "moveToLocation called before map ready")
+            }
+            Toast.makeText(this, "الخريطة غير جاهزة بعد.", Toast.LENGTH_SHORT).show()
             return
         }
+        pendingCameraUpdate = null
         currentMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
         selectedMarker?.remove()
         selectedMarker = currentMap.addMarker(MarkerOptions().position(latLng).title(title))
+        searchMetadata?.let {
+            val elapsed = SystemClock.elapsedRealtime() - it.startTimeMs
+            Log.d(
+                PLACES_TAG,
+                "Query=\"${it.query}\" moveCamera in ${elapsed}ms (placeId=${it.placeId})"
+            )
+        }
     }
 
     private fun enableUserLocation() {
@@ -232,6 +270,13 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
                 return
             }
 
+            if (placesClient == null || autocompleteSessionToken == null) {
+                Log.w(PLACES_TAG, "Places client or token not ready for search init")
+                return
+            }
+
+            autocompleteFragment = fragment
+
             fragment.setPlaceFields(listOf(Place.Field.ID, Place.Field.NAME, Place.Field.LAT_LNG))
 
             fragment.setOnPlaceSelectedListener(object : PlaceSelectionListener {
@@ -250,9 +295,129 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
                     ).show()
                 }
             })
+
+            fragment.viewLifecycleOwnerLiveData.observe(this) { owner ->
+                if (owner != null) {
+                    configureSearchInputs(fragment)
+                }
+            }
+
+            fragment.view?.let { configureSearchInputs(fragment) }
         } catch (error: Exception) {
             Log.e(TAG, "Failed to initialize Places search", error)
         }
+    }
+
+    private fun configureSearchInputs(fragment: AutocompleteSupportFragment) {
+        val fragmentView = fragment.view ?: return
+        val input = fragmentView.findViewById<EditText>(R.id.places_autocomplete_search_input)
+        val searchButton = fragmentView.findViewById<View>(R.id.places_autocomplete_search_button)
+
+        searchInputView = input
+        searchButtonView = searchButton
+
+        input?.setOnEditorActionListener { textView, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                performPlacesSearch(textView.text?.toString().orEmpty())
+                true
+            } else {
+                false
+            }
+        }
+
+        searchButton?.setOnClickListener {
+            performPlacesSearch(input?.text?.toString().orEmpty())
+        }
+    }
+
+    private fun performPlacesSearch(rawQuery: String) {
+        val query = rawQuery.trim()
+        if (query.isEmpty()) {
+            Toast.makeText(this, "يرجى إدخال نص للبحث.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val client = placesClient
+        if (client == null) {
+            Toast.makeText(this, "خدمة البحث غير متاحة حالياً.", Toast.LENGTH_SHORT).show()
+            Log.w(PLACES_TAG, "Places client missing when attempting search")
+            return
+        }
+
+        val token = autocompleteSessionToken ?: AutocompleteSessionToken.newInstance().also {
+            autocompleteSessionToken = it
+        }
+
+        val startTime = SystemClock.elapsedRealtime()
+
+        val request = FindAutocompletePredictionsRequest.builder()
+            .setQuery(query)
+            .setSessionToken(token)
+            .build()
+
+        client.findAutocompletePredictions(request)
+            .addOnSuccessListener { response ->
+                val predictions = response.autocompletePredictions
+                Log.d(PLACES_TAG, "Query=\"$query\" predictions=${predictions.size}")
+                if (predictions.isEmpty()) {
+                    Toast.makeText(this, "لم يتم العثور على نتائج للبحث", Toast.LENGTH_SHORT).show()
+                    Log.d(PLACES_TAG, "No results for query=\"$query\"")
+                    return@addOnSuccessListener
+                }
+
+                val topPrediction = predictions.first()
+                val placeId = topPrediction.placeId
+                Log.d(PLACES_TAG, "Query=\"$query\" using placeId=$placeId")
+
+                val fetchRequest = FetchPlaceRequest.builder(
+                    placeId,
+                    listOf(Place.Field.LAT_LNG, Place.Field.NAME)
+                )
+                    .setSessionToken(token)
+                    .build()
+
+                client.fetchPlace(fetchRequest)
+                    .addOnSuccessListener { fetchResponse ->
+                        val place = fetchResponse.place
+                        val latLng = place.latLng
+                        if (latLng != null) {
+                            val title = place.name ?: query
+                            autocompleteFragment?.setText(title)
+                            val metadata = SearchMetadata(query, placeId, startTime)
+                            moveToLocation(latLng, title, metadata)
+                        } else {
+                            Toast.makeText(
+                                this,
+                                "تعذّر تحديد موقع هذا المكان.",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            Log.w(
+                                PLACES_TAG,
+                                "Query=\"$query\" placeId=$placeId missing latLng"
+                            )
+                        }
+                    }
+                    .addOnFailureListener { error ->
+                        Toast.makeText(
+                            this,
+                            "تعذّر جلب تفاصيل الموقع المحدد.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        Log.e(
+                            PLACES_TAG,
+                            "Failed to fetch place for query=\"$query\" placeId=$placeId",
+                            error
+                        )
+                    }
+            }
+            .addOnFailureListener { error ->
+                Toast.makeText(
+                    this,
+                    "حدث خطأ أثناء البحث: ${error.localizedMessage ?: ""}",
+                    Toast.LENGTH_SHORT
+                ).show()
+                Log.e(PLACES_TAG, "findAutocompletePredictions failed for query=\"$query\"", error)
+            }
     }
 
     override fun onResume() {
@@ -302,8 +467,29 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
         binding.mapView.visibility = View.INVISIBLE
         binding.layersButton.isEnabled = false
         binding.layersButton.alpha = 0.5f
+        searchInputView?.isEnabled = false
+        searchButtonView?.isEnabled = false
         supportFragmentManager.findFragmentById(R.id.autocomplete_fragment)?.let { fragment ->
+            fragment.view?.let { view ->
+                view.isEnabled = false
+                view.alpha = 0.5f
+                view.findViewById<View>(R.id.places_autocomplete_search_button)?.isEnabled = false
+                view.findViewById<EditText>(R.id.places_autocomplete_search_input)?.isEnabled = false
+            }
             supportFragmentManager.beginTransaction().hide(fragment).commitAllowingStateLoss()
         }
+    }
+
+    private data class SearchMetadata(val query: String, val placeId: String, val startTimeMs: Long)
+
+    private data class PendingCameraUpdate(
+        val latLng: LatLng,
+        val title: String,
+        val searchMetadata: SearchMetadata?
+    )
+
+    companion object {
+        private const val TAG = "SelectLocationActivity"
+        private const val PLACES_TAG = "PlacesSearch"
     }
 }
