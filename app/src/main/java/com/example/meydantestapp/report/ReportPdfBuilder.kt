@@ -1,6 +1,5 @@
 package com.example.meydantestapp.report
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.*
 import android.graphics.pdf.PdfDocument
@@ -13,6 +12,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import com.example.meydantestapp.R
 import com.example.meydantestapp.utils.ImageUtils
+import com.example.meydantestapp.utils.PdfBidiUtils
 import java.io.File
 import java.io.FileOutputStream
 import java.lang.reflect.Constructor
@@ -150,21 +150,6 @@ class ReportPdfBuilder(
             base()
         }
 
-    private fun preferLTR(text: String): Boolean {
-        for (ch in text) {
-            if (ch.isLetterOrDigit()) {
-                val code = ch.code
-                if (code in '0'.code..'9'.code || code in 'A'.code..'Z'.code || code in 'a'.code..'z'.code
-                    || ch == '+' || ch == '-' || ch == '/' || ch == ':' || ch == '#') return true
-                return false
-            }
-        }
-        return false
-    }
-
-    @SuppressLint("BidiSpoofing")
-    private fun ltrIsolate(text: String): String = "⁦$text⁩" // U+2066..U+2069
-
     private fun normalizeArabicCommaSpacing(input: String): String {
         if (input.isEmpty()) return input
         var text = input.replace(',', '،')
@@ -191,64 +176,6 @@ class ReportPdfBuilder(
         return sb.toString()
     }
 
-    private fun normalizeRtlMixedText(input: String): String {
-        if (input.isEmpty()) return input
-        val builder = StringBuilder(input.length + 8)
-        val run = StringBuilder()
-        var runKind = 0 // 0 = neutral, 1 = RTL, 2 = LTR
-
-        fun flush() {
-            if (run.isEmpty()) return
-            if (runKind == 2) {
-                builder.append('\u2066').append(run).append('\u2069')
-            } else {
-                builder.append(run)
-            }
-            run.setLength(0)
-            runKind = 0
-        }
-
-        fun classify(ch: Char): Int = when (Character.getDirectionality(ch)) {
-            Character.DIRECTIONALITY_LEFT_TO_RIGHT,
-            Character.DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING,
-            Character.DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE,
-            Character.DIRECTIONALITY_EUROPEAN_NUMBER,
-            Character.DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR,
-            Character.DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR,
-            Character.DIRECTIONALITY_ARABIC_NUMBER -> 2
-            Character.DIRECTIONALITY_RIGHT_TO_LEFT,
-            Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC,
-            Character.DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING,
-            Character.DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE -> 1
-            else -> 0
-        }
-
-        for (ch in input) {
-            val type = classify(ch)
-            if (run.isEmpty()) {
-                run.append(ch)
-                runKind = if (type == 0) 0 else type
-                continue
-            }
-
-            if (type == 0) {
-                run.append(ch)
-            } else if (runKind == 0) {
-                run.append(ch)
-                runKind = type
-            } else if (runKind == type) {
-                run.append(ch)
-            } else {
-                flush()
-                run.append(ch)
-                runKind = type
-            }
-        }
-
-        flush()
-        return builder.toString()
-    }
-
     private fun createLayout(
         text: CharSequence,
         paint: TextPaint,
@@ -259,7 +186,7 @@ class ReportPdfBuilder(
         spacingAdd: Float = 0f,
         includePad: Boolean = false
     ): StaticLayout {
-        val dir = if (rtl) TextDirectionHeuristics.RTL else TextDirectionHeuristics.FIRSTSTRONG_LTR
+        val dir = if (rtl) TextDirectionHeuristics.RTL else TextDirectionHeuristics.LTR
         return StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
             .setAlignment(align)
             .setIncludePad(includePad)
@@ -271,7 +198,7 @@ class ReportPdfBuilder(
 
     private fun drawWrapped(
         canvas: Canvas,
-        text: String,
+        text: CharSequence,
         paint: TextPaint,
         left: Int,
         top: Int,
@@ -416,7 +343,8 @@ class ReportPdfBuilder(
             canvas.drawBitmap(drawBmp, left.toFloat(), top.toFloat(), bitmapPaint)
 
             y += headerH + dp(6)
-            canvas.drawText("التقرير اليومي", (pageWidth / 2f), y + titlePaint.textSize, titlePaint)
+            val wrappedTitle = PdfBidiUtils.wrapMixed("التقرير اليومي", rtlBase = true).toString()
+            canvas.drawText(wrappedTitle, (pageWidth / 2f), y + titlePaint.textSize, titlePaint)
             y += (titlePaint.fontMetrics.bottom - titlePaint.fontMetrics.top).roundToInt() + dp(4)
         }
 
@@ -425,8 +353,10 @@ class ReportPdfBuilder(
             canvas.drawLine(contentLeft.toFloat(), lineY.toFloat(), contentRight.toFloat(), lineY.toFloat(), footerDividerPaint)
 
             val baseY = pageHeight - marginPx.toFloat()
-            canvas.drawText("صفحة $pageIndex", contentLeft.toFloat(), baseY, footerPaintLeft)
-            canvas.drawText("تم إنشاء التقرير في تطبيق ميدان", contentRight.toFloat(), baseY, footerPaintRight)
+            val pageLabel = PdfBidiUtils.wrapMixed("صفحة $pageIndex", rtlBase = true).toString()
+            val footerLabel = PdfBidiUtils.wrapMixed("تم إنشاء التقرير في تطبيق ميدان", rtlBase = true).toString()
+            canvas.drawText(pageLabel, contentLeft.toFloat(), baseY, footerPaintLeft)
+            canvas.drawText(footerLabel, contentRight.toFloat(), baseY, footerPaintRight)
 
             pdf.finishPage(page)
         }
@@ -448,7 +378,8 @@ class ReportPdfBuilder(
                 // إذا انتقلنا لصفحة جديدة، نضمن تكرار العنوان الحالي قبل رسم المحتوى التالي.
                 currentSectionTitle = text
             }
-            canvas.drawText(text, contentRight.toFloat(), y + headerPaint.textSize, headerPaint)
+            val wrappedHeader = PdfBidiUtils.wrapMixed(text, rtlBase = true).toString()
+            canvas.drawText(wrappedHeader, contentRight.toFloat(), y + headerPaint.textSize, headerPaint)
             y += h + dp(2)
         }
 
@@ -471,16 +402,16 @@ class ReportPdfBuilder(
             val verticalPadding = fieldVerticalPadding
             val minValueWidth = dp(72)
             val labelText = "$label:"
+            val wrappedLabel = PdfBidiUtils.wrapMixed(labelText, rtlBase = true)
 
             val valueTrimmed = valueRaw.trim()
-            val prefersLTR = preferLTR(valueTrimmed)
-            val normalizedValue = if (prefersLTR) {
-                valueTrimmed
+            val valueIsRtl = PdfBidiUtils.isArabicLikely(valueTrimmed)
+            val normalizedValue = if (valueIsRtl) {
+                normalizeArabicCommaSpacing(valueTrimmed)
             } else {
-                val withComma = normalizeArabicCommaSpacing(valueTrimmed)
-                normalizeRtlMixedText(withComma)
+                valueTrimmed
             }
-            val valueText = if (prefersLTR) ltrIsolate(normalizedValue) else normalizedValue
+            val wrappedValue = PdfBidiUtils.wrapMixed(normalizedValue, rtlBase = valueIsRtl)
 
             val valuePaint = if (linkUrl != null) {
                 TextPaint(bodyPaint).apply {
@@ -492,7 +423,7 @@ class ReportPdfBuilder(
             }
 
             val maxLabelWidth = (contentWidth * 0.45f).toInt()
-            val measuredLabel = bodyPaint.measureText(labelText).roundToInt() + horizontalPadding * 2
+            val measuredLabel = bodyPaint.measureText(wrappedLabel.toString()).roundToInt() + horizontalPadding * 2
             var labelWidth = max(dp(64), min(maxLabelWidth, measuredLabel))
 
             var valueWidth = contentWidth - labelWidth - horizontalGap
@@ -506,19 +437,19 @@ class ReportPdfBuilder(
             val valueAreaWidth = max(1, valueWidth - horizontalPadding * 2)
 
             val labelLayout = createLayout(
-                labelText,
+                wrappedLabel,
                 bodyPaint,
                 labelAreaWidth,
                 rtl = true,
                 spacingMult = 1f,
                 spacingAdd = fieldLineSpacingAdd
             )
-            val valueAlign = if (prefersLTR) Layout.Alignment.ALIGN_OPPOSITE else Layout.Alignment.ALIGN_NORMAL
+            val valueAlign = if (valueIsRtl) Layout.Alignment.ALIGN_NORMAL else Layout.Alignment.ALIGN_OPPOSITE
             val valueLayout = createLayout(
-                valueText,
+                wrappedValue,
                 valuePaint,
                 valueAreaWidth,
-                rtl = !prefersLTR,
+                rtl = valueIsRtl,
                 align = valueAlign,
                 spacingMult = 1f,
                 spacingAdd = fieldLineSpacingAdd
@@ -587,19 +518,20 @@ class ReportPdfBuilder(
             val bulletPaint = Paint(bodyPaint).apply { style = Paint.Style.FILL }
 
             list.forEach { rawItem ->
-                val prefersLTR = preferLTR(rawItem)
-                val normalized = if (prefersLTR) {
-                    ltrIsolate(rawItem)
+                val trimmed = rawItem.trim()
+                val itemIsRtl = PdfBidiUtils.isArabicLikely(trimmed)
+                val wrappedItem = if (itemIsRtl) {
+                    val withComma = normalizeArabicCommaSpacing(trimmed)
+                    PdfBidiUtils.wrapMixed(withComma, rtlBase = true)
                 } else {
-                    val withComma = normalizeArabicCommaSpacing(rawItem)
-                    normalizeRtlMixedText(withComma)
+                    PdfBidiUtils.wrapMixed(trimmed, rtlBase = false)
                 }
 
-                val rtl = !prefersLTR
+                val rtl = itemIsRtl
                 val textLeft: Int
                 val layoutWidth: Int
                 val bulletCenterX: Float
-                if (prefersLTR) {
+                if (!itemIsRtl) {
                     bulletCenterX = (contentLeft + bulletIndent).toFloat()
                     textLeft = contentLeft + bulletIndent + bulletRadiusInt + bulletGap
                     layoutWidth = (contentRight - textLeft).coerceAtLeast(1)
@@ -611,7 +543,7 @@ class ReportPdfBuilder(
                 }
 
                 val layout = createLayout(
-                    normalized,
+                    wrappedItem,
                     bodyPaint,
                     layoutWidth,
                     rtl = rtl,
