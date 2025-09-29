@@ -45,7 +45,7 @@ object Constants {
     // ===============
     const val EXTRA_ORGANIZATION_ID = "organization_id"
     const val EXTRA_ORGANIZATION_NAME = "organization_name"
-    const val EXTRA_PROJECT_ID = "project_id"
+    const val EXTRA_PROJECT_ID = "extra_project_id"
     const val EXTRA_PROJECT_NAME = "project_name"
     const val EXTRA_REPORT = "report"
     const val EXTRA_JOIN_CODE = "join_code"
