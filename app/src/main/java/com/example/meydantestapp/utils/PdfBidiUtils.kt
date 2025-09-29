@@ -4,23 +4,21 @@ object PdfBidiUtils {
 
     private val ARABIC_BLOCK = Regex("[\\u0600-\\u06FF]+")
     // LTR tokens: URLs, emails, plus-codes, and generic Latin/digit runs
-    private val LTR_TOKENS = Regex(
-        "(https?://\\S+|[A-Za-z\\d@#_\\-+/.:]+)"
-    )
+    private val LTR_TOKENS = Regex("(https?://\\S+|[A-Za-z\\d@#_\\-+/.:]+)")
 
-    private const val LRM = '\\u200E' // Left-to-Right Mark
-    private const val RLM = '\\u200F' // Right-to-Left Mark
+    private const val LRM: Char = '\u200E' // Left-to-Right Mark
+    private const val RLM: Char = '\u200F' // Right-to-Left Mark
 
     /** Heuristic: does text likely contain Arabic letters? */
     @JvmStatic
     fun isArabicLikely(s: CharSequence): Boolean {
-        for (ch in s) if (ch in '\\u0600'..'\\u06FF') return true
+        for (ch in s) if (ch in '\u0600'..'\u06FF') return true
         return false
     }
 
     /**
      * Wrap mixed-direction text with Unicode marks so it renders in natural order
-     * without relying on Android/ICU APIs.
+     * without Android/ICU dependencies.
      * - If rtlBase = true (Arabic paragraph): wrap LTR tokens with LRM.
      * - If rtlBase = false (Latin paragraph): wrap Arabic runs with RLM.
      */
