@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.ImageView
 import android.widget.Toast
+import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -43,9 +44,7 @@ class ProjectsActivity : AppCompatActivity() {
                 startActivity(intent)
             },
             onEditClick = { project ->
-                val intent = Intent(this, ProjectSettingsActivity::class.java)
-                intent.putExtra(Constants.EXTRA_PROJECT_ID, project.projectId)
-                startActivity(intent)
+                openProjectSettings(project.projectId, "ProjectsActivity:initAdapter")
             }
         )
 
@@ -142,11 +141,30 @@ class ProjectsActivity : AppCompatActivity() {
                 startActivity(intent)
             },
             onEditClick = { project ->
-                val intent = Intent(this, ProjectSettingsActivity::class.java)
-                intent.putExtra(Constants.EXTRA_PROJECT_ID, project.projectId)
-                startActivity(intent)
+                openProjectSettings(project.projectId, "ProjectsActivity:updateProjectList")
             }
         )
         recyclerView.adapter = adapter
+    }
+
+    private fun openProjectSettings(projectId: String?, source: String) {
+        if (projectId.isNullOrBlank()) {
+            Log.e(TAG_OPEN_SETTINGS, "Attempted to open settings from $source without projectId")
+            Toast.makeText(
+                this,
+                "تعذر فتح إعدادات المشروع بدون معرف مشروع",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        Log.d(TAG_OPEN_SETTINGS, "Opening ProjectSettingsActivity with id=$projectId from $source")
+        val intent = Intent(this, ProjectSettingsActivity::class.java)
+            .putExtra(Constants.EXTRA_PROJECT_ID, projectId)
+        startActivity(intent)
+    }
+
+    private companion object {
+        private const val TAG_OPEN_SETTINGS = "OpenProjectSettings"
     }
 }

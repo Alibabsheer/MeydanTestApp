@@ -8,6 +8,7 @@ import android.text.TextWatcher
 import android.view.View
 import android.widget.EditText
 import android.widget.Toast
+import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -24,6 +25,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import com.example.meydantestapp.Project
 import com.example.meydantestapp.utils.ProjectLocationUtils
+import com.example.meydantestapp.utils.Constants
 
 class ProjectSettingsActivity : AppCompatActivity() {
 
@@ -45,12 +47,35 @@ class ProjectSettingsActivity : AppCompatActivity() {
     private val dateFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     private var hasUnsavedChanges = false
 
+    private companion object {
+        private const val TAG = "ProjectSettingsActivity"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityProjectSettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         binding.viewContractTableButton.isEnabled = false
+
+        val resolvedProjectId = intent.getStringExtra(Constants.EXTRA_PROJECT_ID)
+            ?: intent.getStringExtra("PROJECT_ID")
+            ?: intent.getStringExtra("projectId")
+            ?: intent.getStringExtra("id")
+
+        if (resolvedProjectId.isNullOrBlank()) {
+            Log.e(TAG, "Opened without projectId extra. Finishing.")
+            Toast.makeText(
+                this,
+                "لا يمكن فتح إعدادات المشروع بدون معرف مشروع",
+                Toast.LENGTH_LONG
+            ).show()
+            finish()
+            return
+        }
+
+        projectId = resolvedProjectId
+        Log.d(TAG, "Loaded ProjectSettingsActivity with projectId=$projectId")
 
         selectLocationLauncher = registerForActivityResult(
             ActivityResultContracts.StartActivityForResult()
@@ -70,18 +95,10 @@ class ProjectSettingsActivity : AppCompatActivity() {
                 updateClearLocationVisibility()
             }
         }
-
-        projectId = intent.getStringExtra("projectId") ?: ""
-        if (projectId.isNotEmpty()) {
-            binding.saveChangesButton.text = "حفظ التعديلات"
-            binding.deleteProjectButton.visibility = View.VISIBLE
-            binding.titleText.text = "تفاصيل المشروع"
-            loadProjectData(projectId)
-        } else {
-            Toast.makeText(this, "خطأ: تم فتح شاشة تعديل المشروع بدون معرف مشروع.", Toast.LENGTH_LONG).show()
-            finish()
-            return
-        }
+        binding.saveChangesButton.text = "حفظ التعديلات"
+        binding.deleteProjectButton.visibility = View.VISIBLE
+        binding.titleText.text = "تفاصيل المشروع"
+        loadProjectData(projectId)
 
         binding.backButton.setOnClickListener {
             if (hasUnsavedChanges) {
