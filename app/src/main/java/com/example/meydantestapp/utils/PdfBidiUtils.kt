@@ -27,10 +27,26 @@ object PdfBidiUtils {
         if (text.isEmpty()) return text
         return if (rtlBase) {
             // Arabic base paragraph: ensure LTR tokens (URLs, numbers, plus-codes) don't flip
-            LTR_TOKENS.replace(text) { m -> "${LRM}${m.value}${LRM}" }
+            LTR_TOKENS.replace(text) { m ->
+                val start = m.range.first
+                val end = m.range.last
+                val before = if (start > 0) text[start - 1] else null
+                val after = if (end + 1 < text.length) text[end + 1] else null
+                val left = if (before == LRM) "" else LRM.toString()
+                val right = if (after == LRM) "" else LRM.toString()
+                left + m.value + right
+            }
         } else {
             // Latin base paragraph: ensure Arabic segments keep their order
-            ARABIC_BLOCK.replace(text) { m -> "${RLM}${m.value}${RLM}" }
+            ARABIC_BLOCK.replace(text) { m ->
+                val start = m.range.first
+                val end = m.range.last
+                val before = if (start > 0) text[start - 1] else null
+                val after = if (end + 1 < text.length) text[end + 1] else null
+                val left = if (before == RLM) "" else RLM.toString()
+                val right = if (after == RLM) "" else RLM.toString()
+                left + m.value + right
+            }
         }
     }
 }

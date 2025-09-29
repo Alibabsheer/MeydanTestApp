@@ -14,19 +14,25 @@ class PdfBidiUtilsTest {
         val output = PdfBidiUtils.wrapMixed(input)
 
         assertTrue("Expected LRM markers in RTL paragraph", hasLrm(output))
-        assertEquals(input, stripBidiControls(output))
+        assertEquals(input, visible(output))
         assertTrue(output.contains("\u200E45C\u200E"))
     }
 
     @Test
     fun wrapMixed_coordinates_preservesDigitOrder() {
         val input = "الموقع: 24.7136, 46.6753"
-        val output = PdfBidiUtils.wrapMixed(input)
+        val output = PdfBidiUtils.wrapMixed(input, rtlBase = true)
 
-        assertTrue(hasLrm(output))
-        assertEquals(input, stripBidiControls(output))
-        assertTrue(output.contains("\u200E24.7136,\u200E"))
+        // 1) Visible text equals input (no digit reordering)
+        assertEquals(input, visible(output))
+
+        // 2) LRM wraps ONLY the numeric tokens (no comma/space)
+        assertTrue(output.contains("\u200E24.7136\u200E"))
         assertTrue(output.contains("\u200E46.6753\u200E"))
+
+        // Ensure comma/space are NOT inside the wrapped tokens
+        assertFalse(output.contains("\u200E24.7136,"))
+        assertFalse(output.contains("46.6753,\u200E"))
     }
 
     @Test
@@ -48,18 +54,11 @@ class PdfBidiUtilsTest {
         val output = PdfBidiUtils.wrapMixed(input, rtlBase = false)
 
         assertTrue(hasRlm(output))
-        assertEquals(input, stripBidiControls(output))
+        assertEquals(input, visible(output))
         assertTrue(output.contains("\u200Fمساءً\u200F"))
     }
 
-    private fun stripBidiControls(text: String): String =
-        buildString(text.length) {
-            text.forEach { ch ->
-                if (Character.getType(ch) != Character.FORMAT.toInt()) {
-                    append(ch)
-                }
-            }
-        }
+    private fun visible(s: String) = s.replace("\u200E", "").replace("\u200F", "")
 
     private fun hasBidiMarks(text: String): Boolean =
         text.any { Character.getType(it) == Character.FORMAT.toInt() }
