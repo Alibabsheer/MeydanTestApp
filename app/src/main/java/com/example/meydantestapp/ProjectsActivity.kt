@@ -2,17 +2,24 @@ package com.example.meydantestapp
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.SystemClock
+import android.util.Log
 import android.widget.ImageView
 import android.widget.Toast
-import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.meydantestapp.data.ProjectsRepository
 import com.example.meydantestapp.data.model.Project
 import com.example.meydantestapp.utils.Constants
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 
 class ProjectsActivity : AppCompatActivity() {
 
@@ -25,6 +32,7 @@ class ProjectsActivity : AppCompatActivity() {
 
     // نخزن orgId الحالي لكي نمرّره دائمًا لشاشة التفاصيل
     private var currentOrganizationId: String? = null
+    private var initLoadOnce = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,75 +68,87 @@ class ProjectsActivity : AppCompatActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        fetchProjects()
-    }
+    override fun onStart() {
+        super.onStart()
+        if (!initLoadOnce) {
+            initLoadOnce = true
+            val t0 = SystemClock.elapsedRealtime()
+            lifecycleScope.launch {
+                try {
+                    val currentUser = auth.currentUser ?: run {
+                        Toast.makeText(
+                            this@ProjectsActivity,
+                            "تعذّر تحميل المشاريع الآن",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        return@launch
+                    }
 
-    private fun fetchProjects() {
-        val currentUser = auth.currentUser ?: return
-        val userId = currentUser.uid
+                    val organizationId = resolveOrganizationId(currentUser.uid)
+                        ?: run {
+                            Toast.makeText(
+                                this@ProjectsActivity,
+                                "تعذّر تحميل المشاريع الآن",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            return@launch
+                        }
 
-        // هل المستخدم مؤسسة مالكة؟
-        db.collection(Constants.COLLECTION_ORGANIZATIONS).document(userId).get()
-            .addOnSuccessListener { orgDoc ->
-                if (orgDoc.exists()) {
-                    // المؤسسة نفسها
-                    currentOrganizationId = userId
-                    fetchOrganizationProjects(userId)
-                } else {
-                    // مستخدم تابع → نحدّد orgId أولاً ثم نجلب مشاريعها
-                    fetchAffiliatedUserProjects(userId)
+                    currentOrganizationId = organizationId
+
+                    val projects = withContext(Dispatchers.IO) {
+                        ProjectsRepository(db, organizationId).fetchProjectsFirstPage(20)
+                    }
+
+                    updateProjectList(projects)
+
+                    val elapsed = SystemClock.elapsedRealtime() - t0
+                    Log.d("ProjectsPerf", "First page loaded in ${elapsed}ms, count=${projects.size}")
+                } catch (e: Exception) {
+                    Log.e("ProjectsPerf", "Failed to load first page", e)
+                    Toast.makeText(
+                        this@ProjectsActivity,
+                        "تعذّر تحميل المشاريع الآن",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
-            .addOnFailureListener {
-                Toast.makeText(this, "فشل في تحديد نوع المستخدم", Toast.LENGTH_SHORT).show()
-            }
+        }
     }
 
-    private fun fetchOrganizationProjects(orgId: String) {
-        db.collection(Constants.COLLECTION_ORGANIZATIONS).document(orgId)
-            .collection(Constants.COLLECTION_PROJECTS).get()
-            .addOnSuccessListener { snapshot ->
-                val projects = snapshot.documents.map { Project.from(it) }
-                updateProjectList(projects)
-            }
-            .addOnFailureListener {
-                Toast.makeText(this, "فشل في جلب مشاريع المؤسسة", Toast.LENGTH_SHORT).show()
-            }
-    }
+    private suspend fun resolveOrganizationId(userId: String): String? {
+        val orgDoc = db.collection(Constants.COLLECTION_ORGANIZATIONS)
+            .document(userId)
+            .get()
+            .await()
 
-    private fun fetchAffiliatedUserProjects(userId: String) {
-        // userslogin/{uid} أو مجموعة users تحت المؤسسة
-        db.collectionGroup(Constants.COLLECTION_USERS)
+        if (orgDoc.exists()) {
+            return userId
+        }
+
+        val affiliatedSnapshot = db.collectionGroup(Constants.COLLECTION_USERS)
             .whereEqualTo("uid", userId)
             .limit(1)
             .get()
-            .addOnSuccessListener { q ->
-                val orgId = q.documents.firstOrNull()?.reference?.parent?.parent?.id
-                if (orgId != null) {
-                    currentOrganizationId = orgId
-                    fetchOrganizationProjects(orgId)
-                } else {
-                    // احتياطي: userslogin/{uid}
-                    db.collection(Constants.COLLECTION_USERSLOGIN).document(userId).get()
-                        .addOnSuccessListener { mirror ->
-                            val mirrorOrgId = mirror.getString("organizationId")
-                            if (!mirrorOrgId.isNullOrBlank()) {
-                                currentOrganizationId = mirrorOrgId
-                                fetchOrganizationProjects(mirrorOrgId)
-                            } else {
-                                Toast.makeText(this, "لم يتم العثور على المؤسسة المرتبطة للمستخدم", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                        .addOnFailureListener {
-                            Toast.makeText(this, "فشل في جلب بيانات المستخدم", Toast.LENGTH_SHORT).show()
-                        }
-                }
-            }
-            .addOnFailureListener {
-                Toast.makeText(this, "فشل في جلب بيانات المستخدم", Toast.LENGTH_SHORT).show()
-            }
+            .await()
+
+        val affiliatedOrgId = affiliatedSnapshot.documents
+            .firstOrNull()
+            ?.reference
+            ?.parent
+            ?.parent
+            ?.id
+
+        if (!affiliatedOrgId.isNullOrBlank()) {
+            return affiliatedOrgId
+        }
+
+        val mirrorDoc = db.collection(Constants.COLLECTION_USERSLOGIN)
+            .document(userId)
+            .get()
+            .await()
+
+        return mirrorDoc.getString("organizationId")
     }
 
     private fun updateProjectList(projects: List<Project>) {
