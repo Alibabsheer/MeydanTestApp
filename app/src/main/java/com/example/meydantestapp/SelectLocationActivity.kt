@@ -30,6 +30,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.libraries.places.R as PlacesR
 import com.google.android.libraries.places.api.Places
 import com.google.android.libraries.places.api.model.AutocompleteSessionToken
 import com.google.android.libraries.places.api.model.Place
@@ -309,9 +310,13 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun configureSearchInputs(fragment: AutocompleteSupportFragment) {
-        val fragmentView = fragment.view ?: return
-        val input = fragmentView.findViewById<EditText>(R.id.places_autocomplete_search_input)
-        val searchButton = fragmentView.findViewById<View>(R.id.places_autocomplete_search_button)
+        val fragmentView = fragment.view
+        if (fragmentView == null) {
+            Log.w(TAG, "Autocomplete fragment view not available yet")
+            return
+        }
+        val input = fragmentView.findViewById<EditText>(PlacesR.id.places_autocomplete_search_input)
+        val searchButton = fragmentView.findViewById<View>(PlacesR.id.places_autocomplete_search_button)
 
         searchInputView = input
         searchButtonView = searchButton
@@ -473,8 +478,8 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
             fragment.view?.let { view ->
                 view.isEnabled = false
                 view.alpha = 0.5f
-                view.findViewById<View>(R.id.places_autocomplete_search_button)?.isEnabled = false
-                view.findViewById<EditText>(R.id.places_autocomplete_search_input)?.isEnabled = false
+                view.findViewById<View>(PlacesR.id.places_autocomplete_search_button)?.isEnabled = false
+                view.findViewById<EditText>(PlacesR.id.places_autocomplete_search_input)?.isEnabled = false
             }
             supportFragmentManager.beginTransaction().hide(fragment).commitAllowingStateLoss()
         }
