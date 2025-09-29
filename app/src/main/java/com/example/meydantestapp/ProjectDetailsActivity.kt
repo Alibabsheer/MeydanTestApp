@@ -6,12 +6,15 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
+import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import com.example.meydantestapp.databinding.ActivityProjectDetailsBinding
 import com.example.meydantestapp.utils.Constants
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 class ProjectDetailsActivity : AppCompatActivity() {
 
@@ -21,6 +24,9 @@ class ProjectDetailsActivity : AppCompatActivity() {
     private var projectName: String? = null
     private var selectedProject: Project? = null
     private val db = FirebaseFirestore.getInstance()
+    private val dateFormatter = SimpleDateFormat(Constants.DATE_FORMAT_DISPLAY, Locale.getDefault()).apply {
+        isLenient = false
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -132,7 +138,40 @@ class ProjectDetailsActivity : AppCompatActivity() {
 
         projectRef.get()
             .addOnSuccessListener { doc ->
-                selectedProject = doc.toObject(Project::class.java)?.also { it.id = doc.id }
+                if (!doc.exists()) {
+                    Log.w("ProjectDetails", "Project document not found for id=$pid")
+                    binding.startDateText.text = ""
+                    binding.endDateText.text = ""
+                    selectedProject = null
+                    return@addOnSuccessListener
+                }
+
+                val data = doc.data ?: emptyMap<String, Any>()
+                val startAny = data["startDate"]
+                val endAny = data["endDate"]
+
+                Log.d("ProjectDetails", "Raw project dates start=$startAny end=$endAny")
+
+                val startTs = parseTimestampOrString(startAny, Constants.DATE_FORMAT_DISPLAY)
+                val endTs = parseTimestampOrString(endAny, Constants.DATE_FORMAT_DISPLAY)
+
+                Log.d(
+                    "ProjectDetails",
+                    "Parsed project dates start=${startTs?.seconds} end=${endTs?.seconds}"
+                )
+
+                binding.startDateText.text = startTs?.toDate()?.let(dateFormatter::format) ?: ""
+                binding.endDateText.text = endTs?.toDate()?.let(dateFormatter::format) ?: ""
+
+                selectedProject = doc.toObject(Project::class.java)?.also { project ->
+                    project.id = doc.id
+                    if (startTs != null) {
+                        project.startDate = startTs
+                    }
+                    if (endTs != null) {
+                        project.endDate = endTs
+                    }
+                }
             }
             .addOnFailureListener {
                 Toast.makeText(this, "فشل في جلب تفاصيل المشروع", Toast.LENGTH_SHORT).show()
@@ -171,5 +210,22 @@ class ProjectDetailsActivity : AppCompatActivity() {
                 }
             }
             .addOnFailureListener { onFail("فشل في تحديد مؤسسة المستخدم.") }
+    }
+
+    private fun parseTimestampOrString(value: Any?, pattern: String): com.google.firebase.Timestamp? {
+        return when (value) {
+            is com.google.firebase.Timestamp -> value
+            is String -> {
+                try {
+                    val sdf = java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault())
+                    sdf.isLenient = false
+                    sdf.parse(value)?.let { com.google.firebase.Timestamp(it) }
+                } catch (e: Exception) {
+                    android.util.Log.w("ProjectDetails", "Failed to parse date string: $value", e)
+                    null
+                }
+            }
+            else -> null
+        }
     }
 }
