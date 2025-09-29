@@ -5,51 +5,51 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [30])
 class PdfBidiUtilsTest {
 
     @Test
-    fun wrapMixed_arabicTemperature() {
+    fun wrapMixed_arabicTemperature_insertsLrmAroundNumbers() {
         val input = "درجة الحرارة 45C"
-        val output = PdfBidiUtils.wrapMixed(input).toString()
-        assertTrue(hasFormatChars(output))
+        val output = PdfBidiUtils.wrapMixed(input)
+
+        assertTrue("Expected LRM markers in RTL paragraph", hasLrm(output))
         assertEquals(input, stripBidiControls(output))
+        assertTrue(output.contains("\u200E45C\u200E"))
     }
 
     @Test
-    fun wrapMixed_coordinates() {
+    fun wrapMixed_coordinates_preservesDigitOrder() {
         val input = "الموقع: 24.7136, 46.6753"
-        val output = PdfBidiUtils.wrapMixed(input).toString()
-        assertTrue(hasFormatChars(output))
+        val output = PdfBidiUtils.wrapMixed(input)
+
+        assertTrue(hasLrm(output))
         assertEquals(input, stripBidiControls(output))
+        assertTrue(output.contains("\u200E24.7136,\u200E"))
+        assertTrue(output.contains("\u200E46.6753\u200E"))
     }
 
     @Test
-    fun wrapMixed_plusCodeAndUrlRemainLtr() {
+    fun wrapMixed_plusCodeAndUrlRemainLtrWithoutMarks() {
         val plusCode = "Plus Code: 8GQ8+42"
         val plusWrapped = PdfBidiUtils.wrapMixed(plusCode, rtlBase = PdfBidiUtils.isArabicLikely(plusCode))
-        assertFalse(hasFormatChars(plusWrapped.toString()))
-        assertEquals(plusCode, plusWrapped.toString())
-        assertEquals(plusCode, stripBidiControls(plusWrapped.toString()))
+        assertFalse(hasBidiMarks(plusWrapped))
+        assertEquals(plusCode, plusWrapped)
 
         val url = "https://example.com"
         val urlWrapped = PdfBidiUtils.wrapMixed(url, rtlBase = PdfBidiUtils.isArabicLikely(url))
-        assertFalse(hasFormatChars(urlWrapped.toString()))
-        assertEquals(url, urlWrapped.toString())
-        assertEquals(url, stripBidiControls(urlWrapped.toString()))
+        assertFalse(hasBidiMarks(urlWrapped))
+        assertEquals(url, urlWrapped)
     }
 
     @Test
-    fun wrapMixed_ltrBaseWithArabic_insertsFormatMarks() {
+    fun wrapMixed_ltrBaseWithArabic_insertsRlmAroundArabic() {
         val input = "Meeting at 5 مساءً"
-        val output = PdfBidiUtils.wrapMixed(input, rtlBase = false).toString()
-        assertTrue(hasFormatChars(output))
+        val output = PdfBidiUtils.wrapMixed(input, rtlBase = false)
+
+        assertTrue(hasRlm(output))
         assertEquals(input, stripBidiControls(output))
+        assertTrue(output.contains("\u200Fمساءً\u200F"))
     }
 
     private fun stripBidiControls(text: String): String =
@@ -61,6 +61,10 @@ class PdfBidiUtilsTest {
             }
         }
 
-    private fun hasFormatChars(text: String): Boolean =
+    private fun hasBidiMarks(text: String): Boolean =
         text.any { Character.getType(it) == Character.FORMAT.toInt() }
+
+    private fun hasLrm(text: String): Boolean = text.contains('\u200E')
+
+    private fun hasRlm(text: String): Boolean = text.contains('\u200F')
 }

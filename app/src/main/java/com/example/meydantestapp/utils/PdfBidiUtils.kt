@@ -1,27 +1,38 @@
 package com.example.meydantestapp.utils
 
-import androidx.core.text.BidiFormatter
-import androidx.core.text.TextDirectionHeuristicsCompat
-import java.util.Locale
-
 object PdfBidiUtils {
-    private val ARABIC = Regex("[\\u0600-\\u06FF]")
-    private val rtlFormatter = BidiFormatter.getInstance(Locale("ar"))
-    private val ltrFormatter = BidiFormatter.getInstance(Locale.ENGLISH)
 
-    fun isArabicLikely(s: CharSequence): Boolean = ARABIC.containsMatchIn(s)
+    private val ARABIC_BLOCK = Regex("[\\u0600-\\u06FF]+")
+    // LTR tokens: URLs, emails, plus-codes, and generic Latin/digit runs
+    private val LTR_TOKENS = Regex(
+        "(https?://\\S+|[A-Za-z\\d@#_\\-+/.:]+)"
+    )
 
+    private const val LRM = '\\u200E' // Left-to-Right Mark
+    private const val RLM = '\\u200F' // Right-to-Left Mark
+
+    /** Heuristic: does text likely contain Arabic letters? */
     @JvmStatic
-    fun wrapMixed(text: String, rtlBase: Boolean = true): CharSequence {
+    fun isArabicLikely(s: CharSequence): Boolean {
+        for (ch in s) if (ch in '\\u0600'..'\\u06FF') return true
+        return false
+    }
+
+    /**
+     * Wrap mixed-direction text with Unicode marks so it renders in natural order
+     * without relying on Android/ICU APIs.
+     * - If rtlBase = true (Arabic paragraph): wrap LTR tokens with LRM.
+     * - If rtlBase = false (Latin paragraph): wrap Arabic runs with RLM.
+     */
+    @JvmStatic
+    fun wrapMixed(text: String, rtlBase: Boolean = true): String {
         if (text.isEmpty()) return text
-
-        val formatter = if (rtlBase) rtlFormatter else ltrFormatter
-        val heuristic = if (rtlBase) {
-            TextDirectionHeuristicsCompat.RTL
+        return if (rtlBase) {
+            // Arabic base paragraph: ensure LTR tokens (URLs, numbers, plus-codes) don't flip
+            LTR_TOKENS.replace(text) { m -> "${LRM}${m.value}${LRM}" }
         } else {
-            TextDirectionHeuristicsCompat.LTR
+            // Latin base paragraph: ensure Arabic segments keep their order
+            ARABIC_BLOCK.replace(text) { m -> "${RLM}${m.value}${RLM}" }
         }
-
-        return formatter.unicodeWrap(text, heuristic)
     }
 }
