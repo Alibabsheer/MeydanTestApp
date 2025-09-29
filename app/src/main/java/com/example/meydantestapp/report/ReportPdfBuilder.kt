@@ -100,14 +100,6 @@ class ReportPdfBuilder(
         data class LegacyPhotos(val urls: List<String>) : PageDescriptor
     }
 
-    private val footerPaint by lazy {
-        Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = footerSp(10f)
-            color = Color.DKGRAY
-            textAlign = Paint.Align.CENTER
-        }
-    }
-
     /* ---------- تنزيل صورة عبر HTTP ---------- */
     private fun downloadBmp(url: String): Bitmap? = runCatching {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -260,21 +252,31 @@ class ReportPdfBuilder(
         return Bitmap.createScaledBitmap(bitmap, w, h, true)
     }
 
-    private fun drawFooter(canvas: Canvas, pageIndex: Int, totalPages: Int, isRtlUi: Boolean) {
-        val raw = Companion.formatFooter(pageIndex, totalPages)
+    private fun drawFooter(
+        canvas: android.graphics.Canvas,
+        pageIndex: Int,
+        totalPages: Int,
+        isRtlUi: Boolean,
+        pageWidth: Int,
+        pageHeight: Int
+    ) {
+        val raw = formatFooter(pageIndex, totalPages)
         val text = if (isRtlUi) {
             PdfBidiUtils.wrapMixed(raw, rtlBase = true).toString()
         } else {
             raw
         }
+
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = 12f
+            color = android.graphics.Color.DKGRAY
+            textAlign = android.graphics.Paint.Align.CENTER
+        }
+
         val x = pageWidth / 2f
-        val y = pageHeight - footerDp(16f)
-        canvas.drawText(text, x, y, footerPaint)
+        val y = pageHeight - 24f
+        canvas.drawText(text, x, y, paint)
     }
-
-    private fun footerDp(v: Float) = v * context.resources.displayMetrics.density
-
-    private fun footerSp(v: Float) = v * context.resources.displayMetrics.scaledDensity
 
     /* ---------- إنشاء PDF ---------- */
     fun buildPdf(data: DailyReport, logo: Bitmap?, outFile: File): File {
@@ -622,7 +624,7 @@ class ReportPdfBuilder(
             val lineY = pageHeight - marginPx - footerBlockHeight + dp(4)
             canvas.drawLine(contentLeft.toFloat(), lineY.toFloat(), contentRight.toFloat(), lineY.toFloat(), footerDividerPaint)
 
-            drawFooter(canvas, pageIndex, totalPages, isRtlUi)
+            drawFooter(canvas, pageIndex, totalPages, isRtlUi, pageWidth, pageHeight)
 
             pdf.finishPage(page)
         }
@@ -1041,10 +1043,6 @@ class ReportPdfBuilder(
         FileOutputStream(outFile).use { pdf.writeTo(it) }
         pdf.close()
         return outFile
-    }
-
-    companion object {
-        internal fun formatFooter(pageIndex: Int, totalPages: Int): String = "Page $pageIndex of $totalPages"
     }
 
     private object PdfLinkAnnotationSupport {
