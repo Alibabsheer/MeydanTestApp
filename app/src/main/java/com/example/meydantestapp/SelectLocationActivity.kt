@@ -73,9 +73,12 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
         val servicesOk = PlayServicesUtils.ensureAvailableOrExplain(this)
         arePlacesReady = if (servicesOk) PlacesInitializer.initIfNeeded(this) else false
 
+        binding.layersButton.isEnabled = false
+
         if (!arePlacesReady) {
             Log.w(TAG, "Maps/Places disabled due to missing services.")
             disableMapsUi()
+            binding.layersButton.isEnabled = false
             Toast.makeText(
                 this,
                 "خدمات Google غير متوفرة. تم تعطيل ميزات الخريطة مؤقتًا.",
@@ -111,24 +114,20 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         }
 
-        binding.layersButton.setOnClickListener {
-            if (!arePlacesReady || map == null) {
-                Toast.makeText(
-                    this,
-                    "الخريطة غير جاهزة بعد.",
-                    Toast.LENGTH_SHORT
-                ).show()
-            } else {
-                toggleMapType()
-            }
-        }
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
         map = googleMap
+
+        val savedType = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            .getInt(KEY_MAP_TYPE, GoogleMap.MAP_TYPE_NORMAL)
+        googleMap.mapType = savedType
+        Log.d(MAP_LAYERS_TAG, "Map ready, restored type $savedType")
         Log.d(TAG, "Map is ready")
 
         applyMapStyle()
+
+        setupLayersButton()
 
         googleMap.uiSettings.isZoomControlsEnabled = true
         googleMap.uiSettings.isCompassEnabled = true // تأكد من تفعيل البوصلة
@@ -176,7 +175,7 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
             } else {
                 Log.w(TAG, "moveToLocation called before map ready")
             }
-            Toast.makeText(this, "الخريطة غير جاهزة بعد.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "الخريطة غير جاهزة بعد", Toast.LENGTH_SHORT).show()
             return
         }
         pendingCameraUpdate = null
@@ -246,19 +245,39 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
-    private fun toggleMapType() {
-        val currentMap = map
-        if (currentMap == null) {
-            Log.w(TAG, "toggleMapType called before map ready")
-            Toast.makeText(this, "الخريطة غير جاهزة بعد.", Toast.LENGTH_SHORT).show()
-            return
+    private fun setupLayersButton() {
+        val layersButton = binding.layersButton
+        layersButton.isEnabled = true
+        layersButton.setOnClickListener {
+            val currentMap = map
+            if (currentMap == null) {
+                Log.w(MAP_LAYERS_TAG, "Layers button tapped before map ready")
+                Toast.makeText(this, "الخريطة غير جاهزة بعد", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val nextType = nextMapType(currentMap.mapType)
+            currentMap.mapType = nextType
+            getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+                .edit()
+                .putInt(KEY_MAP_TYPE, nextType)
+                .apply()
+            Log.d(MAP_LAYERS_TAG, "Map type set to $nextType")
+            val label = when (nextType) {
+                GoogleMap.MAP_TYPE_NORMAL -> "الوضع: عادي"
+                GoogleMap.MAP_TYPE_SATELLITE -> "الوضع: قمر صناعي"
+                GoogleMap.MAP_TYPE_TERRAIN -> "الوضع: تضاريس"
+                GoogleMap.MAP_TYPE_HYBRID -> "الوضع: هجين"
+                else -> "الوضع: عادي"
+            }
+            Toast.makeText(this, label, Toast.LENGTH_SHORT).show()
         }
-        currentMap.mapType = when (currentMap.mapType) {
-            GoogleMap.MAP_TYPE_NORMAL -> GoogleMap.MAP_TYPE_SATELLITE
-            GoogleMap.MAP_TYPE_SATELLITE -> GoogleMap.MAP_TYPE_TERRAIN
-            GoogleMap.MAP_TYPE_TERRAIN -> GoogleMap.MAP_TYPE_HYBRID
-            else -> GoogleMap.MAP_TYPE_NORMAL
-        }
+    }
+
+    private fun nextMapType(current: Int): Int = when (current) {
+        GoogleMap.MAP_TYPE_NORMAL -> GoogleMap.MAP_TYPE_SATELLITE
+        GoogleMap.MAP_TYPE_SATELLITE -> GoogleMap.MAP_TYPE_TERRAIN
+        GoogleMap.MAP_TYPE_TERRAIN -> GoogleMap.MAP_TYPE_HYBRID
+        else -> GoogleMap.MAP_TYPE_NORMAL
     }
 
     private fun initPlacesSearch() {
@@ -496,5 +515,8 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
     companion object {
         private const val TAG = "SelectLocationActivity"
         private const val PLACES_TAG = "PlacesSearch"
+        private const val PREFS_NAME = "map_prefs"
+        private const val KEY_MAP_TYPE = "map_type"
+        private const val MAP_LAYERS_TAG = "MapLayers"
     }
 }
