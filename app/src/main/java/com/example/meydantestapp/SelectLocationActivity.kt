@@ -8,56 +8,76 @@ import android.location.Address
 import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
+import android.util.Log
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import com.example.meydantestapp.databinding.ActivitySelectLocationBinding
+import com.example.meydantestapp.util.PlacesInitializer
+import com.example.meydantestapp.util.PlayServicesUtils
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapView
 import com.google.android.gms.maps.OnMapReadyCallback
-import com.google.android.gms.maps.model.*
-import com.google.android.libraries.places.api.Places
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.MapStyleOptions
+import com.google.android.gms.maps.model.Marker
+import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.libraries.places.api.model.Place
 import com.google.android.libraries.places.widget.AutocompleteSupportFragment
 import com.google.android.libraries.places.widget.listener.PlaceSelectionListener
-import java.util.*
+import java.util.Locale
 
 class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var binding: ActivitySelectLocationBinding
-    private lateinit var map: GoogleMap
-    private lateinit var mapView: MapView
-    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private var map: GoogleMap? = null
+    private var mapView: MapView? = null
+    private var fusedLocationClient: FusedLocationProviderClient? = null
     private var selectedMarker: Marker? = null
     private var initialLatitude: Double? = null
     private var initialLongitude: Double? = null
     private val LOCATION_PERMISSION_REQUEST_CODE = 1002
+    private var isMapViewInitialized = false
+    private var arePlacesReady = false
+
+    companion object {
+        private const val TAG = "SelectLocationActivity"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivitySelectLocationBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // تهيئة Places API هنا بشكل مبكر ونهائي (للتأكيد مرة أخرى)
-        if (!Places.isInitialized()) {
-            Places.initialize(applicationContext, getString(R.string.google_maps_key))
-        }
-
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-
         initialLatitude = intent.getDoubleExtra("latitude", 0.0).takeIf { it != 0.0 }
         initialLongitude = intent.getDoubleExtra("longitude", 0.0).takeIf { it != 0.0 }
 
         mapView = binding.mapView
-        mapView.onCreate(savedInstanceState)
-        mapView.getMapAsync(this)
 
-        // زر حفظ الموقع (FAB)
+        val servicesOk = PlayServicesUtils.ensureAvailableOrExplain(this)
+        arePlacesReady = if (servicesOk) PlacesInitializer.initIfNeeded(this) else false
+
+        if (!arePlacesReady) {
+            Log.w(TAG, "Maps/Places disabled due to missing services.")
+            disableMapsUi()
+            Toast.makeText(
+                this,
+                "خدمات Google غير متوفرة. تم تعطيل ميزات الخريطة مؤقتًا.",
+                Toast.LENGTH_LONG
+            ).show()
+        } else {
+            fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+            mapView?.onCreate(savedInstanceState)
+            isMapViewInitialized = true
+            mapView?.getMapAsync(this)
+            initPlacesSearch()
+        }
+
         binding.btnSaveLocation.setOnClickListener {
             selectedMarker?.let {
                 val geocoder = Geocoder(this, Locale.getDefault())
@@ -73,26 +93,34 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
                 plusCode?.let { code -> intent.putExtra("plusCode", code) }
                 setResult(Activity.RESULT_OK, intent)
                 finish()
+            } ?: run {
+                Toast.makeText(this, "يرجى اختيار موقع على الخريطة أولاً.", Toast.LENGTH_SHORT).show()
             }
         }
 
-        // زر تغيير نوع الخريطة (الطبقات)
         binding.layersButton.setOnClickListener {
-            toggleMapType()
+            if (!arePlacesReady || map == null) {
+                Toast.makeText(
+                    this,
+                    "الخريطة غير جاهزة بعد.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                toggleMapType()
+            }
         }
-
-        initPlacesSearch()
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
         map = googleMap
+        Log.d(TAG, "Map is ready")
 
         applyMapStyle()
 
-        map.uiSettings.isZoomControlsEnabled = true
-        map.uiSettings.isCompassEnabled = true // تأكد من تفعيل البوصلة
-        map.uiSettings.isMapToolbarEnabled = true
-        map.uiSettings.isMyLocationButtonEnabled = true // الإبقاء على زر GPS التلقائي
+        googleMap.uiSettings.isZoomControlsEnabled = true
+        googleMap.uiSettings.isCompassEnabled = true // تأكد من تفعيل البوصلة
+        googleMap.uiSettings.isMapToolbarEnabled = true
+        googleMap.uiSettings.isMyLocationButtonEnabled = true // الإبقاء على زر GPS التلقاي
 
         // **تعديل الـ padding لدفع العناصر التلقائية بعيداً عن عناصرك المخصصة:**
         // القيم (left, top, right, bottom)
@@ -100,7 +128,7 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
         // top: 200dp لدفع كل شيء أسفل شريط البحث
         // right: 0 (لا يوجد عنصر مخصص على اليمين)
         // bottom: 100dp لدفع أزرار الزوم للأعلى بعيداً عن زر الحفظ
-        map.setPadding(80, 200, 0, 100)
+        googleMap.setPadding(80, 200, 0, 100)
 
         if (initialLatitude != null && initialLongitude != null) {
             val latLng = LatLng(initialLatitude!!, initialLongitude!!)
@@ -109,26 +137,44 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
             enableUserLocation() // تمكين موقع المستخدم عند الدخول لأول مرة
         }
 
-        map.setOnMapClickListener { latLng ->
+        googleMap.setOnMapClickListener { latLng ->
             moveToLocation(latLng, "الموقع المحدد")
         }
     }
 
     private fun moveToLocation(latLng: LatLng, title: String) {
-        map.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
+        val currentMap = map
+        if (currentMap == null) {
+            Log.w(TAG, "moveToLocation called before map ready")
+            return
+        }
+        currentMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
         selectedMarker?.remove()
-        selectedMarker = map.addMarker(MarkerOptions().position(latLng).title(title))
+        selectedMarker = currentMap.addMarker(MarkerOptions().position(latLng).title(title))
     }
 
     private fun enableUserLocation() {
+        val currentMap = map
+        val client = fusedLocationClient
+        if (currentMap == null || client == null) {
+            Log.w(TAG, "enableUserLocation called before dependencies ready")
+            return
+        }
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-            == PackageManager.PERMISSION_GRANTED) {
-            map.isMyLocationEnabled = true
-            fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            try {
+                currentMap.isMyLocationEnabled = true
+            } catch (security: SecurityException) {
+                Log.e(TAG, "Failed to enable my location layer", security)
+            }
+            client.lastLocation.addOnSuccessListener { location: Location? ->
                 location?.let {
                     val userLatLng = LatLng(it.latitude, it.longitude)
                     moveToLocation(userLatLng, "موقعي الحالي")
                 }
+            }.addOnFailureListener { error ->
+                Log.e(TAG, "Failed to obtain last location", error)
             }
         } else {
             ActivityCompat.requestPermissions(
@@ -150,18 +196,25 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun applyMapStyle() {
+        val currentMap = map ?: return
         try {
             val nightMode = AppCompatDelegate.getDefaultNightMode()
             val styleResId = if (nightMode == AppCompatDelegate.MODE_NIGHT_YES)
                 R.raw.map_style_night else R.raw.map_style_day
-            map.setMapStyle(MapStyleOptions.loadRawResourceStyle(this, styleResId))
+            currentMap.setMapStyle(MapStyleOptions.loadRawResourceStyle(this, styleResId))
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Failed to apply map style", e)
         }
     }
 
     private fun toggleMapType() {
-        map.mapType = when (map.mapType) {
+        val currentMap = map
+        if (currentMap == null) {
+            Log.w(TAG, "toggleMapType called before map ready")
+            Toast.makeText(this, "الخريطة غير جاهزة بعد.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        currentMap.mapType = when (currentMap.mapType) {
             GoogleMap.MAP_TYPE_NORMAL -> GoogleMap.MAP_TYPE_SATELLITE
             GoogleMap.MAP_TYPE_SATELLITE -> GoogleMap.MAP_TYPE_TERRAIN
             GoogleMap.MAP_TYPE_TERRAIN -> GoogleMap.MAP_TYPE_HYBRID
@@ -170,43 +223,64 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun initPlacesSearch() {
-        // تم نقل تهيئة Places.initialize() إلى onCreate()
-        val autocompleteFragment = supportFragmentManager
-            .findFragmentById(R.id.autocomplete_fragment) as AutocompleteSupportFragment
+        try {
+            val fragment = supportFragmentManager
+                .findFragmentById(R.id.autocomplete_fragment) as? AutocompleteSupportFragment
 
-        autocompleteFragment.setPlaceFields(listOf(Place.Field.ID, Place.Field.NAME, Place.Field.LAT_LNG))
+            if (fragment == null) {
+                Log.w(TAG, "Autocomplete fragment not found")
+                return
+            }
 
-        autocompleteFragment.setOnPlaceSelectedListener(object : PlaceSelectionListener {
-            override fun onPlaceSelected(place: Place) {
-                place.latLng?.let {
-                    moveToLocation(it, place.name ?: "")
+            fragment.setPlaceFields(listOf(Place.Field.ID, Place.Field.NAME, Place.Field.LAT_LNG))
+
+            fragment.setOnPlaceSelectedListener(object : PlaceSelectionListener {
+                override fun onPlaceSelected(place: Place) {
+                    place.latLng?.let {
+                        moveToLocation(it, place.name ?: "")
+                    }
                 }
-            }
 
-            override fun onError(status: com.google.android.gms.common.api.Status) {
-                Toast.makeText(this@SelectLocationActivity, "فشل في البحث: ${status.statusMessage}", Toast.LENGTH_SHORT).show()
-            }
-        })
+                override fun onError(status: com.google.android.gms.common.api.Status) {
+                    Log.e(TAG, "Autocomplete error: ${status.statusMessage}")
+                    Toast.makeText(
+                        this@SelectLocationActivity,
+                        "فشل في البحث: ${status.statusMessage}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            })
+        } catch (error: Exception) {
+            Log.e(TAG, "Failed to initialize Places search", error)
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        mapView.onResume()
+        if (isMapViewInitialized) {
+            mapView?.onResume()
+        }
     }
 
     override fun onPause() {
         super.onPause()
-        mapView.onPause()
+        if (isMapViewInitialized) {
+            mapView?.onPause()
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        mapView.onDestroy()
+        if (isMapViewInitialized) {
+            mapView?.onDestroy()
+        }
     }
 
     override fun onLowMemory() {
         super.onLowMemory()
-        mapView.onLowMemory()
+        if (isMapViewInitialized) {
+            mapView?.onLowMemory()
+        }
     }
 
     private fun extractPlusCode(address: Address?): String? {
@@ -222,5 +296,14 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
         }
         val feature = address.featureName?.trim()
         return feature?.takeIf { it.isNotEmpty() && it.contains('+') }
+    }
+
+    private fun disableMapsUi() {
+        binding.mapView.visibility = View.INVISIBLE
+        binding.layersButton.isEnabled = false
+        binding.layersButton.alpha = 0.5f
+        supportFragmentManager.findFragmentById(R.id.autocomplete_fragment)?.let { fragment ->
+            supportFragmentManager.beginTransaction().hide(fragment).commitAllowingStateLoss()
+        }
     }
 }
