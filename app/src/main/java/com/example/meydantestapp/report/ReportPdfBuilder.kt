@@ -8,6 +8,8 @@ import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextDirectionHeuristics
 import android.text.TextPaint
+import android.text.TextUtils
+import android.view.View
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import com.example.meydantestapp.R
@@ -20,6 +22,7 @@ import java.lang.reflect.Method
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import kotlin.collections.ArrayDeque
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -90,6 +93,20 @@ class ReportPdfBuilder(
         // الصفحات المركّبة الجاهزة (عمودية) — الاسم الجديد بدون شرطات
         val sitepages: List<String>? = null
     )
+
+    private sealed interface PageDescriptor {
+        object Info : PageDescriptor
+        data class SitePage(val url: String) : PageDescriptor
+        data class LegacyPhotos(val urls: List<String>) : PageDescriptor
+    }
+
+    private val footerPaint by lazy {
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = footerSp(10f)
+            color = Color.DKGRAY
+            textAlign = Paint.Align.CENTER
+        }
+    }
 
     /* ---------- تنزيل صورة عبر HTTP ---------- */
     private fun downloadBmp(url: String): Bitmap? = runCatching {
@@ -243,6 +260,22 @@ class ReportPdfBuilder(
         return Bitmap.createScaledBitmap(bitmap, w, h, true)
     }
 
+    private fun drawFooter(canvas: Canvas, pageIndex: Int, totalPages: Int, isRtlUi: Boolean) {
+        val raw = Companion.formatFooter(pageIndex, totalPages)
+        val text = if (isRtlUi) {
+            PdfBidiUtils.wrapMixed(raw, rtlBase = true).toString()
+        } else {
+            raw
+        }
+        val x = pageWidth / 2f
+        val y = pageHeight - footerDp(16f)
+        canvas.drawText(text, x, y, footerPaint)
+    }
+
+    private fun footerDp(v: Float) = v * context.resources.displayMetrics.density
+
+    private fun footerSp(v: Float) = v * context.resources.displayMetrics.scaledDensity
+
     /* ---------- إنشاء PDF ---------- */
     fun buildPdf(data: DailyReport, logo: Bitmap?, outFile: File): File {
         val pdf = PdfDocument()
@@ -268,16 +301,6 @@ class ReportPdfBuilder(
         val bodyPaint = arabicPaint {
             color = black
             textSize = sp(9.5f)
-            textAlign = Paint.Align.RIGHT
-        }
-        val footerPaintLeft = arabicPaint {
-            color = black
-            textSize = sp(8f)
-            textAlign = Paint.Align.LEFT
-        }
-        val footerPaintRight = arabicPaint {
-            color = black
-            textSize = sp(8f)
             textAlign = Paint.Align.RIGHT
         }
         val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -313,6 +336,247 @@ class ReportPdfBuilder(
         val fieldLineSpacing = fieldLineSpacingPt.let { pxFromPt(it).coerceAtLeast(1) }
         val fieldLineSpacingAdd = dpF(fieldLineSpacingPt)
 
+        val sitePages = data.sitepages?.filter { isHttpUrl(it) }.orEmpty()
+        val legacyCombined = ((data.photoUrls ?: emptyList()) + (data.site_photos ?: emptyList()))
+            .filter { isHttpUrl(it) }
+
+        fun measureInfoPages(): Int {
+            val bottomLimit = pageHeight - marginPx - footerBlockHeight
+            var pages = 0
+            var measureY = 0
+            var currentSectionTitleMeasure: String? = null
+
+            fun startMeasurePage() {
+                pages += 1
+                measureY = marginPx
+                val headerH = dp(90)
+                measureY += headerH + dp(6)
+                val titleHeight = (titlePaint.fontMetrics.bottom - titlePaint.fontMetrics.top).roundToInt()
+                measureY += titleHeight + dp(4)
+            }
+
+            fun ensureMeasureSpace(required: Int): Boolean {
+                return if (measureY + required > bottomLimit) {
+                    startMeasurePage()
+                    true
+                } else {
+                    false
+                }
+            }
+
+            fun measureSectionHeader(text: String) {
+                currentSectionTitleMeasure = text
+                val h = (headerPaint.fontMetrics.bottom - headerPaint.fontMetrics.top).roundToInt()
+                if (ensureMeasureSpace(h + dp(4))) {
+                    currentSectionTitleMeasure = text
+                }
+                measureY += h + dp(2)
+            }
+
+            fun measureEndSectionDivider() {
+                measureY += dp(6)
+                currentSectionTitleMeasure = null
+            }
+
+            fun measureKeyValue(label: String, valueRaw: String?, linkUrlRaw: String? = null) {
+                if (valueRaw.isNullOrBlank()) return
+
+                val linkUrl = linkUrlRaw?.trim()?.let { trimmed ->
+                    if (isHttpUrl(trimmed)) trimmed else null
+                }
+
+                val horizontalGap = dp(10)
+                val horizontalPadding = fieldHorizontalPadding
+                val verticalPadding = fieldVerticalPadding
+                val minValueWidth = dp(72)
+                val labelText = "$label:"
+                val wrappedLabel = PdfBidiUtils.wrapMixed(labelText, rtlBase = true)
+
+                val valueTrimmed = valueRaw.trim()
+                val valueIsRtl = PdfBidiUtils.isArabicLikely(valueTrimmed)
+                val normalizedValue = if (valueIsRtl) {
+                    normalizeArabicCommaSpacing(valueTrimmed)
+                } else {
+                    valueTrimmed
+                }
+                val wrappedValue = PdfBidiUtils.wrapMixed(normalizedValue, rtlBase = valueIsRtl)
+
+                val valuePaint = if (linkUrl != null) {
+                    TextPaint(bodyPaint).apply {
+                        color = hyperlinkBlue
+                        isUnderlineText = true
+                    }
+                } else {
+                    bodyPaint
+                }
+
+                val maxLabelWidth = (contentWidth * 0.45f).toInt()
+                val measuredLabel = bodyPaint.measureText(wrappedLabel.toString()).roundToInt() + horizontalPadding * 2
+                var labelWidth = max(dp(64), min(maxLabelWidth, measuredLabel))
+
+                var valueWidth = contentWidth - labelWidth - horizontalGap
+                if (valueWidth < minValueWidth) {
+                    val adjustedLabelWidth = (contentWidth - horizontalGap - minValueWidth).coerceAtLeast(dp(48))
+                    labelWidth = min(labelWidth, adjustedLabelWidth)
+                    valueWidth = contentWidth - labelWidth - horizontalGap
+                }
+
+                val labelAreaWidth = max(1, labelWidth - horizontalPadding * 2)
+                val valueAreaWidth = max(1, valueWidth - horizontalPadding * 2)
+
+                val labelLayout = createLayout(
+                    wrappedLabel,
+                    bodyPaint,
+                    labelAreaWidth,
+                    rtl = true,
+                    spacingMult = 1f,
+                    spacingAdd = fieldLineSpacingAdd
+                )
+                val valueAlign = if (valueIsRtl) Layout.Alignment.ALIGN_NORMAL else Layout.Alignment.ALIGN_OPPOSITE
+                val valueLayout = createLayout(
+                    wrappedValue,
+                    valuePaint,
+                    valueAreaWidth,
+                    rtl = valueIsRtl,
+                    align = valueAlign,
+                    spacingMult = 1f,
+                    spacingAdd = fieldLineSpacingAdd
+                )
+
+                val rowHeight = max(labelLayout.height, valueLayout.height) + verticalPadding * 2
+                val requiredHeight = rowHeight + fieldLineSpacing
+                var attempts = 0
+                while (ensureMeasureSpace(requiredHeight)) {
+                    val title = currentSectionTitleMeasure
+                    if (title != null && attempts < 3) {
+                        measureSectionHeader(title)
+                        attempts++
+                    } else {
+                        break
+                    }
+                }
+
+                measureY += rowHeight + fieldLineSpacing
+            }
+
+            fun measureWeatherRow(tempC: String?, condition: String?) {
+                val temperatureText = (tempC?.trim()?.ifBlank { null })?.let { "$it°C" } ?: "—"
+                val conditionText = condition?.trim()?.ifBlank { "—" } ?: "—"
+
+                measureKeyValue("درجة الحرارة", temperatureText)
+                measureKeyValue("حالة الطقس", conditionText)
+            }
+
+            fun measureBulletedSection(title: String, items: List<String>?) {
+                val list = items?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
+                measureSectionHeader(title)
+                if (list.isEmpty()) {
+                    measureEndSectionDivider()
+                    return
+                }
+
+                val bulletIndent = dp(14)
+                val bulletGap = dp(8)
+                val bulletRadius = dpF(2.6f)
+                val bulletRadiusInt = bulletRadius.roundToInt()
+                val itemSpacing = fieldLineSpacing
+
+                list.forEach { rawItem ->
+                    val trimmed = rawItem.trim()
+                    val itemIsRtl = PdfBidiUtils.isArabicLikely(trimmed)
+                    val wrappedItem = if (itemIsRtl) {
+                        val withComma = normalizeArabicCommaSpacing(trimmed)
+                        PdfBidiUtils.wrapMixed(withComma, rtlBase = true)
+                    } else {
+                        PdfBidiUtils.wrapMixed(trimmed, rtlBase = false)
+                    }
+
+                    val textLeft: Int
+                    val layoutWidth: Int
+                    if (!itemIsRtl) {
+                        textLeft = contentLeft + bulletIndent + bulletRadiusInt + bulletGap
+                        layoutWidth = (contentRight - textLeft).coerceAtLeast(1)
+                    } else {
+                        val textRight = contentRight - (bulletIndent + bulletRadiusInt + bulletGap)
+                        layoutWidth = (textRight - contentLeft).coerceAtLeast(1)
+                        textLeft = contentLeft
+                    }
+
+                    val layout = createLayout(
+                        wrappedItem,
+                        bodyPaint,
+                        layoutWidth,
+                        rtl = itemIsRtl,
+                        spacingMult = 1f,
+                        spacingAdd = fieldLineSpacingAdd
+                    )
+
+                    while (ensureMeasureSpace(layout.height + itemSpacing)) {
+                        measureSectionHeader(title)
+                    }
+
+                    measureY += layout.height + itemSpacing
+                }
+                measureEndSectionDivider()
+            }
+
+            fun measureLabor(skilled: String?, unskilled: String?, total: String?) {
+                val items = listOf(
+                    "عمالة ماهرة" to skilled,
+                    "عمالة غير ماهرة" to unskilled,
+                    "الإجمالي" to total
+                )
+                measureSectionHeader("العمالة")
+                var rendered = false
+                items.forEach { (label, value) ->
+                    val cleaned = value?.trim()?.takeIf { it.isNotEmpty() } ?: return@forEach
+                    measureKeyValue(label, cleaned)
+                    rendered = true
+                }
+                measureEndSectionDivider()
+                if (!rendered) {
+                    // divider already added, nothing else
+                }
+            }
+
+            startMeasurePage()
+
+            val (tempFromText, condFromText) = parseWeatherFromCombined(data.weatherText)
+            val tempToUse = data.temperatureC ?: tempFromText
+            val condToUse = data.weatherCondition ?: condFromText
+
+            measureSectionHeader("معلومات التقرير")
+            measureKeyValue("اسم المؤسسة", data.organizationName)
+            measureKeyValue("اسم المشروع", data.projectName)
+            measureKeyValue("موقع المشروع", data.projectLocation, data.projectLocationGoogleMapsUrl)
+            measureKeyValue("رقم التقرير", data.reportNumber)
+            measureKeyValue("تاريخ التقرير", data.dateText)
+            measureWeatherRow(tempToUse, condToUse)
+            measureKeyValue("تم إنشاء التقرير بواسطة", data.createdBy)
+            measureEndSectionDivider()
+
+            measureBulletedSection("نشاطات المشروع", data.dailyActivities)
+            measureLabor(data.skilledLabor, data.unskilledLabor, data.totalLabor)
+            measureBulletedSection("الآلات والمعدات", data.resourcesUsed)
+            measureBulletedSection("العوائق والتحديات", data.challenges)
+            measureBulletedSection("الملاحظات", data.notes)
+
+            return pages.coerceAtLeast(1)
+        }
+
+        val infoPageCount = measureInfoPages()
+        val descriptors = buildList {
+            repeat(infoPageCount) { add(PageDescriptor.Info) }
+            if (sitePages.isNotEmpty()) {
+                sitePages.forEach { url -> add(PageDescriptor.SitePage(url)) }
+            } else if (legacyCombined.isNotEmpty()) {
+                legacyCombined.chunked(9).forEach { chunk -> add(PageDescriptor.LegacyPhotos(chunk)) }
+            }
+        }
+        val totalPages = descriptors.size
+        val descriptorQueue: ArrayDeque<PageDescriptor> = ArrayDeque(descriptors)
+        val isRtlUi = TextUtils.getLayoutDirectionFromLocale(Locale.getDefault()) == View.LAYOUT_DIRECTION_RTL
+
         var pageIndex = 0
         lateinit var page: PdfDocument.Page
         lateinit var canvas: Canvas
@@ -321,8 +585,12 @@ class ReportPdfBuilder(
 
         fun bottomLimit() = pageHeight - marginPx - footerBlockHeight
 
-        fun startPageWithHeader() {
-            pageIndex += 1
+        fun startPageWithHeader(): PageDescriptor {
+            if (descriptorQueue.isEmpty()) {
+                throw IllegalStateException("No descriptors remaining for PDF rendering")
+            }
+            val descriptor = descriptorQueue.removeFirst()
+            pageIndex = totalPages - descriptorQueue.size
             val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageIndex).create()
             page = pdf.startPage(pageInfo)
             canvas = page.canvas
@@ -346,17 +614,15 @@ class ReportPdfBuilder(
             val wrappedTitle = PdfBidiUtils.wrapMixed("التقرير اليومي", rtlBase = true).toString()
             canvas.drawText(wrappedTitle, (pageWidth / 2f), y + titlePaint.textSize, titlePaint)
             y += (titlePaint.fontMetrics.bottom - titlePaint.fontMetrics.top).roundToInt() + dp(4)
+            currentSectionTitle = null
+            return descriptor
         }
 
         fun finishPage() {
             val lineY = pageHeight - marginPx - footerBlockHeight + dp(4)
             canvas.drawLine(contentLeft.toFloat(), lineY.toFloat(), contentRight.toFloat(), lineY.toFloat(), footerDividerPaint)
 
-            val baseY = pageHeight - marginPx.toFloat()
-            val pageLabel = PdfBidiUtils.wrapMixed("صفحة $pageIndex", rtlBase = true).toString()
-            val footerLabel = PdfBidiUtils.wrapMixed("تم إنشاء التقرير في تطبيق ميدان", rtlBase = true).toString()
-            canvas.drawText(pageLabel, contentLeft.toFloat(), baseY, footerPaintLeft)
-            canvas.drawText(footerLabel, contentRight.toFloat(), baseY, footerPaintRight)
+            drawFooter(canvas, pageIndex, totalPages, isRtlUi)
 
             pdf.finishPage(page)
         }
@@ -616,7 +882,14 @@ class ReportPdfBuilder(
                 val weights = rowsSpec.map { (rowsSpec.maxOrNull() ?: 2).toFloat() / it }.toFloatArray()
 
                 val availableHeight = bottomLimit() - y
-                if (availableHeight < dp(120)) { finishPage(); startPageWithHeader(); drawSectionHeader("صور التقرير اليومي") }
+                if (availableHeight < dp(120)) {
+                    finishPage()
+                    val descriptor = startPageWithHeader()
+                    check(descriptor is PageDescriptor.LegacyPhotos) {
+                        "Unexpected descriptor $descriptor while continuing legacy photos"
+                    }
+                    drawSectionHeader("صور التقرير اليومي")
+                }
 
                 val vGap = dp(8)
                 val hGap = dp(8)
@@ -674,14 +947,26 @@ class ReportPdfBuilder(
                     rowTop += rowHeight + vGap
                 }
 
-                if (index < all.size) { finishPage(); startPageWithHeader(); drawSectionHeader("صور التقرير اليومي") } else { y = rowTop }
+                if (index < all.size) {
+                    finishPage()
+                    val descriptor = startPageWithHeader()
+                    check(descriptor is PageDescriptor.LegacyPhotos) {
+                        "Unexpected descriptor $descriptor while continuing legacy photos"
+                    }
+                    drawSectionHeader("صور التقرير اليومي")
+                } else {
+                    y = rowTop
+                }
             }
         }
 
         // عرض الصفحات المركّبة (Fit-Inside داخل مساحة الصور)
         fun drawSitePagesSection(urls: List<String>) {
             urls.forEach { url ->
-                startPageWithHeader()
+                val descriptor = startPageWithHeader()
+                check(descriptor is PageDescriptor.SitePage && descriptor.url == url) {
+                    "Unexpected descriptor $descriptor while rendering site page $url"
+                }
                 drawSectionHeader("صور التقرير اليومي")
 
                 // مساحة الصور من الموضع الحالي حتى ما قبل التذييل
@@ -706,7 +991,10 @@ class ReportPdfBuilder(
 
         /* ========== بناء المستند ========== */
         // 1) صفحة المعلومات/النصوص
-        startPageWithHeader()
+        val firstDescriptor = startPageWithHeader()
+        check(firstDescriptor is PageDescriptor.Info) {
+            "Expected INFO descriptor for first page but found $firstDescriptor"
+        }
 
         val (tempFromText, condFromText) = parseWeatherFromCombined(data.weatherText)
         val tempToUse = data.temperatureC ?: tempFromText
@@ -731,19 +1019,21 @@ class ReportPdfBuilder(
         finishPage()
 
         // 2) قسم الصور
-        val sitePages = data.sitepages?.filter { isHttpUrl(it) }.orEmpty()
         if (sitePages.isNotEmpty()) {
             // ✅ استخدام الصفحات المركّبة داخل مساحة الصور (بدون قص)
             drawSitePagesSection(sitePages)
-        } else {
+        } else if (legacyCombined.isNotEmpty()) {
             // 🔁 رجوع للسلوك القديم
-            val legacyCombined = ((data.photoUrls ?: emptyList()) + (data.site_photos ?: emptyList()))
-                .filter { isHttpUrl(it) }
-            if (legacyCombined.isNotEmpty()) {
-                startPageWithHeader()
-                drawLegacyPhotos(legacyCombined)
-                finishPage()
+            val descriptor = startPageWithHeader()
+            check(descriptor is PageDescriptor.LegacyPhotos) {
+                "Unexpected descriptor $descriptor while rendering legacy photos"
             }
+            drawLegacyPhotos(legacyCombined)
+            finishPage()
+        }
+
+        check(descriptorQueue.isEmpty()) {
+            "Unused page descriptors remaining: ${descriptorQueue.size}"
         }
 
         // إخراج الملف
@@ -751,6 +1041,10 @@ class ReportPdfBuilder(
         FileOutputStream(outFile).use { pdf.writeTo(it) }
         pdf.close()
         return outFile
+    }
+
+    companion object {
+        internal fun formatFooter(pageIndex: Int, totalPages: Int): String = "Page $pageIndex of $totalPages"
     }
 
     private object PdfLinkAnnotationSupport {
