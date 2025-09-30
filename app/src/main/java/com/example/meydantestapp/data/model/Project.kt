@@ -46,14 +46,13 @@ data class Project(
     companion object {
         fun from(doc: DocumentSnapshot): Project {
             val data = doc.data ?: emptyMap<String, Any?>()
-            val startConversion = FirestoreTimestampConverter.fromAny(data["startDate"])
-            val endConversion = FirestoreTimestampConverter.fromAny(data["endDate"])
+            val startRaw = data["startDate"]
+            val endRaw = data["endDate"]
+            val startTs = FirestoreTimestampConverter.fromAny(startRaw)
+            val endTs = FirestoreTimestampConverter.fromAny(endRaw)
 
-            doc.migrateTimestampIfNeeded("startDate", startConversion)
-            doc.migrateTimestampIfNeeded("endDate", endConversion)
-
-            val startTs = startConversion.resolvedTimestamp
-            val endTs = endConversion.resolvedTimestamp
+            doc.migrateTimestampIfNeeded("startDate", startRaw, startTs)
+            doc.migrateTimestampIfNeeded("endDate", endRaw, endTs)
 
             Log.d(
                 "ProjectModel",

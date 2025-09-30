@@ -1,16 +1,18 @@
 package com.example.meydantestapp.utils
 
 import android.util.Log
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 
 private const val TAG_MIGRATION = "FirestoreDateMigration"
 
 fun DocumentSnapshot.migrateTimestampIfNeeded(
     fieldName: String,
-    conversion: FirestoreTimestampConverter.ConversionResult
+    originalValue: Any?,
+    resolved: Timestamp?
 ) {
-    val timestamp = conversion.resolvedTimestamp ?: return
-    if (!conversion.needsMigration) return
+    val timestamp = resolved ?: return
+    if (originalValue == null || originalValue is Timestamp) return
 
     reference.update(fieldName, timestamp)
         .addOnSuccessListener {

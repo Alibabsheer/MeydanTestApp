@@ -149,14 +149,11 @@ class ProjectDetailsActivity : AppCompatActivity() {
 
                 Log.d("ProjectDetails", "Raw project dates start=$startAny end=$endAny")
 
-                val startConversion = FirestoreTimestampConverter.fromAny(startAny)
-                val endConversion = FirestoreTimestampConverter.fromAny(endAny)
+                val startTs = FirestoreTimestampConverter.fromAny(startAny)
+                val endTs = FirestoreTimestampConverter.fromAny(endAny)
 
-                doc.migrateTimestampIfNeeded("startDate", startConversion)
-                doc.migrateTimestampIfNeeded("endDate", endConversion)
-
-                val startTs = startConversion.resolvedTimestamp
-                val endTs = endConversion.resolvedTimestamp
+                doc.migrateTimestampIfNeeded("startDate", startAny, startTs)
+                doc.migrateTimestampIfNeeded("endDate", endAny, endTs)
 
                 Log.i(
                     "ProjectDetails",
@@ -166,7 +163,7 @@ class ProjectDetailsActivity : AppCompatActivity() {
                 binding.startDateText.text = startTs.toDisplayDateString()
                 binding.endDateText.text = endTs.toDisplayDateString()
 
-                selectedProject = doc.toProjectSafe(startConversion, endConversion)
+                selectedProject = doc.toProjectSafe(startTs, endTs)
             }
             .addOnFailureListener {
                 Toast.makeText(this, "فشل في جلب تفاصيل المشروع", Toast.LENGTH_SHORT).show()

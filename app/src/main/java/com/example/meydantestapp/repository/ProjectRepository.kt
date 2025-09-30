@@ -68,8 +68,8 @@ class ProjectRepository {
             "googleMapsUrl" to ProjectLocationUtils.buildGoogleMapsUrl(latitude, longitude),
             "status" to "active",
             "workType" to "",
-            "startDate" to "",
-            "endDate" to "",
+            "startDate" to null,
+            "endDate" to null,
             "projectDescription" to projectDescription,
             "organizationId" to organizationId
         )
@@ -231,8 +231,8 @@ private fun Map<String, Any?>.buildProjectForCreate(projectId: String): Project 
         ?: ProjectLocationUtils.buildGoogleMapsUrl(latitude, longitude)
     val workType = (this["workType"] as? String)?.takeIf { it.isNotBlank() } ?: "Lump Sum"
     val contractValue = this["contractValue"].toDoubleOrNull()
-    val startConversion = FirestoreTimestampConverter.fromAny(this["startDate"])
-    val endConversion = FirestoreTimestampConverter.fromAny(this["endDate"])
+    val startTimestamp = FirestoreTimestampConverter.fromAny(this["startDate"])
+    val endTimestamp = FirestoreTimestampConverter.fromAny(this["endDate"])
     val status = (this["status"] as? String)?.takeIf { it.isNotBlank() } ?: "active"
 
     return Project(
@@ -246,8 +246,8 @@ private fun Map<String, Any?>.buildProjectForCreate(projectId: String): Project 
         googleMapsUrl = googleMapsUrl,
         workType = workType,
         contractValue = contractValue,
-        startDate = startConversion.resolvedTimestamp,
-        endDate = endConversion.resolvedTimestamp,
+        startDate = startTimestamp,
+        endDate = endTimestamp,
         status = status,
         createdAt = Timestamp.now(),
         updatedAt = Timestamp.now()
@@ -301,13 +301,13 @@ private fun Project.mergeWithUpdates(updates: Map<String, Any?>): Project {
     }
     val hasStartDateUpdate = updates.containsKey("startDate")
     val resolvedStartDate = if (hasStartDateUpdate) {
-        FirestoreTimestampConverter.fromAny(updates["startDate"]).resolvedTimestamp ?: startDate
+        FirestoreTimestampConverter.fromAny(updates["startDate"]) ?: startDate
     } else {
         startDate
     }
     val hasEndDateUpdate = updates.containsKey("endDate")
     val resolvedEndDate = if (hasEndDateUpdate) {
-        FirestoreTimestampConverter.fromAny(updates["endDate"]).resolvedTimestamp ?: endDate
+        FirestoreTimestampConverter.fromAny(updates["endDate"]) ?: endDate
     } else {
         endDate
     }

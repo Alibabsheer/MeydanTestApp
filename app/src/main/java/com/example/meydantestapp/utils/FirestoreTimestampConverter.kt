@@ -1,177 +1,115 @@
 package com.example.meydantestapp.utils
 
-import android.util.Log
 import com.google.firebase.Timestamp
-import java.text.ParseException
-import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import java.util.Date
 import java.util.Locale
-import java.util.TimeZone
 
 /**
  * Helper responsible for normalising Firestore date values.
  * Accepts values saved as Timestamp, java.util.Date, numbers (seconds / millis),
- * ISO strings and even the literal string "Timestamp(seconds=..., nanoseconds=...)".
+ * ISO strings and the literal string "Timestamp(seconds=..., nanoseconds=...)".
  */
 object FirestoreTimestampConverter {
-
-    private const val TAG = "FsTimestampConverter"
 
     private val literalTimestampRegex =
         Regex("^Timestamp\\(seconds=(\\d+),\\s*nanoseconds=(\\d+)\\)$")
 
-    private val isoPatterns = listOf(
-        "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
-        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
-        "yyyy-MM-dd'T'HH:mm:ssXXX",
-        "yyyy-MM-dd'T'HH:mm:ss'Z'",
-        "yyyy-MM-dd'T'HH:mm:ss",
-        "yyyy-MM-dd",
-        "yyyy-M-d",
-        "dd/MM/yyyy",
-        "d/M/yyyy"
-    )
+    private val customDisplayFormatter =
+        DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.getDefault())
 
-    data class ConversionResult(
-        val timestamp: Timestamp?,
-        val migratedFromString: Boolean,
-        val originalString: String? = null,
-        val legacyTimestamp: Timestamp? = null,
-        val needsMigration: Boolean = false
-    ) {
-        val resolvedTimestamp: Timestamp?
-            get() = timestamp ?: legacyTimestamp
+    fun fromAny(raw: Any?): Timestamp? = when (raw) {
+        null -> null
+        is Timestamp -> raw
+        is Date -> Timestamp(raw)
+        is java.sql.Timestamp -> Timestamp(raw.time / 1000, raw.nanos)
+        is Map<*, *> -> fromMap(raw)
+        is Number -> fromNumber(raw)
+        is String -> fromString(raw)
+        else -> null
     }
 
-    fun fromAny(raw: Any?): ConversionResult {
-        return when (raw) {
-            null -> ConversionResult(null, migratedFromString = false)
-            is Timestamp -> ConversionResult(raw, migratedFromString = false)
-            is Date -> ConversionResult(Timestamp(raw), migratedFromString = false)
-            is java.sql.Timestamp -> ConversionResult(
-                Timestamp(raw.time / 1000, raw.nanos),
-                migratedFromString = false
-            )
-            is Number -> ConversionResult(fromNumber(raw), migratedFromString = false)
-            is Map<*, *> -> ConversionResult(fromMap(raw), migratedFromString = false)
-            is String -> fromString(raw)
-            else -> {
-                Log.w(TAG, "Unsupported timestamp value type: ${raw::class.java.simpleName}")
-                ConversionResult(null, migratedFromString = false)
+    fun fromString(value: String?): Timestamp? {
+        val trimmed = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+
+        literalTimestampRegex.matchEntire(trimmed)?.let { match ->
+            val seconds = match.groupValues.getOrNull(1)?.toLongOrNull()
+            val nanos = match.groupValues.getOrNull(2)?.toIntOrNull()
+            if (seconds != null && nanos != null) {
+                return runCatching { Timestamp(seconds, nanos) }.getOrNull()
             }
         }
+
+        trimmed.toLongOrNull()?.let { numeric ->
+            fromEpochGuess(numeric)?.let { return it }
+        }
+
+        parseIsoInstant(trimmed)?.let { instant ->
+            return Timestamp(Date.from(instant))
+        }
+
+        parseCustomLocalDate(trimmed)?.let { localDate ->
+            val instant = localDate.atStartOfDay(ZoneId.systemDefault()).toInstant()
+            return Timestamp(Date.from(instant))
+        }
+
+        return null
     }
 
-    private fun fromNumber(number: Number): Timestamp? {
-        if (number is Double || number is Float) {
+    private fun fromNumber(number: Number): Timestamp? = when (number) {
+        is Double, is Float -> {
             val doubleValue = number.toDouble()
-            val secondsPart = doubleValue.toLong()
-            val nanosPart = ((doubleValue - secondsPart) * 1_000_000_000).toInt()
-            return try {
-                Timestamp(secondsPart, nanosPart)
-            } catch (e: IllegalArgumentException) {
-                Log.w(TAG, "Failed to convert fractional number $doubleValue to Timestamp", e)
-                null
-            }
+            val seconds = doubleValue.toLong()
+            val nanos = ((doubleValue - seconds) * 1_000_000_000).toInt()
+            runCatching { Timestamp(seconds, nanos) }.getOrNull()
         }
-
-        val longValue = number.toLong()
-        return fromEpochGuess(longValue)
+        else -> fromEpochGuess(number.toLong())
     }
 
     private fun fromMap(map: Map<*, *>): Timestamp? {
         val seconds = (map["seconds"] as? Number)?.toLong()
-        val nanoseconds = (map["nanoseconds"] as? Number)?.toInt() ?: 0
-        return if (seconds != null) {
-            try {
-                Timestamp(seconds, nanoseconds)
-            } catch (e: IllegalArgumentException) {
-                Log.w(TAG, "Invalid map timestamp seconds=$seconds nanos=$nanoseconds")
-                null
-            }
-        } else {
-            null
+        val nanos = (map["nanoseconds"] as? Number)?.toInt() ?: 0
+        if (seconds != null) {
+            return runCatching { Timestamp(seconds, nanos) }.getOrNull()
         }
-    }
-
-    private fun fromString(value: String): ConversionResult {
-        val trimmed = value.trim()
-        if (trimmed.isEmpty()) {
-            return ConversionResult(null, migratedFromString = false)
-        }
-
-        literalTimestampRegex.matchEntire(trimmed)?.let { matchResult ->
-            val legacy = parseLegacyLiteral(matchResult)
-            return ConversionResult(
-                timestamp = null,
-                migratedFromString = false,
-                originalString = trimmed,
-                legacyTimestamp = legacy,
-                needsMigration = legacy != null
-            )
-        }
-
-        trimmed.toLongOrNull()?.let { numeric ->
-            val ts = fromEpochGuess(numeric)
-            if (ts != null) {
-                return ConversionResult(
-                    ts,
-                    migratedFromString = true,
-                    originalString = trimmed,
-                    needsMigration = true
-                )
-            }
-        }
-
-        parseIsoDate(trimmed)?.let { parsed ->
-            return ConversionResult(
-                Timestamp(parsed),
-                migratedFromString = true,
-                originalString = trimmed,
-                needsMigration = true
-            )
-        }
-
-        Log.w(TAG, "Unable to parse date string: $trimmed")
-        return ConversionResult(null, migratedFromString = false, originalString = trimmed, needsMigration = false)
-    }
-
-    private fun parseIsoDate(value: String): Date? {
-        for (pattern in isoPatterns) {
-            val sdf = SimpleDateFormat(pattern, Locale.US).apply {
-                isLenient = false
-                if (pattern.contains("'Z'", ignoreCase = true) || pattern.contains("XXX")) {
-                    timeZone = TimeZone.getTimeZone("UTC")
-                }
-            }
-            try {
-                return sdf.parse(value)
-            } catch (_: ParseException) {
-                // try next
-            }
-        }
-        return null
+        val millis = (map["milliseconds"] as? Number)?.toLong()
+        return millis?.let { Timestamp(Date(it)) }
     }
 
     private fun fromEpochGuess(epochValue: Long): Timestamp? {
-        // Values larger than Jan 2286 seconds range imply milliseconds input.
         return if (epochValue > 9_999_999_999L) {
             Timestamp(Date(epochValue))
         } else {
-            Timestamp(epochValue, 0)
+            runCatching { Timestamp(epochValue, 0) }.getOrNull()
         }
     }
 
-    private fun parseLegacyLiteral(matchResult: MatchResult): Timestamp? {
-        val seconds = matchResult.groupValues.getOrNull(1)?.toLongOrNull()
-        val nanos = matchResult.groupValues.getOrNull(2)?.toIntOrNull() ?: 0
-        if (seconds == null) {
-            return null
-        }
+    private fun parseIsoInstant(value: String): Instant? {
+        runCatching { Instant.parse(value) }.getOrNull()?.let { return it }
+        runCatching { OffsetDateTime.parse(value).toInstant() }.getOrNull()?.let { return it }
+        runCatching {
+            LocalDateTime.parse(value, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+        }.getOrNull()?.let { return it }
+        runCatching {
+            LocalDate.parse(value, DateTimeFormatter.ISO_LOCAL_DATE)
+                .atStartOfDay(ZoneId.systemDefault())
+                .toInstant()
+        }.getOrNull()?.let { return it }
+        return null
+    }
+
+    private fun parseCustomLocalDate(value: String): LocalDate? {
         return try {
-            Timestamp(seconds, nanos)
-        } catch (error: IllegalArgumentException) {
-            Log.w(TAG, "Invalid legacy timestamp seconds=$seconds nanos=$nanos", error)
+            LocalDate.parse(value, customDisplayFormatter)
+        } catch (_: DateTimeParseException) {
             null
         }
     }

@@ -54,10 +54,8 @@ class CreateProjectViewModel(
             return
         }
 
-        val startConversion = FirestoreTimestampConverter.fromAny(startDateStr)
-        val endConversion = FirestoreTimestampConverter.fromAny(endDateStr)
-        val startTs = startConversion.resolvedTimestamp
-        val endTs = endConversion.resolvedTimestamp
+        val startTs = FirestoreTimestampConverter.fromAny(startDateStr)
+        val endTs = FirestoreTimestampConverter.fromAny(endDateStr)
 
         if (startTs == null || endTs == null) {
             _errorMessage.value = "تأكد من إدخال تواريخ صحيحة."

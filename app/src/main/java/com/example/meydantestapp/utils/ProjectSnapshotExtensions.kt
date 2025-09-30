@@ -2,15 +2,18 @@ package com.example.meydantestapp.utils
 
 import android.util.Log
 import com.example.meydantestapp.Project
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 
 fun DocumentSnapshot.toProjectSafe(
-    precomputedStart: FirestoreTimestampConverter.ConversionResult? = null,
-    precomputedEnd: FirestoreTimestampConverter.ConversionResult? = null
+    precomputedStart: Timestamp? = null,
+    precomputedEnd: Timestamp? = null
 ): Project? {
     val data = data ?: emptyMap<String, Any?>()
-    val startConversion = precomputedStart ?: FirestoreTimestampConverter.fromAny(data["startDate"])
-    val endConversion = precomputedEnd ?: FirestoreTimestampConverter.fromAny(data["endDate"])
+    val startRaw = data["startDate"]
+    val endRaw = data["endDate"]
+    val startTimestamp = precomputedStart ?: FirestoreTimestampConverter.fromAny(startRaw)
+    val endTimestamp = precomputedEnd ?: FirestoreTimestampConverter.fromAny(endRaw)
 
     val project = runCatching { toObject(Project::class.java) }
         .onFailure { error ->
@@ -49,11 +52,11 @@ fun DocumentSnapshot.toProjectSafe(
         project.contractValue = data["contractValue"].toDoubleOrNull()
     }
 
-    startConversion.resolvedTimestamp?.let { project.startDate = it }
-    endConversion.resolvedTimestamp?.let { project.endDate = it }
+    startTimestamp?.let { project.startDate = it }
+    endTimestamp?.let { project.endDate = it }
 
-    migrateTimestampIfNeeded("startDate", startConversion)
-    migrateTimestampIfNeeded("endDate", endConversion)
+    migrateTimestampIfNeeded("startDate", startRaw, startTimestamp)
+    migrateTimestampIfNeeded("endDate", endRaw, endTimestamp)
 
     return project
 }

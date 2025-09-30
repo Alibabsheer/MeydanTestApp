@@ -238,14 +238,14 @@ class ProjectSettingsActivity : AppCompatActivity() {
             if (doc.exists()) {
                 val data = doc.data ?: emptyMap<String, Any?>()
 
-                val startConversion = FirestoreTimestampConverter.fromAny(data["startDate"])
-                val endConversion = FirestoreTimestampConverter.fromAny(data["endDate"])
+                val startAny = data["startDate"]
+                val endAny = data["endDate"]
 
-                doc.migrateTimestampIfNeeded("startDate", startConversion)
-                doc.migrateTimestampIfNeeded("endDate", endConversion)
+                val startTs = FirestoreTimestampConverter.fromAny(startAny)
+                val endTs = FirestoreTimestampConverter.fromAny(endAny)
 
-                val startTs = startConversion.resolvedTimestamp
-                val endTs = endConversion.resolvedTimestamp
+                doc.migrateTimestampIfNeeded("startDate", startAny, startTs)
+                doc.migrateTimestampIfNeeded("endDate", endAny, endTs)
 
                 Log.i(
                     TAG,
@@ -334,10 +334,8 @@ class ProjectSettingsActivity : AppCompatActivity() {
             return
         }
         val userId = auth.currentUser?.uid ?: return finishWithToast("خطأ: المستخدم غير مسجل الدخول.")
-        val startConversion = FirestoreTimestampConverter.fromAny(startStr)
-        val endConversion = FirestoreTimestampConverter.fromAny(endStr)
-        val startTs = startConversion.resolvedTimestamp
-        val endTs = endConversion.resolvedTimestamp
+        val startTs = FirestoreTimestampConverter.fromAny(startStr)
+        val endTs = FirestoreTimestampConverter.fromAny(endStr)
         if (startTs == null || endTs == null) {
             Toast.makeText(this, "تعذر قراءة التواريخ المدخلة.", Toast.LENGTH_LONG).show()
             return
