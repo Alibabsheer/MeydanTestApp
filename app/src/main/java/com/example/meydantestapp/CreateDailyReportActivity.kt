@@ -37,6 +37,7 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.example.meydantestapp.utils.toProjectSafe
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -450,7 +451,7 @@ class CreateDailyReportActivity : AppCompatActivity() {
             .collection("projects").document(pid)
             .get()
             .addOnSuccessListener { doc ->
-                selectedProject = doc.toObject(Project::class.java)?.also { it.id = doc.id }
+                selectedProject = doc.toProjectSafe()
 
                 val projectMap = doc.data ?: emptyMap<String, Any>()
                 vm.setProjectInfo(projectMap)
