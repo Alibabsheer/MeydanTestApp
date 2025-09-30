@@ -2,6 +2,7 @@ package com.example.meydantestapp.repository
 
 import com.example.meydantestapp.data.model.Project
 import com.example.meydantestapp.utils.Constants
+import com.example.meydantestapp.utils.FirestoreTimestampConverter
 import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldPath
@@ -230,8 +231,8 @@ private fun Map<String, Any?>.buildProjectForCreate(projectId: String): Project 
         ?: ProjectLocationUtils.buildGoogleMapsUrl(latitude, longitude)
     val workType = (this["workType"] as? String)?.takeIf { it.isNotBlank() } ?: "Lump Sum"
     val contractValue = this["contractValue"].toDoubleOrNull()
-    val startDate = this["startDate"].asStringOrNull().orEmpty()
-    val endDate = this["endDate"].asStringOrNull().orEmpty()
+    val startConversion = FirestoreTimestampConverter.fromAny(this["startDate"])
+    val endConversion = FirestoreTimestampConverter.fromAny(this["endDate"])
     val status = (this["status"] as? String)?.takeIf { it.isNotBlank() } ?: "active"
 
     return Project(
@@ -245,8 +246,8 @@ private fun Map<String, Any?>.buildProjectForCreate(projectId: String): Project 
         googleMapsUrl = googleMapsUrl,
         workType = workType,
         contractValue = contractValue,
-        startDate = startDate,
-        endDate = endDate,
+        startDate = startConversion.timestamp,
+        endDate = endConversion.timestamp,
         status = status,
         createdAt = Timestamp.now(),
         updatedAt = Timestamp.now()
@@ -300,13 +301,13 @@ private fun Project.mergeWithUpdates(updates: Map<String, Any?>): Project {
     }
     val hasStartDateUpdate = updates.containsKey("startDate")
     val resolvedStartDate = if (hasStartDateUpdate) {
-        updates["startDate"].asStringOrNull().orEmpty()
+        FirestoreTimestampConverter.fromAny(updates["startDate"]).timestamp ?: startDate
     } else {
         startDate
     }
     val hasEndDateUpdate = updates.containsKey("endDate")
     val resolvedEndDate = if (hasEndDateUpdate) {
-        updates["endDate"].asStringOrNull().orEmpty()
+        FirestoreTimestampConverter.fromAny(updates["endDate"]).timestamp ?: endDate
     } else {
         endDate
     }
@@ -368,12 +369,6 @@ private fun Any?.toDoubleOrNull(): Double? = when (this) {
     is Number -> this.toDouble()
     is String -> this.toDoubleOrNull()
     else -> null
-}
-
-private fun Any?.asStringOrNull(): String? = when (this) {
-    null -> null
-    is String -> this
-    else -> this.toString()
 }
 
 private fun com.google.firebase.firestore.DocumentSnapshot.additionalProjectFields(): Map<String, Any?> =

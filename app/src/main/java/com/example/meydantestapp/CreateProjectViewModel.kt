@@ -4,13 +4,13 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
 import com.example.meydantestapp.repository.ProjectRepository
+import com.example.meydantestapp.utils.FirestoreTimestampConverter
 import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 /**
  * ViewModel مسؤول عن إنشاء مشروع جديد عبر ProjectRepository.
@@ -54,14 +54,20 @@ class CreateProjectViewModel(
             return
         }
 
-        val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val startTs = try { Timestamp(formatter.parse(startDateStr)!!) } catch (e: Exception) { null }
-        val endTs = try { Timestamp(formatter.parse(endDateStr)!!) } catch (e: Exception) { null }
+        val startConversion = FirestoreTimestampConverter.fromAny(startDateStr)
+        val endConversion = FirestoreTimestampConverter.fromAny(endDateStr)
+        val startTs = startConversion.timestamp
+        val endTs = endConversion.timestamp
 
         if (startTs == null || endTs == null) {
             _errorMessage.value = "تأكد من إدخال تواريخ صحيحة."
             return
         }
+
+        Log.i(
+            "CreateProject",
+            "Normalized project dates start=${startTs.seconds} end=${endTs.seconds}"
+        )
 
         val normalizedAddress = ProjectLocationUtils.normalizeAddressText(addressText)
         val normalizedPlusCode = ProjectLocationUtils.normalizePlusCode(plusCode)

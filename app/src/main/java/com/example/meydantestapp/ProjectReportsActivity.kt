@@ -11,6 +11,7 @@ import com.example.meydantestapp.utils.Constants
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.example.meydantestapp.utils.toProjectSafe
 
 class ProjectReportsActivity : AppCompatActivity() {
 
@@ -122,7 +123,7 @@ class ProjectReportsActivity : AppCompatActivity() {
             .document(projId)
             .get()
             .addOnSuccessListener { doc ->
-                selectedProject = doc.toObject(Project::class.java)?.also { it.id = doc.id }
+                selectedProject = doc.toProjectSafe()
             }
             .addOnFailureListener {
                 Toast.makeText(this, "فشل في جلب تفاصيل المشروع", Toast.LENGTH_SHORT).show()

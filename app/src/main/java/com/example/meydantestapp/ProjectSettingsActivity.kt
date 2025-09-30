@@ -25,6 +25,8 @@ import java.text.SimpleDateFormat
 import java.util.*
 import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.example.meydantestapp.utils.Constants
+import com.example.meydantestapp.utils.FirestoreTimestampConverter
+import com.example.meydantestapp.utils.migrateTimestampIfNeeded
 
 class ProjectSettingsActivity : AppCompatActivity() {
 
@@ -231,10 +233,21 @@ class ProjectSettingsActivity : AppCompatActivity() {
         val docRef = db.collection("organizations").document(userId).collection("projects").document(projectId)
         docRef.get().addOnSuccessListener { doc ->
             if (doc.exists()) {
-                val data = doc.data ?: emptyMap<String, Any>()
+                val data = doc.data ?: emptyMap<String, Any?>()
 
-                val startTs = parseTimestampOrString(data["startDate"])
-                val endTs = parseTimestampOrString(data["endDate"])
+                val startConversion = FirestoreTimestampConverter.fromAny(data["startDate"])
+                val endConversion = FirestoreTimestampConverter.fromAny(data["endDate"])
+
+                doc.migrateTimestampIfNeeded("startDate", startConversion)
+                doc.migrateTimestampIfNeeded("endDate", endConversion)
+
+                val startTs = startConversion.timestamp
+                val endTs = endConversion.timestamp
+
+                Log.i(
+                    TAG,
+                    "Loaded project=$projectId start=${startTs?.seconds} end=${endTs?.seconds}"
+                )
 
                 val projectName = (data["projectName"] as? String)
                     ?: (data["name"] as? String)
@@ -294,41 +307,6 @@ class ProjectSettingsActivity : AppCompatActivity() {
         }.addOnFailureListener { e -> finishWithToast("فشل في جلب بيانات المشروع: ${e.message}") }
     }
 
-    private fun parseTimestampOrString(value: Any?): Timestamp? {
-        return when (value) {
-            is Timestamp -> value
-            is String -> {
-                val patterns = listOf(
-                    "yyyy-MM-dd",
-                    "dd/MM/yyyy",
-                    "yyyy-MM-dd'T'HH:mm:ss'Z'",
-                    "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
-                )
-                for (pattern in patterns) {
-                    try {
-                        val sdf = SimpleDateFormat(pattern, Locale.getDefault()).apply {
-                            isLenient = false
-                        }
-                        val parsedDate = sdf.parse(value)
-                        if (parsedDate != null) {
-                            return Timestamp(parsedDate)
-                        }
-                    } catch (_: Exception) {
-                        // Ignore and try the next pattern
-                    }
-                }
-                try {
-                    val millis = value.toLong()
-                    return Timestamp(Date(millis))
-                } catch (_: Exception) {
-                    Log.w(TAG, "Cannot parse date string: $value")
-                }
-                null
-            }
-            else -> null
-        }
-    }
-
     private fun finishWithToast(message: String): Nothing {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
         finish()
@@ -355,12 +333,16 @@ class ProjectSettingsActivity : AppCompatActivity() {
             return
         }
         val userId = auth.currentUser?.uid ?: return finishWithToast("خطأ: المستخدم غير مسجل الدخول.")
-        val startTs = runCatching { dateFormatter.parse(startStr)?.let { Timestamp(it) } }.getOrNull()
-        val endTs = runCatching { dateFormatter.parse(endStr)?.let { Timestamp(it) } }.getOrNull()
+        val startConversion = FirestoreTimestampConverter.fromAny(startStr)
+        val endConversion = FirestoreTimestampConverter.fromAny(endStr)
+        val startTs = startConversion.timestamp
+        val endTs = endConversion.timestamp
         if (startTs == null || endTs == null) {
             Toast.makeText(this, "تعذر قراءة التواريخ المدخلة.", Toast.LENGTH_LONG).show()
             return
         }
+
+        Log.i(TAG, "Saving project=$projectId start=${startTs.seconds} end=${endTs.seconds}")
 
         val normalizedAddress = ProjectLocationUtils.normalizeAddressText(
             binding.projectLocationEditText.text?.toString()
