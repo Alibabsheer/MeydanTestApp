@@ -3,6 +3,7 @@ package com.example.meydantestapp
 import android.app.Activity
 import android.app.Application
 import android.content.Context
+import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.util.Log
@@ -12,6 +13,8 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
+import com.google.android.gms.common.GoogleApiAvailability
+import com.google.android.gms.security.ProviderInstaller
 
 class MyApp : Application(), Application.ActivityLifecycleCallbacks {
 
@@ -58,6 +61,8 @@ class MyApp : Application(), Application.ActivityLifecycleCallbacks {
 
         sessionPrefs.edit().putLong(KEY_LAST_ACTIVE_MS, System.currentTimeMillis()).apply()
         registerActivityLifecycleCallbacks(this)
+
+        initializeSecurityProvider()
     }
 
     private fun isDebugBuild(): Boolean {
@@ -97,6 +102,38 @@ class MyApp : Application(), Application.ActivityLifecycleCallbacks {
     override fun onActivityPaused(activity: Activity) {}
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
     override fun onActivityDestroyed(activity: Activity) {}
+
+    private fun initializeSecurityProvider() {
+        try {
+            ProviderInstaller.installIfNeededAsync(
+                this,
+                object : ProviderInstaller.ProviderInstallListener {
+                    override fun onProviderInstalled() {
+                        Log.d("SecurityProvider", "Play Services security provider ready")
+                    }
+
+                    override fun onProviderInstallFailed(errorCode: Int, resolutionIntent: Intent?) {
+                        val message = GoogleApiAvailability.getInstance().getErrorString(errorCode)
+                        Log.w(
+                            "SecurityProvider",
+                            "ProviderInstaller failed code=$errorCode message=$message"
+                        )
+                    }
+                }
+            )
+        } catch (security: SecurityException) {
+            Log.w(
+                "SecurityProvider",
+                "Security exception during provider init: ${security.message}"
+            )
+        } catch (throwable: Throwable) {
+            Log.w(
+                "SecurityProvider",
+                "Unexpected error initializing provider: ${throwable.message}",
+                throwable
+            )
+        }
+    }
 
     companion object {
         const val SESSION_TIMEOUT_MS: Long = 15L * 60L * 1000L
