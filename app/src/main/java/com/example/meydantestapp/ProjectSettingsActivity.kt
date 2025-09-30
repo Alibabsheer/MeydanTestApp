@@ -23,7 +23,6 @@ import com.google.firebase.firestore.FieldValue
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
-import com.example.meydantestapp.Project
 import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.example.meydantestapp.utils.Constants
 
@@ -232,44 +231,102 @@ class ProjectSettingsActivity : AppCompatActivity() {
         val docRef = db.collection("organizations").document(userId).collection("projects").document(projectId)
         docRef.get().addOnSuccessListener { doc ->
             if (doc.exists()) {
-                val project = doc.toObject(Project::class.java)
-                project?.let {
-                    binding.projectNameEditText.setText(it.projectName ?: "")
-                    val address = it.addressText ?: it.location ?: ""
-                    withLocationTextUpdate {
-                        binding.projectLocationEditText.setText(address)
-                    }
-                    selectedLatitude = it.latitude
-                    selectedLongitude = it.longitude
-                    selectedPlusCode = it.plusCode
-                    binding.startDateEditText.setText(it.startDate?.toDate()?.let { d -> dateFormatter.format(d) } ?: "")
-                    binding.endDateEditText.setText(it.endDate?.toDate()?.let { d -> dateFormatter.format(d) } ?: "")
-                    currentProjectWorkType = it.workType
+                val data = doc.data ?: emptyMap<String, Any>()
 
-                    binding.projectTypeEditText.apply {
-                        isEnabled = true
-                        isFocusable = false
-                        isClickable = false
-                        setText(it.workType ?: "غير محدد")
-                    }
+                val startTs = parseTimestampOrString(data["startDate"])
+                val endTs = parseTimestampOrString(data["endDate"])
 
-                    if (it.contractValue != null) {
-                        binding.contractValueEditText.setText(NumberFormat.getInstance(Locale.US).format(it.contractValue))
-                    }
-                    if (it.workType == "جدول كميات" || it.workType == "مقطوعية") {
-                        binding.contractValueLayout.isEndIconVisible = false
-                        binding.contractValueEditText.isEnabled = false
+                val projectName = (data["projectName"] as? String)
+                    ?: (data["name"] as? String)
+                    ?: ""
+                binding.projectNameEditText.setText(projectName)
 
-                    } else {
-                        binding.contractValueLayout.isEndIconVisible = true
-                        binding.contractValueEditText.isEnabled = false
-
-                    }
-                    binding.viewContractTableButton.isEnabled = true
-                    updateClearLocationVisibility()
+                val address = (data["addressText"] as? String)
+                    ?: (data["location"] as? String)
+                    ?: ""
+                withLocationTextUpdate {
+                    binding.projectLocationEditText.setText(address)
                 }
+
+                selectedLatitude = (data["latitude"] as? Number)?.toDouble()
+                selectedLongitude = (data["longitude"] as? Number)?.toDouble()
+                selectedPlusCode = data["plusCode"] as? String
+
+                val startText = startTs?.toDate()?.let { dateFormatter.format(it) } ?: ""
+                val endText = endTs?.toDate()?.let { dateFormatter.format(it) } ?: ""
+                binding.startDateEditText.setText(startText)
+                binding.endDateEditText.setText(endText)
+
+                currentProjectWorkType = data["workType"] as? String
+
+                binding.projectTypeEditText.apply {
+                    isEnabled = true
+                    isFocusable = false
+                    isClickable = false
+                    setText(currentProjectWorkType ?: "غير محدد")
+                }
+
+                val contractValueRaw = data["contractValue"]
+                val contractValue = when (contractValueRaw) {
+                    is Number -> contractValueRaw.toDouble()
+                    is String -> contractValueRaw.toDoubleOrNull()
+                    else -> null
+                }
+                if (contractValue != null) {
+                    binding.contractValueEditText.setText(
+                        NumberFormat.getInstance(Locale.US).format(contractValue)
+                    )
+                } else {
+                    binding.contractValueEditText.setText("")
+                }
+
+                if (currentProjectWorkType == "جدول كميات" || currentProjectWorkType == "مقطوعية") {
+                    binding.contractValueLayout.isEndIconVisible = false
+                    binding.contractValueEditText.isEnabled = false
+                } else {
+                    binding.contractValueLayout.isEndIconVisible = true
+                    binding.contractValueEditText.isEnabled = false
+                }
+
+                binding.viewContractTableButton.isEnabled = true
+                updateClearLocationVisibility()
             } else finishWithToast("المشروع غير موجود.")
         }.addOnFailureListener { e -> finishWithToast("فشل في جلب بيانات المشروع: ${e.message}") }
+    }
+
+    private fun parseTimestampOrString(value: Any?): Timestamp? {
+        return when (value) {
+            is Timestamp -> value
+            is String -> {
+                val patterns = listOf(
+                    "yyyy-MM-dd",
+                    "dd/MM/yyyy",
+                    "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                    "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+                )
+                for (pattern in patterns) {
+                    try {
+                        val sdf = SimpleDateFormat(pattern, Locale.getDefault()).apply {
+                            isLenient = false
+                        }
+                        val parsedDate = sdf.parse(value)
+                        if (parsedDate != null) {
+                            return Timestamp(parsedDate)
+                        }
+                    } catch (_: Exception) {
+                        // Ignore and try the next pattern
+                    }
+                }
+                try {
+                    val millis = value.toLong()
+                    return Timestamp(Date(millis))
+                } catch (_: Exception) {
+                    Log.w(TAG, "Cannot parse date string: $value")
+                }
+                null
+            }
+            else -> null
+        }
     }
 
     private fun finishWithToast(message: String): Nothing {
