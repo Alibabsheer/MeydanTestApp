@@ -3,6 +3,7 @@ package com.example.meydantestapp
 import android.os.Parcelable
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.Exclude
+import com.google.firebase.firestore.IgnoreExtraProperties
 import kotlinx.parcelize.Parcelize
 import kotlinx.parcelize.RawValue
 
@@ -30,6 +31,7 @@ data class LumpSumItem(
 ) : Parcelable
 
 // معلومات المشروع الأساسية
+@IgnoreExtraProperties
 @Parcelize
 data class Project(
     @get:Exclude var id: String? = null,

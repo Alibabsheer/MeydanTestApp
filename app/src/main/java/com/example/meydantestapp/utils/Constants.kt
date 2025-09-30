@@ -66,7 +66,7 @@ object Constants {
     // ===============
     // Date Formats
     // ===============
-    const val DATE_FORMAT_DISPLAY = "yyyy-MM-dd"
+    const val DATE_FORMAT_DISPLAY = "dd/MM/yyyy"
     const val DATE_FORMAT_TIMESTAMP = "yyyy-MM-dd HH:mm:ss"
 
     // ===============================

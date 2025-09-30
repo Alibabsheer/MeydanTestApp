@@ -1,8 +1,13 @@
 package com.example.meydantestapp.data.model
 
+import android.util.Log
+import com.example.meydantestapp.utils.FirestoreTimestampConverter
+import com.example.meydantestapp.utils.migrateTimestampIfNeeded
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.IgnoreExtraProperties
 
+@IgnoreExtraProperties
 data class Project(
     val projectId: String,
     val projectName: String,
@@ -14,8 +19,8 @@ data class Project(
     val googleMapsUrl: String? = null,
     val workType: String,
     val contractValue: Double? = null,
-    val startDate: String,
-    val endDate: String,
+    val startDate: Timestamp? = null,
+    val endDate: Timestamp? = null,
     val status: String = "active",
     val createdAt: Timestamp? = null,
     val updatedAt: Timestamp? = null,
@@ -40,19 +45,41 @@ data class Project(
 
     companion object {
         fun from(doc: DocumentSnapshot): Project {
+            val data = doc.data ?: emptyMap<String, Any?>()
+            val startRaw = data["startDate"]
+            val endRaw = data["endDate"]
+            val startTs = FirestoreTimestampConverter.fromAny(startRaw)
+            val endTs = FirestoreTimestampConverter.fromAny(endRaw)
+
+            doc.migrateTimestampIfNeeded("startDate", startRaw, startTs)
+            doc.migrateTimestampIfNeeded("endDate", endRaw, endTs)
+
+            Log.d(
+                "ProjectModel",
+                "from(doc=${doc.id}) start=${startTs?.seconds} end=${endTs?.seconds}"
+            )
+
             return Project(
                 projectId = doc.getString("projectId") ?: doc.id,
-                projectName = doc.getString("projectName") ?: "",
-                projectLocation = doc.getString("projectLocation") ?: "",
+                projectName = doc.getString("projectName")
+                    ?: data["name"] as? String
+                    ?: "",
+                projectLocation = doc.getString("projectLocation")
+                    ?: data["location"] as? String
+                    ?: "",
                 latitude = doc.getDouble("latitude"),
                 longitude = doc.getDouble("longitude"),
-                addressText = doc.getString("addressText"),
+                addressText = doc.getString("addressText") ?: data["location"] as? String,
                 plusCode = doc.getString("plusCode"),
                 googleMapsUrl = doc.getString("googleMapsUrl"),
                 workType = doc.getString("workType") ?: "Lump Sum",
-                contractValue = (doc.get("contractValue") as? Number)?.toDouble(),
-                startDate = doc.getString("startDate") ?: "",
-                endDate = doc.getString("endDate") ?: "",
+                contractValue = when (val raw = data["contractValue"]) {
+                    is Number -> raw.toDouble()
+                    is String -> raw.toDoubleOrNull()
+                    else -> null
+                },
+                startDate = startTs,
+                endDate = endTs,
                 status = doc.getString("status") ?: "active",
                 createdAt = doc.getTimestamp("createdAt"),
                 updatedAt = doc.getTimestamp("updatedAt"),
