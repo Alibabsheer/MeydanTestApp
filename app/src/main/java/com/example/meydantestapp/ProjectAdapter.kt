@@ -33,7 +33,6 @@ class ProjectAdapter(
         holder.projectNameText.text = project.projectName
         holder.projectLocationText.text = project.projectLocation?.takeIf { it.isNotBlank() }
             ?: project.addressText
-            ?: project.location
             ?: ""
         holder.editProjectButton.setOnClickListener { onEditClick(project) }
         holder.viewProjectButton.setOnClickListener { onViewClick(project) }
