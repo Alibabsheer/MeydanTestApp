@@ -8,7 +8,6 @@ import android.text.TextWatcher
 import android.view.View
 import android.widget.EditText
 import android.widget.Toast
-import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -23,6 +22,7 @@ import com.google.firebase.firestore.FieldValue
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
+import com.example.meydantestapp.utils.AppLogger
 import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.example.meydantestapp.utils.Constants
 import com.example.meydantestapp.utils.FirestoreTimestampConverter
@@ -68,7 +68,7 @@ class ProjectSettingsActivity : AppCompatActivity() {
             ?: intent.getStringExtra("id")
 
         if (resolvedProjectId.isNullOrBlank()) {
-            Log.e(TAG, "Opened without projectId extra. Finishing.")
+            AppLogger.e(TAG, "Opened without projectId extra. Finishing.")
             Toast.makeText(
                 this,
                 "لا يمكن فتح إعدادات المشروع بدون معرف مشروع",
@@ -79,7 +79,7 @@ class ProjectSettingsActivity : AppCompatActivity() {
         }
 
         projectId = resolvedProjectId
-        Log.d(TAG, "Loaded ProjectSettingsActivity with projectId=$projectId")
+        AppLogger.d(TAG, "Loaded ProjectSettingsActivity with projectId=$projectId")
 
         selectLocationLauncher = registerForActivityResult(
             ActivityResultContracts.StartActivityForResult()
@@ -247,7 +247,7 @@ class ProjectSettingsActivity : AppCompatActivity() {
                 doc.migrateTimestampIfNeeded("startDate", startAny, startTs)
                 doc.migrateTimestampIfNeeded("endDate", endAny, endTs)
 
-                Log.i(
+                AppLogger.i(
                     TAG,
                     "Loaded project=$projectId start=${startTs?.seconds} end=${endTs?.seconds}"
                 )
@@ -341,7 +341,7 @@ class ProjectSettingsActivity : AppCompatActivity() {
             return
         }
 
-        Log.i(TAG, "Saving project=$projectId start=${startTs.seconds} end=${endTs.seconds}")
+        AppLogger.i(TAG, "Saving project=$projectId start=${startTs.seconds} end=${endTs.seconds}")
 
         val normalizedAddress = ProjectLocationUtils.normalizeAddressText(
             binding.projectLocationEditText.text?.toString()

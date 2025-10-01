@@ -1,6 +1,5 @@
 package com.example.meydantestapp.utils
 
-import android.util.Log
 import com.example.meydantestapp.Project
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
@@ -17,7 +16,7 @@ fun DocumentSnapshot.toProjectSafe(
 
     val project = runCatching { toObject(Project::class.java) }
         .onFailure { error ->
-            Log.w("ProjectSnapshot", "toObject(Project) failed for ${id}: ${error.message}")
+            AppLogger.w("ProjectSnapshot", "toObject(Project) failed for ${id}: ${error.message}")
         }
         .getOrNull() ?: Project()
 

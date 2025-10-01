@@ -6,10 +6,10 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
-import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import com.example.meydantestapp.databinding.ActivityProjectDetailsBinding
 import com.example.meydantestapp.utils.Constants
+import com.example.meydantestapp.utils.AppLogger
 import com.example.meydantestapp.utils.FirestoreTimestampConverter
 import com.example.meydantestapp.utils.migrateTimestampIfNeeded
 import com.example.meydantestapp.utils.toProjectSafe
@@ -136,7 +136,7 @@ class ProjectDetailsActivity : AppCompatActivity() {
         projectRef.get()
             .addOnSuccessListener { doc ->
                 if (!doc.exists()) {
-                    Log.w("ProjectDetails", "Project document not found for id=$pid")
+                    AppLogger.w("ProjectDetails", "Project document not found for id=$pid")
                     binding.startDateText.text = ""
                     binding.endDateText.text = ""
                     selectedProject = null
@@ -147,7 +147,7 @@ class ProjectDetailsActivity : AppCompatActivity() {
                 val startAny = data["startDate"]
                 val endAny = data["endDate"]
 
-                Log.d("ProjectDetails", "Raw project dates start=$startAny end=$endAny")
+                AppLogger.d("ProjectDetails", "Raw project dates start=$startAny end=$endAny")
 
                 val startTs = FirestoreTimestampConverter.fromAny(startAny)
                 val endTs = FirestoreTimestampConverter.fromAny(endAny)
@@ -155,7 +155,7 @@ class ProjectDetailsActivity : AppCompatActivity() {
                 doc.migrateTimestampIfNeeded("startDate", startAny, startTs)
                 doc.migrateTimestampIfNeeded("endDate", endAny, endTs)
 
-                Log.i(
+                AppLogger.i(
                     "ProjectDetails",
                     "Resolved project dates → start=${startTs?.seconds} end=${endTs?.seconds}"
                 )

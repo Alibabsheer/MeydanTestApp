@@ -4,9 +4,9 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import android.util.Log
 import com.example.meydantestapp.repository.ProjectRepository
 import com.example.meydantestapp.utils.FirestoreTimestampConverter
+import com.example.meydantestapp.utils.AppLogger
 import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
@@ -62,7 +62,7 @@ class CreateProjectViewModel(
             return
         }
 
-        Log.i(
+        AppLogger.i(
             "CreateProject",
             "Normalized project dates start=${startTs.seconds} end=${endTs.seconds}"
         )

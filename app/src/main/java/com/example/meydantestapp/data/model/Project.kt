@@ -1,6 +1,6 @@
 package com.example.meydantestapp.data.model
 
-import android.util.Log
+import com.example.meydantestapp.utils.AppLogger
 import com.example.meydantestapp.utils.FirestoreTimestampConverter
 import com.example.meydantestapp.utils.migrateTimestampIfNeeded
 import com.google.firebase.Timestamp
@@ -54,7 +54,7 @@ data class Project(
             doc.migrateTimestampIfNeeded("startDate", startRaw, startTs)
             doc.migrateTimestampIfNeeded("endDate", endRaw, endTs)
 
-            Log.d(
+            AppLogger.d(
                 "ProjectModel",
                 "from(doc=${doc.id}) start=${startTs?.seconds} end=${endTs?.seconds}"
             )
