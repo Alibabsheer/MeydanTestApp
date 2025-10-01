@@ -25,6 +25,7 @@
     <string name="org_info_text">اسم المؤسسة: %1$s\nكود الانضمام: %2$s</string>
     <string name="create_daily_report_title">إنشاء تقرير يومي</string>
     <string name="daily_reports_title">عرض التقارير اليومية</string>
+    <string name="project_date_not_set">غير محدد</string>
 
     <string-array name="work_type_options">
         <item>اختر نوع العمل</item>

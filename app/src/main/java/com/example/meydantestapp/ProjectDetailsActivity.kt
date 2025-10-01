@@ -8,12 +8,11 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.meydantestapp.databinding.ActivityProjectDetailsBinding
-import com.example.meydantestapp.utils.Constants
 import com.example.meydantestapp.utils.AppLogger
-import com.example.meydantestapp.utils.FirestoreTimestampConverter
+import com.example.meydantestapp.utils.Constants
+import com.example.meydantestapp.utils.ProjectDateFormatter
 import com.example.meydantestapp.utils.migrateTimestampIfNeeded
 import com.example.meydantestapp.utils.toProjectSafe
-import com.example.meydantestapp.utils.toDisplayDateString
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -149,21 +148,24 @@ class ProjectDetailsActivity : AppCompatActivity() {
 
                 AppLogger.d("ProjectDetails", "Raw project dates start=$startAny end=$endAny")
 
-                val startTs = FirestoreTimestampConverter.fromAny(startAny)
-                val endTs = FirestoreTimestampConverter.fromAny(endAny)
+                val dates = ProjectDateFormatter.resolve(
+                    startRaw = startAny,
+                    endRaw = endAny,
+                    placeholder = getString(R.string.project_date_not_set)
+                )
 
-                doc.migrateTimestampIfNeeded("startDate", startAny, startTs)
-                doc.migrateTimestampIfNeeded("endDate", endAny, endTs)
+                doc.migrateTimestampIfNeeded("startDate", startAny, dates.startTimestamp)
+                doc.migrateTimestampIfNeeded("endDate", endAny, dates.endTimestamp)
 
                 AppLogger.i(
                     "ProjectDetails",
-                    "Resolved project dates → start=${startTs?.seconds} end=${endTs?.seconds}"
+                    "Resolved project dates → start=${dates.startTimestamp?.seconds} end=${dates.endTimestamp?.seconds}"
                 )
 
-                binding.startDateText.text = startTs.toDisplayDateString()
-                binding.endDateText.text = endTs.toDisplayDateString()
+                binding.startDateText.text = dates.startDisplay
+                binding.endDateText.text = dates.endDisplay
 
-                selectedProject = doc.toProjectSafe(startTs, endTs)
+                selectedProject = doc.toProjectSafe(dates.startTimestamp, dates.endTimestamp)
             }
             .addOnFailureListener {
                 Toast.makeText(this, "فشل في جلب تفاصيل المشروع", Toast.LENGTH_SHORT).show()

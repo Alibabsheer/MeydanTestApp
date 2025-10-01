@@ -49,6 +49,14 @@ class FirestoreTimestampConverterTest {
     }
 
     @Test
+    fun `parse legacy year month day format`() {
+        val input = "2025-9-30"
+        val result = FirestoreTimestampConverter.fromAny(input)
+        assertNotNull(result)
+        assertEquals("30/09/2025", result?.toDisplayDateString())
+    }
+
+    @Test
     fun `string milliseconds parsed to timestamp`() {
         val result = FirestoreTimestampConverter.fromAny("1744837200000")
         assertNotNull(result)
@@ -90,6 +98,18 @@ class FirestoreTimestampConverterTest {
         val result = FirestoreTimestampConverter.fromAny(fractional)
         assertEquals(1744837200L, result?.seconds)
         assertEquals(500_000_000, result?.nanoseconds)
+    }
+
+    @Test
+    fun `nan double returns null`() {
+        val result = FirestoreTimestampConverter.fromAny(Double.NaN)
+        assertNull(result)
+    }
+
+    @Test
+    fun `infinite double returns null`() {
+        val result = FirestoreTimestampConverter.fromAny(Double.POSITIVE_INFINITY)
+        assertNull(result)
     }
 
     @Test

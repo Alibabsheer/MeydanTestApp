@@ -38,6 +38,7 @@ data class Project(
     var projectName: String? = null,
     var projectNumber: String? = null,
     var location: String? = null,
+    var projectLocation: String? = null,
     var addressText: String? = null,
     var latitude: Double? = null,
     var longitude: Double? = null,

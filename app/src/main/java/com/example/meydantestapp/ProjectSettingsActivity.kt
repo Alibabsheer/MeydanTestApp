@@ -23,11 +23,11 @@ import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
 import com.example.meydantestapp.utils.AppLogger
-import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.example.meydantestapp.utils.Constants
 import com.example.meydantestapp.utils.FirestoreTimestampConverter
+import com.example.meydantestapp.utils.ProjectDateFormatter
+import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.example.meydantestapp.utils.migrateTimestampIfNeeded
-import com.example.meydantestapp.utils.toDisplayDateString
 
 class ProjectSettingsActivity : AppCompatActivity() {
 
@@ -238,18 +238,18 @@ class ProjectSettingsActivity : AppCompatActivity() {
             if (doc.exists()) {
                 val data = doc.data ?: emptyMap<String, Any?>()
 
-                val startAny = data["startDate"]
-                val endAny = data["endDate"]
+                val dates = ProjectDateFormatter.resolve(
+                    startRaw = data["startDate"],
+                    endRaw = data["endDate"],
+                    placeholder = ""
+                )
 
-                val startTs = FirestoreTimestampConverter.fromAny(startAny)
-                val endTs = FirestoreTimestampConverter.fromAny(endAny)
-
-                doc.migrateTimestampIfNeeded("startDate", startAny, startTs)
-                doc.migrateTimestampIfNeeded("endDate", endAny, endTs)
+                doc.migrateTimestampIfNeeded("startDate", data["startDate"], dates.startTimestamp)
+                doc.migrateTimestampIfNeeded("endDate", data["endDate"], dates.endTimestamp)
 
                 AppLogger.i(
                     TAG,
-                    "Loaded project=$projectId start=${startTs?.seconds} end=${endTs?.seconds}"
+                    "Loaded project=$projectId start=${dates.startTimestamp?.seconds} end=${dates.endTimestamp?.seconds}"
                 )
 
                 val projectName = (data["projectName"] as? String)
@@ -268,8 +268,8 @@ class ProjectSettingsActivity : AppCompatActivity() {
                 selectedLongitude = (data["longitude"] as? Number)?.toDouble()
                 selectedPlusCode = data["plusCode"] as? String
 
-                binding.startDateEditText.setText(startTs.toDisplayDateString())
-                binding.endDateEditText.setText(endTs.toDisplayDateString())
+                binding.startDateEditText.setText(dates.startDisplay)
+                binding.endDateEditText.setText(dates.endDisplay)
 
                 currentProjectWorkType = data["workType"] as? String
 

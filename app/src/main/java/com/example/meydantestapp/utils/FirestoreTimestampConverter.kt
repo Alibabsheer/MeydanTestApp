@@ -7,7 +7,6 @@ import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeParseException
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
@@ -16,19 +15,30 @@ import kotlin.text.RegexOption
 
 /**
  * Helper responsible for normalising Firestore date values.
- * Accepts values saved as Timestamp, java.util.Date, numbers (seconds / millis),
- * ISO strings and the literal string "Timestamp(seconds=..., nanoseconds=...)".
+ *
+ * The converter is tolerant to legacy shapes (string literals, maps or millis) and never throws.
+ * Invalid inputs simply result in `null`, leaving the caller to decide on fallbacks.
  */
 object FirestoreTimestampConverter {
 
+    private const val NANOS_PER_SECOND = 1_000_000_000
+    private const val EPOCH_MILLIS_THRESHOLD = 9_999_999_999L
+
     private val literalTimestampRegex = Regex(
         pattern = "^Timestamp\\(\\s*seconds\\s*=\\s*(-?\\d+),\\s*nanoseconds\\s*=\\s*(-?\\d+)\\s*\\)$",
-        option = RegexOption.IGNORE_CASE
+        options = setOf(RegexOption.IGNORE_CASE)
     )
 
-    private val customDisplayFormatter =
-        DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.getDefault())
+    private val localDateFormatters: List<DateTimeFormatter> = listOf(
+        DateTimeFormatter.ofPattern(Constants.DATE_FORMAT_DISPLAY, Locale.getDefault()),
+        DateTimeFormatter.ofPattern("yyyy-M-d", Locale.getDefault()),
+        DateTimeFormatter.ofPattern("yyyy/MM/dd", Locale.getDefault())
+    )
 
+    /**
+     * Attempts to normalise any Firestore-stored date representation into [Timestamp].
+     * Returns `null` when the value cannot be interpreted.
+     */
     fun fromAny(raw: Any?): Timestamp? = when (raw) {
         null -> null
         is Timestamp -> raw
@@ -40,6 +50,10 @@ object FirestoreTimestampConverter {
         else -> null
     }
 
+    /**
+     * Parses strings that may contain literal "Timestamp(...)" representations, ISO dates,
+     * or plain epoch values. Returns `null` when none match.
+     */
     fun fromString(value: String?): Timestamp? {
         val trimmed = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
 
@@ -64,7 +78,7 @@ object FirestoreTimestampConverter {
             return Timestamp(Date.from(instant))
         }
 
-        parseCustomLocalDate(trimmed)?.let { localDate ->
+        parseLocalDate(trimmed)?.let { localDate ->
             val instant = localDate.atStartOfDay(ZoneId.systemDefault()).toInstant()
             return Timestamp(Date.from(instant))
         }
@@ -72,21 +86,26 @@ object FirestoreTimestampConverter {
         return null
     }
 
-    private fun fromNumber(number: Number): Timestamp? = when (number) {
-        is Double, is Float -> {
-            val doubleValue = number.toDouble()
-            if (doubleValue.isNaN() || doubleValue.isInfinite()) {
-                return null
+    /**
+     * Converts numeric epochs expressed as seconds, milliseconds, or fractional seconds to [Timestamp].
+     * Doubles that are NaN/Infinity return `null`.
+     */
+    private fun fromNumber(number: Number): Timestamp? {
+        return when (number) {
+            is Double, is Float -> number.toDouble().let { doubleValue ->
+                if (doubleValue.isNaN() || doubleValue.isInfinite()) {
+                    null
+                } else if (abs(doubleValue) >= EPOCH_MILLIS_THRESHOLD) {
+                    fromEpochGuess(doubleValue.toLong())
+                } else {
+                    val secondsPart = doubleValue.toLong()
+                    val nanosRaw = ((doubleValue - secondsPart) * NANOS_PER_SECOND).roundToInt()
+                    val (normalizedSeconds, normalizedNanos) = normalizeSecondsAndNanos(secondsPart, nanosRaw)
+                    runCatching { Timestamp(normalizedSeconds, normalizedNanos) }.getOrNull()
+                }
             }
-            if (abs(doubleValue) >= 9_999_999_999L) {
-                return Timestamp(Date(doubleValue.toLong()))
-            }
-            val secondsPart = doubleValue.toLong()
-            val nanosRaw = ((doubleValue - secondsPart) * 1_000_000_000.0).roundToInt()
-            val (normalizedSeconds, normalizedNanos) = normalizeSecondsAndNanos(secondsPart, nanosRaw)
-            runCatching { Timestamp(normalizedSeconds, normalizedNanos) }.getOrNull()
+            else -> fromEpochGuess(number.toLong())
         }
-        else -> fromEpochGuess(number.toLong())
     }
 
     private fun fromMap(map: Map<*, *>): Timestamp? {
@@ -108,8 +127,9 @@ object FirestoreTimestampConverter {
     }
 
     private fun fromEpochGuess(epochValue: Long): Timestamp? {
-        return if (abs(epochValue) > 9_999_999_999L) {
-            Timestamp(Date(epochValue))
+        if (epochValue == Long.MIN_VALUE) return null
+        return if (abs(epochValue) > EPOCH_MILLIS_THRESHOLD) {
+            runCatching { Timestamp(Date(epochValue)) }.getOrNull()
         } else {
             runCatching { Timestamp(epochValue, 0) }.getOrNull()
         }
@@ -123,33 +143,28 @@ object FirestoreTimestampConverter {
                 .atZone(ZoneId.systemDefault())
                 .toInstant()
         }.getOrNull()?.let { return it }
-        runCatching {
-            LocalDate.parse(value, DateTimeFormatter.ISO_LOCAL_DATE)
-                .atStartOfDay(ZoneId.systemDefault())
-                .toInstant()
-        }.getOrNull()?.let { return it }
         return null
     }
 
-    private fun parseCustomLocalDate(value: String): LocalDate? {
-        return try {
-            LocalDate.parse(value, customDisplayFormatter)
-        } catch (_: DateTimeParseException) {
-            null
+    private fun parseLocalDate(value: String): LocalDate? {
+        runCatching { LocalDate.parse(value, DateTimeFormatter.ISO_LOCAL_DATE) }.getOrNull()?.let { return it }
+        for (formatter in localDateFormatters) {
+            runCatching { LocalDate.parse(value, formatter) }.getOrNull()?.let { return it }
         }
+        return null
     }
 
     private fun normalizeSecondsAndNanos(seconds: Long, nanos: Int): Pair<Long, Int> {
         var sec = seconds
         var nano = nanos
-        if (nano >= 1_000_000_000 || nano <= -1_000_000_000) {
-            sec += nano / 1_000_000_000
-            nano %= 1_000_000_000
+        if (nano >= NANOS_PER_SECOND || nano <= -NANOS_PER_SECOND) {
+            sec += nano / NANOS_PER_SECOND
+            nano %= NANOS_PER_SECOND
         }
         if (nano < 0) {
-            val borrow = (abs(nano) + 999_999_999) / 1_000_000_000
+            val borrow = (abs(nano) + NANOS_PER_SECOND - 1) / NANOS_PER_SECOND
             sec -= borrow
-            nano += borrow * 1_000_000_000
+            nano += borrow * NANOS_PER_SECOND
         }
         return sec to nano
     }
