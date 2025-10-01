@@ -11,7 +11,7 @@ import com.google.firebase.firestore.IgnoreExtraProperties
 data class Project(
     val projectId: String,
     val projectName: String,
-    val projectLocation: String,
+    val projectLocation: String? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
     val addressText: String? = null,
@@ -65,8 +65,7 @@ data class Project(
                     ?: data["name"] as? String
                     ?: "",
                 projectLocation = doc.getString("projectLocation")
-                    ?: data["location"] as? String
-                    ?: "",
+                    ?: data["location"] as? String,
                 latitude = doc.getDouble("latitude"),
                 longitude = doc.getDouble("longitude"),
                 addressText = doc.getString("addressText") ?: data["location"] as? String,

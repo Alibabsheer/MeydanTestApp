@@ -238,7 +238,7 @@ private fun Map<String, Any?>.buildProjectForCreate(projectId: String): Project 
     return Project(
         projectId = projectId,
         projectName = projectName,
-        projectLocation = normalizedLocation ?: "",
+        projectLocation = normalizedLocation,
         latitude = latitude,
         longitude = longitude,
         addressText = normalizedAddress,
@@ -260,7 +260,7 @@ private fun Project.mergeWithUpdates(updates: Map<String, Any?>): Project {
     val hasLocationUpdate = updates.containsKey("projectLocation")
     val updatedLocation = normalizeAddress(updates["projectLocation"])
     val resolvedProjectLocation = when {
-        hasLocationUpdate -> updatedLocation ?: ""
+        hasLocationUpdate -> updatedLocation
         else -> projectLocation
     }
     val hasAddressUpdate = updates.containsKey("addressText")

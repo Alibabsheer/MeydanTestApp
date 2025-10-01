@@ -87,7 +87,8 @@ class UserProjectsActivity : AppCompatActivity() {
                     projectItems.addAll(
                         projects.map { project ->
                             val name = project.projectName.ifBlank {
-                                project.projectLocation.ifBlank { "مشروع بدون اسم" }
+                                project.projectLocation?.takeIf { it.isNotBlank() }
+                                    ?: "مشروع بدون اسم"
                             }
                             project.projectId to name
                         }
