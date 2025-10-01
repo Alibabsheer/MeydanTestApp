@@ -1,6 +1,5 @@
 package com.example.meydantestapp.utils
 
-import android.util.Log
 import com.example.meydantestapp.Project
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
@@ -17,7 +16,7 @@ fun DocumentSnapshot.toProjectSafe(
 
     val project = runCatching { toObject(Project::class.java) }
         .onFailure { error ->
-            Log.w("ProjectSnapshot", "toObject(Project) failed for ${id}: ${error.message}")
+            AppLogger.w("ProjectSnapshot", "toObject(Project) failed for ${id}: ${error.message}")
         }
         .getOrNull() ?: Project()
 
@@ -26,9 +25,14 @@ fun DocumentSnapshot.toProjectSafe(
         project.projectName = (data["projectName"] as? String)
             ?: (data["name"] as? String)
     }
+    val resolvedLocation = (data["projectLocation"] as? String)
+        ?: (data["addressText"] as? String)
+        ?: (data["location"] as? String)
     if (project.location.isNullOrBlank()) {
-        project.location = (data["projectLocation"] as? String)
-            ?: (data["addressText"] as? String)
+        project.location = resolvedLocation
+    }
+    if (project.projectLocation.isNullOrBlank()) {
+        project.projectLocation = resolvedLocation ?: project.location
     }
     if (project.addressText.isNullOrBlank()) {
         project.addressText = data["addressText"] as? String

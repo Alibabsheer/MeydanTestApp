@@ -1,6 +1,5 @@
 package com.example.meydantestapp.utils
 
-import android.util.Log
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 
@@ -16,10 +15,10 @@ fun DocumentSnapshot.migrateTimestampIfNeeded(
 
     reference.update(fieldName, timestamp)
         .addOnSuccessListener {
-            Log.d(TAG_MIGRATION, "Migrated $fieldName for document $id to Timestamp")
+            AppLogger.d(TAG_MIGRATION, "Migrated $fieldName for document $id to Timestamp")
         }
         .addOnFailureListener { error ->
-            Log.w(
+            AppLogger.w(
                 TAG_MIGRATION,
                 "Failed to migrate $fieldName for document $id: ${error.message}",
                 error

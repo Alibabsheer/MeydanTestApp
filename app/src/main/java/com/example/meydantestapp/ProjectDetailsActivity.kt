@@ -6,14 +6,13 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
-import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import com.example.meydantestapp.databinding.ActivityProjectDetailsBinding
+import com.example.meydantestapp.utils.AppLogger
 import com.example.meydantestapp.utils.Constants
-import com.example.meydantestapp.utils.FirestoreTimestampConverter
+import com.example.meydantestapp.utils.ProjectDateFormatter
 import com.example.meydantestapp.utils.migrateTimestampIfNeeded
 import com.example.meydantestapp.utils.toProjectSafe
-import com.example.meydantestapp.utils.toDisplayDateString
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -136,7 +135,7 @@ class ProjectDetailsActivity : AppCompatActivity() {
         projectRef.get()
             .addOnSuccessListener { doc ->
                 if (!doc.exists()) {
-                    Log.w("ProjectDetails", "Project document not found for id=$pid")
+                    AppLogger.w("ProjectDetails", "Project document not found for id=$pid")
                     binding.startDateText.text = ""
                     binding.endDateText.text = ""
                     selectedProject = null
@@ -147,23 +146,26 @@ class ProjectDetailsActivity : AppCompatActivity() {
                 val startAny = data["startDate"]
                 val endAny = data["endDate"]
 
-                Log.d("ProjectDetails", "Raw project dates start=$startAny end=$endAny")
+                AppLogger.d("ProjectDetails", "Raw project dates start=$startAny end=$endAny")
 
-                val startTs = FirestoreTimestampConverter.fromAny(startAny)
-                val endTs = FirestoreTimestampConverter.fromAny(endAny)
-
-                doc.migrateTimestampIfNeeded("startDate", startAny, startTs)
-                doc.migrateTimestampIfNeeded("endDate", endAny, endTs)
-
-                Log.i(
-                    "ProjectDetails",
-                    "Resolved project dates → start=${startTs?.seconds} end=${endTs?.seconds}"
+                val dates = ProjectDateFormatter.resolve(
+                    startRaw = startAny,
+                    endRaw = endAny,
+                    placeholder = getString(R.string.project_date_not_set)
                 )
 
-                binding.startDateText.text = startTs.toDisplayDateString()
-                binding.endDateText.text = endTs.toDisplayDateString()
+                doc.migrateTimestampIfNeeded("startDate", startAny, dates.startTimestamp)
+                doc.migrateTimestampIfNeeded("endDate", endAny, dates.endTimestamp)
 
-                selectedProject = doc.toProjectSafe(startTs, endTs)
+                AppLogger.i(
+                    "ProjectDetails",
+                    "Resolved project dates → start=${dates.startTimestamp?.seconds} end=${dates.endTimestamp?.seconds}"
+                )
+
+                binding.startDateText.text = dates.startDisplay
+                binding.endDateText.text = dates.endDisplay
+
+                selectedProject = doc.toProjectSafe(dates.startTimestamp, dates.endTimestamp)
             }
             .addOnFailureListener {
                 Toast.makeText(this, "فشل في جلب تفاصيل المشروع", Toast.LENGTH_SHORT).show()

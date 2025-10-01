@@ -8,7 +8,6 @@ import android.text.TextWatcher
 import android.view.View
 import android.widget.EditText
 import android.widget.Toast
-import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -23,11 +22,12 @@ import com.google.firebase.firestore.FieldValue
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
-import com.example.meydantestapp.utils.ProjectLocationUtils
+import com.example.meydantestapp.utils.AppLogger
 import com.example.meydantestapp.utils.Constants
 import com.example.meydantestapp.utils.FirestoreTimestampConverter
+import com.example.meydantestapp.utils.ProjectDateFormatter
+import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.example.meydantestapp.utils.migrateTimestampIfNeeded
-import com.example.meydantestapp.utils.toDisplayDateString
 
 class ProjectSettingsActivity : AppCompatActivity() {
 
@@ -68,7 +68,7 @@ class ProjectSettingsActivity : AppCompatActivity() {
             ?: intent.getStringExtra("id")
 
         if (resolvedProjectId.isNullOrBlank()) {
-            Log.e(TAG, "Opened without projectId extra. Finishing.")
+            AppLogger.e(TAG, "Opened without projectId extra. Finishing.")
             Toast.makeText(
                 this,
                 "لا يمكن فتح إعدادات المشروع بدون معرف مشروع",
@@ -79,7 +79,7 @@ class ProjectSettingsActivity : AppCompatActivity() {
         }
 
         projectId = resolvedProjectId
-        Log.d(TAG, "Loaded ProjectSettingsActivity with projectId=$projectId")
+        AppLogger.d(TAG, "Loaded ProjectSettingsActivity with projectId=$projectId")
 
         selectLocationLauncher = registerForActivityResult(
             ActivityResultContracts.StartActivityForResult()
@@ -238,18 +238,18 @@ class ProjectSettingsActivity : AppCompatActivity() {
             if (doc.exists()) {
                 val data = doc.data ?: emptyMap<String, Any?>()
 
-                val startAny = data["startDate"]
-                val endAny = data["endDate"]
+                val dates = ProjectDateFormatter.resolve(
+                    startRaw = data["startDate"],
+                    endRaw = data["endDate"],
+                    placeholder = ""
+                )
 
-                val startTs = FirestoreTimestampConverter.fromAny(startAny)
-                val endTs = FirestoreTimestampConverter.fromAny(endAny)
+                doc.migrateTimestampIfNeeded("startDate", data["startDate"], dates.startTimestamp)
+                doc.migrateTimestampIfNeeded("endDate", data["endDate"], dates.endTimestamp)
 
-                doc.migrateTimestampIfNeeded("startDate", startAny, startTs)
-                doc.migrateTimestampIfNeeded("endDate", endAny, endTs)
-
-                Log.i(
+                AppLogger.i(
                     TAG,
-                    "Loaded project=$projectId start=${startTs?.seconds} end=${endTs?.seconds}"
+                    "Loaded project=$projectId start=${dates.startTimestamp?.seconds} end=${dates.endTimestamp?.seconds}"
                 )
 
                 val projectName = (data["projectName"] as? String)
@@ -268,8 +268,8 @@ class ProjectSettingsActivity : AppCompatActivity() {
                 selectedLongitude = (data["longitude"] as? Number)?.toDouble()
                 selectedPlusCode = data["plusCode"] as? String
 
-                binding.startDateEditText.setText(startTs.toDisplayDateString())
-                binding.endDateEditText.setText(endTs.toDisplayDateString())
+                binding.startDateEditText.setText(dates.startDisplay)
+                binding.endDateEditText.setText(dates.endDisplay)
 
                 currentProjectWorkType = data["workType"] as? String
 
@@ -341,7 +341,7 @@ class ProjectSettingsActivity : AppCompatActivity() {
             return
         }
 
-        Log.i(TAG, "Saving project=$projectId start=${startTs.seconds} end=${endTs.seconds}")
+        AppLogger.i(TAG, "Saving project=$projectId start=${startTs.seconds} end=${endTs.seconds}")
 
         val normalizedAddress = ProjectLocationUtils.normalizeAddressText(
             binding.projectLocationEditText.text?.toString()

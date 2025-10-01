@@ -10,10 +10,11 @@ import android.widget.*
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.ViewModelProvider
 import androidx.core.net.toUri // ✅ لاستخدام String.toUri() من KTX
 import androidx.core.widget.addTextChangedListener
+import androidx.lifecycle.ViewModelProvider
 import com.example.meydantestapp.databinding.ActivityCreateNewProjectBinding
+import com.example.meydantestapp.utils.Constants
 import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.example.meydantestapp.utils.ValidationUtils
 import org.apache.poi.ss.usermodel.DataFormatter
@@ -38,6 +39,13 @@ class CreateNewProjectActivity : AppCompatActivity() {
     private var quantitiesTableData: MutableList<QuantityItem>? = null
     private var lumpSumTableData: MutableList<LumpSumItem>? = null
     private var calculatedContractValue: Double? = null
+
+    private val displayDateFormatter = SimpleDateFormat(Constants.DATE_FORMAT_DISPLAY, Locale.getDefault()).apply {
+        isLenient = false
+    }
+    private val legacyInputFormatter = SimpleDateFormat("yyyy-M-d", Locale.getDefault()).apply {
+        isLenient = false
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -310,7 +318,8 @@ class CreateNewProjectActivity : AppCompatActivity() {
     private fun showDatePickerDialog(targetEditText: EditText) {
         val calendar = Calendar.getInstance()
         DatePickerDialog(this, { _, year, month, dayOfMonth ->
-            val dateStr = "$year-${month + 1}-$dayOfMonth"
+            val selected = Calendar.getInstance().apply { set(year, month, dayOfMonth, 0, 0, 0) }
+            val dateStr = displayDateFormatter.format(selected.time)
             targetEditText.setText(dateStr)
             when (targetEditText.id) {
                 binding.startDateInput.id -> binding.startDateInputLayout.error = null
@@ -397,9 +406,13 @@ class CreateNewProjectActivity : AppCompatActivity() {
     private fun parseDateOrNull(dateStr: String): Date? {
         if (dateStr.isBlank()) return null
         return try {
-            SimpleDateFormat("yyyy-M-d", Locale.getDefault()).apply { isLenient = false }.parse(dateStr)
+            displayDateFormatter.parse(dateStr)
         } catch (_: ParseException) {
-            null
+            try {
+                legacyInputFormatter.parse(dateStr)
+            } catch (_: ParseException) {
+                null
+            }
         }
     }
 

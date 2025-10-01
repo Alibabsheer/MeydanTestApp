@@ -18,6 +18,15 @@ class FirestoreTimestampConverterTest {
     }
 
     @Test
+    fun `parse literal timestamp string with spaces`() {
+        val input = "  Timestamp( seconds=1744837200,   nanoseconds=42 )  "
+        val result = FirestoreTimestampConverter.fromAny(input)
+        assertNotNull(result)
+        assertEquals(1744837200L, result?.seconds)
+        assertEquals(42, result?.nanoseconds)
+    }
+
+    @Test
     fun `parse iso instant string`() {
         val input = "2025-09-30T16:45:00Z"
         val result = FirestoreTimestampConverter.fromAny(input)
@@ -37,6 +46,30 @@ class FirestoreTimestampConverterTest {
         val input = "30/09/2025"
         val result = FirestoreTimestampConverter.fromAny(input)
         assertNotNull(result)
+    }
+
+    @Test
+    fun `parse legacy year month day format`() {
+        val input = "2025-9-30"
+        val result = FirestoreTimestampConverter.fromAny(input)
+        assertNotNull(result)
+        assertEquals("30/09/2025", result?.toDisplayDateString())
+    }
+
+    @Test
+    fun `string milliseconds parsed to timestamp`() {
+        val result = FirestoreTimestampConverter.fromAny("1744837200000")
+        assertNotNull(result)
+        assertEquals(1744837200L, result?.seconds)
+        assertEquals(0, result?.nanoseconds)
+    }
+
+    @Test
+    fun `string fractional seconds parsed`() {
+        val result = FirestoreTimestampConverter.fromAny("1744837200.25")
+        assertNotNull(result)
+        assertEquals(1744837200L, result?.seconds)
+        assertEquals(250_000_000, result?.nanoseconds)
     }
 
     @Test
@@ -68,6 +101,18 @@ class FirestoreTimestampConverterTest {
     }
 
     @Test
+    fun `nan double returns null`() {
+        val result = FirestoreTimestampConverter.fromAny(Double.NaN)
+        assertNull(result)
+    }
+
+    @Test
+    fun `infinite double returns null`() {
+        val result = FirestoreTimestampConverter.fromAny(Double.POSITIVE_INFINITY)
+        assertNull(result)
+    }
+
+    @Test
     fun `parse map structure`() {
         val mapValue = mapOf(
             "seconds" to 1744837200L,
@@ -77,6 +122,40 @@ class FirestoreTimestampConverterTest {
         assertNotNull(result)
         assertEquals(1744837200L, result?.seconds)
         assertEquals(123456789, result?.nanoseconds)
+    }
+
+    @Test
+    fun `parse map with string values`() {
+        val mapValue = mapOf(
+            "seconds" to "1744837200",
+            "nanoseconds" to "321"
+        )
+        val result = FirestoreTimestampConverter.fromAny(mapValue)
+        assertNotNull(result)
+        assertEquals(1744837200L, result?.seconds)
+        assertEquals(321, result?.nanoseconds)
+    }
+
+    @Test
+    fun `parse map with underscore keys`() {
+        val mapValue = mapOf(
+            "_seconds" to 1744837200,
+            "_nanoseconds" to 987654321
+        )
+        val result = FirestoreTimestampConverter.fromAny(mapValue)
+        assertNotNull(result)
+        assertEquals(1744837200L, result?.seconds)
+        assertEquals(987654321, result?.nanoseconds)
+    }
+
+    @Test
+    fun `map milliseconds fallback`() {
+        val mapValue = mapOf(
+            "milliseconds" to "1744837200000"
+        )
+        val result = FirestoreTimestampConverter.fromAny(mapValue)
+        assertNotNull(result)
+        assertEquals(1744837200L, result?.seconds)
     }
 
     @Test

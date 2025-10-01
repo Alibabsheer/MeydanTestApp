@@ -1,6 +1,6 @@
 package com.example.meydantestapp.data.model
 
-import android.util.Log
+import com.example.meydantestapp.utils.AppLogger
 import com.example.meydantestapp.utils.FirestoreTimestampConverter
 import com.example.meydantestapp.utils.migrateTimestampIfNeeded
 import com.google.firebase.Timestamp
@@ -11,7 +11,7 @@ import com.google.firebase.firestore.IgnoreExtraProperties
 data class Project(
     val projectId: String,
     val projectName: String,
-    val projectLocation: String,
+    val projectLocation: String? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
     val addressText: String? = null,
@@ -54,7 +54,7 @@ data class Project(
             doc.migrateTimestampIfNeeded("startDate", startRaw, startTs)
             doc.migrateTimestampIfNeeded("endDate", endRaw, endTs)
 
-            Log.d(
+            AppLogger.d(
                 "ProjectModel",
                 "from(doc=${doc.id}) start=${startTs?.seconds} end=${endTs?.seconds}"
             )
@@ -65,8 +65,7 @@ data class Project(
                     ?: data["name"] as? String
                     ?: "",
                 projectLocation = doc.getString("projectLocation")
-                    ?: data["location"] as? String
-                    ?: "",
+                    ?: data["location"] as? String,
                 latitude = doc.getDouble("latitude"),
                 longitude = doc.getDouble("longitude"),
                 addressText = doc.getString("addressText") ?: data["location"] as? String,
