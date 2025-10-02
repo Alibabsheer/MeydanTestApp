@@ -10,7 +10,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
-import org.mockito.ArgumentCaptor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
@@ -35,7 +34,7 @@ class CreateProjectViewModelTest {
         whenever(auth.currentUser).thenReturn(user)
         whenever(user.uid).thenReturn("org-123")
 
-        val projectCaptor: ArgumentCaptor<Map<String, Any?>> = argumentCaptor()
+        val projectCaptor = argumentCaptor<Map<String, Any?>>()
         whenever(repository.createProject(any(), projectCaptor.capture())).thenAnswer {
             Result.success("project-001")
         }
