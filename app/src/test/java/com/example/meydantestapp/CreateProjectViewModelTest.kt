@@ -5,6 +5,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -34,9 +35,10 @@ class CreateProjectViewModelTest {
         whenever(auth.currentUser).thenReturn(user)
         whenever(user.uid).thenReturn("org-123")
 
-        val projectCaptor = argumentCaptor<Map<String, Any?>>()
-        whenever(repository.createProject(any(), projectCaptor.capture())).thenAnswer {
-            Result.success("project-001")
+        runBlocking {
+            whenever(repository.createProject(any(), any<Map<String, Any?>>())).thenReturn(
+                Result.success("project-001")
+            )
         }
 
         val viewModel = CreateProjectViewModel(repository, auth)
@@ -57,8 +59,9 @@ class CreateProjectViewModelTest {
 
         mainDispatcherRule.dispatcher.scheduler.advanceUntilIdle()
 
-        verify(repository).createProject(any(), any<Map<String, Any?>>())
-        val payload = projectCaptor.value
+        val projectCaptor = argumentCaptor<Map<String, Any?>>()
+        verify(repository).createProject(any(), projectCaptor.capture())
+        val payload = projectCaptor.firstValue
         val start = payload["startDate"]
         val end = payload["endDate"]
         assertTrue(start is Timestamp)
