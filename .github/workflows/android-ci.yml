@@ -62,6 +62,19 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 35
+          build-tools: "35.0.0"
+          components: |
+            platforms;android-35
+            build-tools;35.0.0
+            platform-tools
+
+      - name: Configure local.properties
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" >> local.properties
+
       # توليد google-services.json من السر
       - name: Set up google-services.json
         run: bash scripts/setup-google-services.sh
@@ -75,27 +88,28 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build (assemble + unit tests) with diagnostics
+        env:
+          GRADLE_SCAN_TERMS_OF_SERVICE_URL: "https://gradle.com/terms-of-service"
+          GRADLE_SCAN_TERMS_OF_SERVICE_AGREE: "yes"
         run: |
           ./gradlew --stop
-          ./gradlew clean assembleDebug test --stacktrace --info --no-daemon
+          ./gradlew clean assembleDebug test --stacktrace --info --no-daemon --scan
 
       - name: Android Lint (debug)
         run: ./gradlew lintDebug --stacktrace --no-daemon
 
-      # نرفع التقارير والسجلات فقط عند الفشل لتقليل الاستهلاك
-      - name: Upload build reports (on failure)
-        if: ${{ failure() }}
-        continue-on-error: true
+      - name: Upload test & lint reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-reports
+          name: test-and-lint-reports
           path: |
-            **/build/reports/**
-            **/build/test-results/**
-            **/outputs/**
-          retention-days: 3
+            app/build/test-results/**
+            app/build/reports/tests/**
+            app/build/reports/lint-results*
+          retention-days: 10
 
-      - name: Upload Gradle logs (on failure)
+      - name: Upload Gradle diagnostics on failure
         if: ${{ failure() }}
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -107,14 +121,3 @@ jobs:
             **/build/tmp/kapt3/incApCache/**
             **/build/tmp/kapt3/**/kaptGenerateStubs*/kapt.log
           retention-days: 3
-
-      # اختياري: رفع ملخص build عند النجاح، لكن غير مُسقط للمهمة
-      - name: Upload app build directory (summary, non-blocking)
-        if: ${{ success() }}
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-build
-          path: app/build/
-          if-no-files-found: warn
-          retention-days: 2

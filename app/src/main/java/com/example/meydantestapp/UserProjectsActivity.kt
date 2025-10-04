@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.meydantestapp.data.ProjectsRepository
 import com.example.meydantestapp.utils.Constants
+import com.example.meydantestapp.utils.ProjectNavigationValidator
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
@@ -42,9 +43,18 @@ class UserProjectsActivity : AppCompatActivity() {
 
         adapter = UserProjectsAdapter(projectItems.map { it.second }) { projectName ->
             val selected = projectItems.firstOrNull { it.second == projectName }
+            val projectId = ProjectNavigationValidator.sanitize(selected?.first)
+            if (projectId == null) {
+                Toast.makeText(
+                    this,
+                    "تعذر فتح تفاصيل المشروع بدون معرف صالح.",
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@UserProjectsAdapter
+            }
             val intent = Intent(this, ProjectDetailsActivity::class.java)
             intent.putExtra(Constants.EXTRA_PROJECT_NAME, projectName)
-            intent.putExtra(Constants.EXTRA_PROJECT_ID, selected?.first)
+            intent.putExtra(Constants.EXTRA_PROJECT_ID, projectId)
             // تمرير معرّف المؤسسة صراحة (لضمان سريان الشعار الصحيح لاحقًا داخل سلسلة الشاشات)
             organizationId?.let {
                 intent.putExtra(Constants.EXTRA_ORGANIZATION_ID, it)
@@ -145,9 +155,18 @@ class UserProjectsActivity : AppCompatActivity() {
     private fun updateAdapter() {
         adapter = UserProjectsAdapter(projectItems.map { it.second }) { projectName ->
             val selected = projectItems.firstOrNull { it.second == projectName }
+            val projectId = ProjectNavigationValidator.sanitize(selected?.first)
+            if (projectId == null) {
+                Toast.makeText(
+                    this,
+                    "تعذر فتح تفاصيل المشروع بدون معرف صالح.",
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@UserProjectsAdapter
+            }
             val intent = Intent(this, ProjectDetailsActivity::class.java)
             intent.putExtra(Constants.EXTRA_PROJECT_NAME, projectName)
-            intent.putExtra(Constants.EXTRA_PROJECT_ID, selected?.first)
+            intent.putExtra(Constants.EXTRA_PROJECT_ID, projectId)
             organizationId?.let {
                 intent.putExtra(Constants.EXTRA_ORGANIZATION_ID, it)
                 intent.putExtra("organizationId", it)

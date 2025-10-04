@@ -13,6 +13,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.meydantestapp.data.ProjectsRepository
 import com.example.meydantestapp.data.model.Project
 import com.example.meydantestapp.utils.Constants
+import com.example.meydantestapp.utils.ProjectNavigationValidator
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -168,7 +169,8 @@ class ProjectsActivity : AppCompatActivity() {
     }
 
     private fun openProjectSettings(projectId: String?, source: String) {
-        if (projectId.isNullOrBlank()) {
+        val resolvedId = ProjectNavigationValidator.sanitize(projectId)
+        if (resolvedId == null) {
             Log.e(TAG_OPEN_SETTINGS, "Attempted to open settings from $source without projectId")
             Toast.makeText(
                 this,
@@ -178,9 +180,9 @@ class ProjectsActivity : AppCompatActivity() {
             return
         }
 
-        Log.d(TAG_OPEN_SETTINGS, "Opening ProjectSettingsActivity with id=$projectId from $source")
+        Log.d(TAG_OPEN_SETTINGS, "Opening ProjectSettingsActivity with id=$resolvedId from $source")
         val intent = Intent(this, ProjectSettingsActivity::class.java)
-            .putExtra(Constants.EXTRA_PROJECT_ID, projectId)
+            .putExtra(Constants.EXTRA_PROJECT_ID, resolvedId)
         startActivity(intent)
     }
 

@@ -125,6 +125,10 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.8.3")
 
     testImplementation(libs.junit)
+    testImplementation("androidx.arch.core:core-testing:2.2.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    testImplementation("org.mockito:mockito-core:5.11.0")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:5.2.1")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }
