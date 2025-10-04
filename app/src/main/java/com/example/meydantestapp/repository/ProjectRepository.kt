@@ -9,6 +9,7 @@ import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
+import kotlin.LazyThreadSafetyMode
 
 /**
  * ProjectRepository
@@ -18,7 +19,9 @@ import kotlinx.coroutines.tasks.await
  */
 open class ProjectRepository {
 
-    private val firestore = FirebaseFirestore.getInstance()
+    private val firestore: FirebaseFirestore by lazy(LazyThreadSafetyMode.NONE) {
+        FirebaseFirestore.getInstance()
+    }
 
     private companion object {
         const val ORGANIZATIONS = "organizations"

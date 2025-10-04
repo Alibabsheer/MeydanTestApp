@@ -75,27 +75,31 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build (assemble + unit tests) with diagnostics
+        env:
+          GRADLE_BUILD_SCAN_TOS_ACCEPT: "yes"
+          GRADLE_BUILD_SCAN_TOS_URL: "https://gradle.com/terms-of-service"
         run: |
           ./gradlew --stop
-          ./gradlew clean assembleDebug test --stacktrace --info --no-daemon
+          ./gradlew clean assembleDebug test --stacktrace --info --no-daemon --scan
 
       - name: Android Lint (debug)
         run: ./gradlew lintDebug --stacktrace --no-daemon
 
       # نرفع التقارير والسجلات فقط عند الفشل لتقليل الاستهلاك
-      - name: Upload build reports (on failure)
-        if: ${{ failure() }}
+      - name: Upload unit test and lint reports
+        if: ${{ always() }}
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: build-reports
           path: |
-            **/build/reports/**
-            **/build/test-results/**
-            **/outputs/**
-          retention-days: 3
+            app/build/test-results/**
+            app/build/reports/tests/**
+            app/build/reports/lint-results*
+          if-no-files-found: warn
+          retention-days: 7
 
-      - name: Upload Gradle logs (on failure)
+      - name: Upload Gradle diagnostics on failure
         if: ${{ failure() }}
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -107,14 +111,3 @@ jobs:
             **/build/tmp/kapt3/incApCache/**
             **/build/tmp/kapt3/**/kaptGenerateStubs*/kapt.log
           retention-days: 3
-
-      # اختياري: رفع ملخص build عند النجاح، لكن غير مُسقط للمهمة
-      - name: Upload app build directory (summary, non-blocking)
-        if: ${{ success() }}
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-build
-          path: app/build/
-          if-no-files-found: warn
-          retention-days: 2
