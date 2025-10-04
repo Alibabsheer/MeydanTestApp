@@ -4,6 +4,8 @@ import com.example.meydantestapp.data.model.Project
 import com.example.meydantestapp.utils.Constants
 import com.example.meydantestapp.utils.FirestoreTimestampConverter
 import com.example.meydantestapp.utils.ProjectLocationUtils
+import com.example.meydantestapp.utils.DefaultFirestoreProvider
+import com.example.meydantestapp.utils.FirestoreProvider
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
@@ -17,10 +19,12 @@ import kotlin.LazyThreadSafetyMode
  *   organizations/{organizationId}/projects/{projectId}
  * - يعتمد المخطط القانوني (canonical schema) الذي تُعرّفه فئة Project.
  */
-open class ProjectRepository {
+open class ProjectRepository(
+    private val firestoreProvider: FirestoreProvider = DefaultFirestoreProvider
+) {
 
     private val firestore: FirebaseFirestore by lazy(LazyThreadSafetyMode.NONE) {
-        FirebaseFirestore.getInstance()
+        firestoreProvider.get()
     }
 
     private companion object {
