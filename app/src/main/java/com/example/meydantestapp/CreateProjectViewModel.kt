@@ -4,12 +4,13 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.meydantestapp.repository.ProjectRepository
-import com.example.meydantestapp.utils.FirestoreTimestampConverter
 import com.example.meydantestapp.utils.AppLogger
+import com.example.meydantestapp.repository.ProjectRepository
+import com.example.meydantestapp.utils.AuthProvider
+import com.example.meydantestapp.utils.FirebaseAuthProvider
+import com.example.meydantestapp.utils.FirestoreTimestampConverter
 import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.google.firebase.Timestamp
-import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 
 /**
@@ -18,7 +19,7 @@ import kotlinx.coroutines.launch
  */
 class CreateProjectViewModel(
     private val repository: ProjectRepository = ProjectRepository(),
-    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val authProvider: AuthProvider = FirebaseAuthProvider()
 ) : ViewModel() {
 
     private val _isLoading = MutableLiveData(false)
@@ -48,7 +49,7 @@ class CreateProjectViewModel(
         calculatedContractValue: Double?,
         plusCode: String?
     ) {
-        val organizationId = auth.currentUser?.uid
+        val organizationId = authProvider.currentUserId()
         if (organizationId.isNullOrEmpty()) {
             _errorMessage.value = "خطأ: المستخدم غير مسجل الدخول."
             return

@@ -248,6 +248,7 @@ class SelectLocationActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun setupLayersButton() {
         val layersButton = binding.layersButton
         layersButton.isEnabled = true
+        layersButton.alpha = 1f
         layersButton.setOnClickListener {
             val currentMap = map
             if (currentMap == null) {

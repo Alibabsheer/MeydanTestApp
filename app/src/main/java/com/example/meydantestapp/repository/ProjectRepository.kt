@@ -16,7 +16,7 @@ import kotlinx.coroutines.tasks.await
  *   organizations/{organizationId}/projects/{projectId}
  * - يعتمد المخطط القانوني (canonical schema) الذي تُعرّفه فئة Project.
  */
-class ProjectRepository {
+open class ProjectRepository {
 
     private val firestore = FirebaseFirestore.getInstance()
 
@@ -30,7 +30,7 @@ class ProjectRepository {
             .collection(Constants.COLLECTION_PROJECTS)
 
     /** إنشاء مشروع عبر خريطة بيانات */
-    suspend fun createProject(
+    open suspend fun createProject(
         organizationId: String,
         projectData: Map<String, Any?>
     ): Result<String> = runCatching {
@@ -51,7 +51,7 @@ class ProjectRepository {
     }
 
     /** إنشاء مشروع عبر حقول منفصلة */
-    suspend fun createProject(
+    open suspend fun createProject(
         projectName: String,
         projectDescription: String,
         organizationId: String,
@@ -77,7 +77,7 @@ class ProjectRepository {
     }
 
     /** جلب مشاريع مؤسسة */
-    suspend fun getProjectsByOrganization(organizationId: String): Result<List<Project>> =
+    open suspend fun getProjectsByOrganization(organizationId: String): Result<List<Project>> =
         runCatching {
             val qs = orgProjectsRef(organizationId)
                 .orderBy("createdAt", Query.Direction.DESCENDING)
@@ -86,7 +86,7 @@ class ProjectRepository {
         }
 
     /** جلب مشروع بمعرّفه ضمن مؤسسة */
-    suspend fun getProjectById(organizationId: String, projectId: String): Result<Project> =
+    open suspend fun getProjectById(organizationId: String, projectId: String): Result<Project> =
         runCatching {
             val doc = orgProjectsRef(organizationId).document(projectId).get().await()
             if (!doc.exists()) error("Project not found")
@@ -94,7 +94,7 @@ class ProjectRepository {
         }
 
     /** (توافق عام) جلب مشروع عبر collectionGroup */
-    suspend fun getProjectById(projectId: String): Result<Project> =
+    open suspend fun getProjectById(projectId: String): Result<Project> =
         runCatching {
             val snap = firestore.collectionGroup(Constants.COLLECTION_PROJECTS)
                 .whereEqualTo(FieldPath.documentId(), projectId)
@@ -104,7 +104,7 @@ class ProjectRepository {
         }
 
     /** تحديث مشروع ضمن مؤسسة */
-    suspend fun updateProject(
+    open suspend fun updateProject(
         organizationId: String,
         projectId: String,
         updates: Map<String, Any?>
@@ -131,7 +131,7 @@ class ProjectRepository {
     }
 
     /** (توافق عام) تحديث عبر collectionGroup */
-    suspend fun updateProject(projectId: String, updates: Map<String, Any?>): Result<Unit> =
+    open suspend fun updateProject(projectId: String, updates: Map<String, Any?>): Result<Unit> =
         runCatching {
             val snap = firestore.collectionGroup(Constants.COLLECTION_PROJECTS)
                 .whereEqualTo(FieldPath.documentId(), projectId)
@@ -156,13 +156,13 @@ class ProjectRepository {
         }
 
     /** حذف مشروع ضمن مؤسسة */
-    suspend fun deleteProject(organizationId: String, projectId: String): Result<Unit> =
+    open suspend fun deleteProject(organizationId: String, projectId: String): Result<Unit> =
         runCatching {
             orgProjectsRef(organizationId).document(projectId).delete().await()
         }
 
     /** (توافق عام) حذف عبر collectionGroup */
-    suspend fun deleteProject(projectId: String): Result<Unit> = runCatching {
+    open suspend fun deleteProject(projectId: String): Result<Unit> = runCatching {
         val snap = firestore.collectionGroup(Constants.COLLECTION_PROJECTS)
             .whereEqualTo(FieldPath.documentId(), projectId)
             .get().await()
@@ -171,7 +171,7 @@ class ProjectRepository {
     }
 
     /** جلب مشاريع مستخدم */
-    suspend fun getProjectsForUser(userId: String): Result<List<Project>> =
+    open suspend fun getProjectsForUser(userId: String): Result<List<Project>> =
         runCatching {
             val userDoc = firestore.collection(Constants.COLLECTION_USERS)
                 .document(userId).get().await()
