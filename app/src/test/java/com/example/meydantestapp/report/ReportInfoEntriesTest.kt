@@ -13,6 +13,9 @@ class ReportInfoEntriesTest {
         val data = ReportPdfBuilder.DailyReport(
             organizationName = "مؤسسة الريادة",
             projectName = "برج الرياض",
+            ownerName = "مالك المشروع",
+            contractorName = "شركة المقاولات",
+            consultantName = "المهندس الاستشاري",
             projectLocation = "الرياض",
             projectLocationGoogleMapsUrl = "https://maps.google.com/?q=riyadh",
             reportNumber = "DailyReport-5",
@@ -25,6 +28,9 @@ class ReportInfoEntriesTest {
         assertEquals(
             listOf(
                 "اسم المشروع",
+                "مالك المشروع",
+                "مقاول المشروع",
+                "الاستشاري",
                 "موقع المشروع",
                 "رقم التقرير",
                 "تاريخ التقرير",
@@ -40,6 +46,9 @@ class ReportInfoEntriesTest {
         val data = ReportPdfBuilder.DailyReport(
             projectName = "مشروع الاختبار",
             projectLocation = " ",
+            ownerName = "  ",
+            contractorName = null,
+            consultantName = "",
             reportNumber = null,
             dateText = "2025-01-03",
             createdBy = ""

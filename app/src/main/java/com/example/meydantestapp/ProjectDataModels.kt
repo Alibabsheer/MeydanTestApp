@@ -62,6 +62,9 @@ data class DailyReport(
     var id: String? = null,
     val projectId: String? = null,
     val projectName: String? = null,
+    val ownerName: String? = null,
+    val contractorName: String? = null,
+    val consultantName: String? = null,
     val date: Long? = null,                 // timestamp(ms)
     val temperature: String? = null,
     val weatherStatus: String? = null,

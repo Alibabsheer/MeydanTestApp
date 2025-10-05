@@ -63,6 +63,9 @@ class ReportPdfBuilder(
     data class DailyReport(
         val organizationName: String? = null,
         val projectName: String? = null,
+        val ownerName: String? = null,
+        val contractorName: String? = null,
+        val consultantName: String? = null,
         val projectLocation: String? = null,
         val projectLocationGoogleMapsUrl: String? = null,
         val reportNumber: String? = null,
@@ -797,6 +800,18 @@ internal fun buildReportInfoEntries(data: ReportPdfBuilder.DailyReport): List<Re
 
     data.projectName.normalizedOrNull()?.let {
         entries.add(ReportInfoEntry("اسم المشروع", it))
+    }
+
+    data.ownerName.normalizedOrNull()?.let {
+        entries.add(ReportInfoEntry("مالك المشروع", it))
+    }
+
+    data.contractorName.normalizedOrNull()?.let {
+        entries.add(ReportInfoEntry("مقاول المشروع", it))
+    }
+
+    data.consultantName.normalizedOrNull()?.let {
+        entries.add(ReportInfoEntry("الاستشاري", it))
     }
 
     val projectLocation = data.projectLocation.normalizedOrNull()

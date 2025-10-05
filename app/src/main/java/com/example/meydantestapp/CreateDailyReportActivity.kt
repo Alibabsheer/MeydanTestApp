@@ -15,6 +15,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -70,6 +71,7 @@ class CreateDailyReportActivity : AppCompatActivity() {
     companion object {
         private const val MAX_SELECTION = 10
         private const val FINISH_DELAY_MS = 700L
+        private const val PLACEHOLDER_VALUE = "—"
     }
 
     // ===== لانشرات =====
@@ -123,6 +125,13 @@ class CreateDailyReportActivity : AppCompatActivity() {
         projectName = intent.getStringExtra("projectName")
         organizationId = intent.getStringExtra("organizationId")
 
+        updateReportInfoSection(
+            name = projectName,
+            owner = null,
+            contractor = null,
+            consultant = null
+        )
+
         // تمهيد أسماء العرض الملتقطة وقت الإنشاء
         vm.setCreatedByName(auth.currentUser?.displayName)
 
@@ -147,6 +156,17 @@ class CreateDailyReportActivity : AppCompatActivity() {
             binding.temperatureInput.setText(formatTempToIntString(raw))
         }
         vm.weatherStatus.observe(this) { binding.weatherStatusInput.setText(it ?: "") }
+
+        vm.projectInfo.observe(this) { info ->
+            val map = info.orEmpty()
+            val resolvedName = ((map["projectName"] ?: map["name"]) as? String)?.nullIfBlank()
+                ?: projectName
+            projectName = resolvedName ?: projectName
+            val owner = map["ownerName"]?.toString()?.nullIfBlank()
+            val contractor = map["contractorName"]?.toString()?.nullIfBlank()
+            val consultant = map["consultantName"]?.toString()?.nullIfBlank()
+            updateReportInfoSection(resolvedName ?: projectName, owner, contractor, consultant)
+        }
 
         // ربط الحقول لتجميع العمالة لحظيًا
         setUpLaborAutoSum()
@@ -446,6 +466,13 @@ class CreateDailyReportActivity : AppCompatActivity() {
                         ?: (projectMap["name"] as? String)
                 }
 
+                updateReportInfoSection(
+                    name = projectName,
+                    owner = projectMap["ownerName"]?.toString()?.nullIfBlank(),
+                    contractor = projectMap["contractorName"]?.toString()?.nullIfBlank(),
+                    consultant = projectMap["consultantName"]?.toString()?.nullIfBlank()
+                )
+
                 binding.reportDateInput.isEnabled = true
             }
             .addOnFailureListener {
@@ -710,6 +737,25 @@ class CreateDailyReportActivity : AppCompatActivity() {
         row.findViewById<ImageButton?>(R.id.addNoteButton)?.setOnClickListener { addNoteRow() }
         binding.noteInputContainer.addView(row)
     }
+
+    private fun updateReportInfoSection(
+        name: String?,
+        owner: String?,
+        contractor: String?,
+        consultant: String?
+    ) {
+        setReportInfoValue(binding.reportProjectNameValue, name)
+        setReportInfoValue(binding.reportOwnerNameValue, owner)
+        setReportInfoValue(binding.reportContractorNameValue, contractor)
+        setReportInfoValue(binding.reportConsultantNameValue, consultant)
+    }
+
+    private fun setReportInfoValue(view: TextView, raw: String?) {
+        val normalized = raw?.trim()?.takeIf { it.isNotEmpty() }
+        view.text = normalized ?: PLACEHOLDER_VALUE
+    }
+
+    private fun String?.nullIfBlank(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
 
     // ===== العرض القديم للصور المصغّرة (للتوافق فقط عندما لا يكون القالب محددًا) =====
     private fun renderPhotos(uris: List<Uri>) {

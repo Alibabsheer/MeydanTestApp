@@ -26,6 +26,10 @@
     <string name="create_daily_report_title">إنشاء تقرير يومي</string>
     <string name="daily_reports_title">عرض التقارير اليومية</string>
     <string name="project_date_not_set">غير محدد</string>
+    <string name="label_report_info">معلومات التقرير</string>
+    <string name="label_project_owner">مالك المشروع</string>
+    <string name="label_project_contractor">مقاول المشروع</string>
+    <string name="label_project_consultant">الاستشاري</string>
 
     <string-array name="work_type_options">
         <item>اختر نوع العمل</item>
