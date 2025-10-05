@@ -5,7 +5,6 @@ import com.example.meydantestapp.LumpSumItem
 import com.example.meydantestapp.repository.ProjectRepository
 import com.example.meydantestapp.utils.AuthProvider
 import com.example.meydantestapp.utils.FirestoreProvider
-import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -14,6 +13,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import java.time.LocalDate
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -71,8 +71,8 @@ class CreateProjectViewModelTest {
             addressText = "Address",
             latitude = 24.0,
             longitude = 46.0,
-            startDateStr = "30/09/2025",
-            endDateStr = "01/10/2025",
+            startDate = LocalDate.of(2025, 9, 30),
+            endDate = LocalDate.of(2025, 10, 1),
             workType = "مقطوعية",
             quantitiesTableData = null,
             lumpSumTableData = listOf(LumpSumItem(itemNumber = "1", totalValue = 10.0)),
@@ -83,15 +83,14 @@ class CreateProjectViewModelTest {
         advanceUntilIdle()
 
         val payload = repository.lastPayload ?: error("payload not captured")
-        val startTimestamp = payload["startDate"] as? Timestamp
-        val endTimestamp = payload["endDate"] as? Timestamp
+        val startEpochDay = payload["startDateEpochDay"] as? Long
+        val endEpochDay = payload["endDateEpochDay"] as? Long
 
-        requireNotNull(startTimestamp)
-        requireNotNull(endTimestamp)
+        requireNotNull(startEpochDay)
+        requireNotNull(endEpochDay)
 
-        val diffSeconds = endTimestamp.seconds - startTimestamp.seconds
-        // ensure ordering is preserved and both timestamps exist
-        assertEquals(86400L, diffSeconds)
+        assertEquals(LocalDate.of(2025, 9, 30).toEpochDay(), startEpochDay)
+        assertEquals(LocalDate.of(2025, 10, 1).toEpochDay(), endEpochDay)
         assertEquals("project-123", viewModel.createSuccess.getOrAwaitValue())
     }
 
@@ -105,8 +104,8 @@ class CreateProjectViewModelTest {
             addressText = "Address",
             latitude = 24.0,
             longitude = 46.0,
-            startDateStr = "30/09/2025",
-            endDateStr = "01/10/2025",
+            startDate = LocalDate.of(2025, 9, 30),
+            endDate = LocalDate.of(2025, 10, 1),
             workType = "مقطوعية",
             quantitiesTableData = null,
             lumpSumTableData = listOf(LumpSumItem(itemNumber = "1", totalValue = 10.0)),
@@ -129,8 +128,8 @@ class CreateProjectViewModelTest {
             addressText = "Address",
             latitude = 24.0,
             longitude = 46.0,
-            startDateStr = "30/09/2025",
-            endDateStr = "",
+            startDate = LocalDate.of(2025, 9, 30),
+            endDate = null,
             workType = "مقطوعية",
             quantitiesTableData = null,
             lumpSumTableData = listOf(LumpSumItem(itemNumber = "1", totalValue = 10.0)),
@@ -140,6 +139,30 @@ class CreateProjectViewModelTest {
 
         val error = viewModel.errorMessage.getOrAwaitValue()
         assertEquals("تأكد من إدخال تواريخ صحيحة.", error)
+        assertNull(repository.lastPayload)
+    }
+
+    @Test
+    fun `createProject rejects end date before start`() = runTest(testDispatcher) {
+        val repository = CapturingRepository()
+        val viewModel = CreateProjectViewModel(repository, FakeAuthProvider("org-1"))
+
+        viewModel.createProject(
+            projectName = "Test",
+            addressText = "Address",
+            latitude = 24.0,
+            longitude = 46.0,
+            startDate = LocalDate.of(2025, 10, 2),
+            endDate = LocalDate.of(2025, 10, 1),
+            workType = "مقطوعية",
+            quantitiesTableData = null,
+            lumpSumTableData = listOf(LumpSumItem(itemNumber = "1", totalValue = 10.0)),
+            calculatedContractValue = 10.0,
+            plusCode = null
+        )
+
+        val error = viewModel.errorMessage.getOrAwaitValue()
+        assertEquals("تاريخ الانتهاء يجب أن يكون بعد تاريخ البدء.", error)
         assertNull(repository.lastPayload)
     }
 }

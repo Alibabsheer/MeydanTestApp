@@ -20,12 +20,16 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
 import java.text.NumberFormat
-import java.text.SimpleDateFormat
-import java.util.*
+import java.time.LocalDate
+import java.util.Calendar
+import java.util.Locale
 import com.example.meydantestapp.utils.AppLogger
 import com.example.meydantestapp.utils.Constants
-import com.example.meydantestapp.utils.FirestoreTimestampConverter
 import com.example.meydantestapp.utils.ProjectDateFormatter
+import com.example.meydantestapp.utils.ProjectDateUtils.formatForDisplay
+import com.example.meydantestapp.utils.ProjectDateUtils.parseUserInput
+import com.example.meydantestapp.utils.ProjectDateUtils.toUtcLocalDate
+import com.example.meydantestapp.utils.ProjectDateUtils.toUtcTimestamp
 import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.example.meydantestapp.utils.migrateTimestampIfNeeded
 
@@ -37,6 +41,8 @@ class ProjectSettingsActivity : AppCompatActivity() {
     private var selectedLongitude: Double? = null
     private var selectedPlusCode: String? = null
     private var isUpdatingLocationText = false
+    private var isUpdatingStartDate = false
+    private var isUpdatingEndDate = false
 
     private lateinit var selectLocationLauncher: ActivityResultLauncher<Intent>
 
@@ -46,9 +52,8 @@ class ProjectSettingsActivity : AppCompatActivity() {
     private lateinit var projectId: String
     private var currentProjectWorkType: String? = null
 
-    private val dateFormatter = SimpleDateFormat(Constants.DATE_FORMAT_DISPLAY, Locale.US).apply {
-        isLenient = false
-    }
+    private var selectedStartDate: LocalDate? = null
+    private var selectedEndDate: LocalDate? = null
     private var hasUnsavedChanges = false
 
     private companion object {
@@ -159,11 +164,17 @@ class ProjectSettingsActivity : AppCompatActivity() {
         }
 
         binding.startDateEditText.addTextChangedListener {
+            if (isUpdatingStartDate) return@addTextChangedListener
+            val text = it?.toString()?.trim().orEmpty()
+            selectedStartDate = if (text.isEmpty()) null else parseUserInput(text, Locale.getDefault())
             hasUnsavedChanges = true
             enableSaveButton()
         }
 
         binding.endDateEditText.addTextChangedListener {
+            if (isUpdatingEndDate) return@addTextChangedListener
+            val text = it?.toString()?.trim().orEmpty()
+            selectedEndDate = if (text.isEmpty()) null else parseUserInput(text, Locale.getDefault())
             hasUnsavedChanges = true
             enableSaveButton()
         }
@@ -214,7 +225,9 @@ class ProjectSettingsActivity : AppCompatActivity() {
         val name = binding.projectNameEditText.text.toString().trim()
         val startStr = binding.startDateEditText.text.toString().trim()
         val endStr = binding.endDateEditText.text.toString().trim()
-        binding.saveChangesButton.isEnabled = name.isNotEmpty() && startStr.isNotEmpty() && endStr.isNotEmpty()
+        val startValid = startStr.isNotEmpty() && selectedStartDate != null
+        val endValid = endStr.isNotEmpty() && selectedEndDate != null
+        binding.saveChangesButton.isEnabled = name.isNotEmpty() && startValid && endValid
     }
 
     private fun toggleEditTextState(editText: EditText, enable: Boolean) {
@@ -268,8 +281,20 @@ class ProjectSettingsActivity : AppCompatActivity() {
                 selectedLongitude = (data["longitude"] as? Number)?.toDouble()
                 selectedPlusCode = data["plusCode"] as? String
 
-                binding.startDateEditText.setText(dates.startDisplay)
-                binding.endDateEditText.setText(dates.endDisplay)
+                selectedStartDate = dates.startTimestamp?.toUtcLocalDate()
+                selectedEndDate = dates.endTimestamp?.toUtcLocalDate()
+
+                isUpdatingStartDate = true
+                binding.startDateEditText.setText(
+                    selectedStartDate?.let { formatForDisplay(it, Locale.getDefault()) } ?: ""
+                )
+                isUpdatingStartDate = false
+
+                isUpdatingEndDate = true
+                binding.endDateEditText.setText(
+                    selectedEndDate?.let { formatForDisplay(it, Locale.getDefault()) } ?: ""
+                )
+                isUpdatingEndDate = false
 
                 currentProjectWorkType = data["workType"] as? String
 
@@ -315,13 +340,34 @@ class ProjectSettingsActivity : AppCompatActivity() {
     }
 
     private fun showDatePickerDialog(target: EditText) {
-        val cal = Calendar.getInstance()
-        DatePickerDialog(this, { _, y, m, d ->
-            val selected = Calendar.getInstance().apply { set(y, m, d) }
-            target.setText(dateFormatter.format(selected.time))
-            toggleEditTextState(target, false)
-            enableSaveButton()
-        }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH)).show()
+        val currentDate = when (target.id) {
+            binding.startDateEditText.id -> selectedStartDate
+            binding.endDateEditText.id -> selectedEndDate ?: selectedStartDate
+            else -> null
+        } ?: LocalDate.now()
+
+        val cal = Calendar.getInstance().apply {
+            set(Calendar.YEAR, currentDate.year)
+            set(Calendar.MONTH, currentDate.monthValue - 1)
+            set(Calendar.DAY_OF_MONTH, currentDate.dayOfMonth)
+        }
+
+        DatePickerDialog(
+            this,
+            { _, y, m, d ->
+                val pickedDate = LocalDate.of(y, m + 1, d)
+                target.setText(formatForDisplay(pickedDate, Locale.getDefault()))
+                when (target.id) {
+                    binding.startDateEditText.id -> selectedStartDate = pickedDate
+                    binding.endDateEditText.id -> selectedEndDate = pickedDate
+                }
+                toggleEditTextState(target, false)
+                enableSaveButton()
+            },
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH),
+            cal.get(Calendar.DAY_OF_MONTH)
+        ).show()
     }
 
     private fun saveProjectChangesToFirestore() {
@@ -334,12 +380,21 @@ class ProjectSettingsActivity : AppCompatActivity() {
             return
         }
         val userId = auth.currentUser?.uid ?: return finishWithToast("خطأ: المستخدم غير مسجل الدخول.")
-        val startTs = FirestoreTimestampConverter.fromAny(startStr)
-        val endTs = FirestoreTimestampConverter.fromAny(endStr)
-        if (startTs == null || endTs == null) {
+
+        val startDate = selectedStartDate ?: parseUserInput(startStr, Locale.getDefault())
+        val endDate = selectedEndDate ?: parseUserInput(endStr, Locale.getDefault())
+        if (startDate == null || endDate == null) {
             Toast.makeText(this, "تعذر قراءة التواريخ المدخلة.", Toast.LENGTH_LONG).show()
             return
         }
+
+        if (endDate.isBefore(startDate)) {
+            Toast.makeText(this, "تاريخ الانتهاء يجب أن يكون بعد تاريخ البدء", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val startTs = startDate.toUtcTimestamp()
+        val endTs = endDate.toUtcTimestamp()
 
         AppLogger.i(TAG, "Saving project=$projectId start=${startTs.seconds} end=${endTs.seconds}")
 
@@ -362,6 +417,8 @@ class ProjectSettingsActivity : AppCompatActivity() {
             "workType" to workType,
             "startDate" to startTs,
             "endDate" to endTs,
+            "startDateEpochDay" to startDate.toEpochDay(),
+            "endDateEpochDay" to endDate.toEpochDay(),
             "updatedAt" to Timestamp.now(),
             "projectNumber" to projectId,
             "googleMapsUrl" to googleMapsUrl

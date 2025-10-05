@@ -6,7 +6,9 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.time.format.DecimalStyle
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
@@ -31,9 +33,12 @@ object FirestoreTimestampConverter {
 
     private val localDateFormatters: List<DateTimeFormatter> = listOf(
         DateTimeFormatter.ofPattern(Constants.DATE_FORMAT_DISPLAY, Locale.getDefault()),
+        DateTimeFormatter.ISO_LOCAL_DATE,
         DateTimeFormatter.ofPattern("yyyy-M-d", Locale.getDefault()),
         DateTimeFormatter.ofPattern("yyyy/MM/dd", Locale.getDefault())
-    )
+    ).map { formatter ->
+        formatter.withLocale(Locale.getDefault()).withDecimalStyle(DecimalStyle.STANDARD)
+    }
 
     /**
      * Attempts to normalise any Firestore-stored date representation into [Timestamp].
@@ -56,8 +61,9 @@ object FirestoreTimestampConverter {
      */
     fun fromString(value: String?): Timestamp? {
         val trimmed = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val normalized = trimmed.toLatinDigits()
 
-        literalTimestampRegex.matchEntire(trimmed)?.let { match ->
+        literalTimestampRegex.matchEntire(normalized)?.let { match ->
             val seconds = match.groupValues.getOrNull(1)?.toLongOrNull()
             val nanos = match.groupValues.getOrNull(2)?.toIntOrNull()
             if (seconds != null && nanos != null) {
@@ -66,20 +72,20 @@ object FirestoreTimestampConverter {
             }
         }
 
-        trimmed.toLongOrNull()?.let { numeric ->
+        normalized.toLongOrNull()?.let { numeric ->
             fromEpochGuess(numeric)?.let { return it }
         }
 
-        trimmed.toDoubleOrNull()?.let { numericDouble ->
+        normalized.toDoubleOrNull()?.let { numericDouble ->
             fromNumber(numericDouble)?.let { return it }
         }
 
-        parseIsoInstant(trimmed)?.let { instant ->
+        parseIsoInstant(normalized)?.let { instant ->
             return Timestamp(Date.from(instant))
         }
 
-        parseLocalDate(trimmed)?.let { localDate ->
-            val instant = localDate.atStartOfDay(ZoneId.systemDefault()).toInstant()
+        parseLocalDate(normalized)?.let { localDate ->
+            val instant = localDate.atStartOfDay(ZoneOffset.UTC).toInstant()
             return Timestamp(Date.from(instant))
         }
 
@@ -147,7 +153,6 @@ object FirestoreTimestampConverter {
     }
 
     private fun parseLocalDate(value: String): LocalDate? {
-        runCatching { LocalDate.parse(value, DateTimeFormatter.ISO_LOCAL_DATE) }.getOrNull()?.let { return it }
         for (formatter in localDateFormatters) {
             runCatching { LocalDate.parse(value, formatter) }.getOrNull()?.let { return it }
         }
@@ -171,14 +176,14 @@ object FirestoreTimestampConverter {
 
     private fun Any?.toLongStrict(): Long? = when (this) {
         is Number -> this.toLong()
-        is String -> this.trim().takeIf { it.isNotEmpty() }?.toLongOrNull()
+        is String -> this.trim().takeIf { it.isNotEmpty() }?.toLatinDigits()?.toLongOrNull()
         else -> null
     }
 
     private fun Any?.toIntStrict(): Int? = when (this) {
         is Number -> this.toInt()
         is String -> {
-            val trimmed = this.trim()
+            val trimmed = this.trim().toLatinDigits()
             trimmed.toIntOrNull()
                 ?: trimmed.toLongOrNull()?.toInt()
                 ?: trimmed.toDoubleOrNull()?.roundToInt()

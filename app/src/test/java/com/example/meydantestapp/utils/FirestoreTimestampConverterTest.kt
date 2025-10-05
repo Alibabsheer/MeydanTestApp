@@ -1,10 +1,10 @@
 package com.example.meydantestapp.utils
 
 import com.google.firebase.Timestamp
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
+import org.junit.Assert.*
 import org.junit.Test
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 class FirestoreTimestampConverterTest {
 
@@ -39,6 +39,8 @@ class FirestoreTimestampConverterTest {
         val input = "2025-09-30"
         val result = FirestoreTimestampConverter.fromAny(input)
         assertNotNull(result)
+        val expectedSeconds = LocalDate.of(2025, 9, 30).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+        assertEquals(expectedSeconds, result?.seconds)
     }
 
     @Test
@@ -46,6 +48,8 @@ class FirestoreTimestampConverterTest {
         val input = "30/09/2025"
         val result = FirestoreTimestampConverter.fromAny(input)
         assertNotNull(result)
+        val expectedSeconds = LocalDate.of(2025, 9, 30).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+        assertEquals(expectedSeconds, result?.seconds)
     }
 
     @Test
@@ -54,6 +58,15 @@ class FirestoreTimestampConverterTest {
         val result = FirestoreTimestampConverter.fromAny(input)
         assertNotNull(result)
         assertEquals("30/09/2025", result?.toDisplayDateString())
+    }
+
+    @Test
+    fun `parse arabic indic digits`() {
+        val input = "٠١/١٠/٢٠٢٥"
+        val result = FirestoreTimestampConverter.fromAny(input)
+        assertNotNull(result)
+        val expectedSeconds = LocalDate.of(2025, 10, 1).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+        assertEquals(expectedSeconds, result?.seconds)
     }
 
     @Test
