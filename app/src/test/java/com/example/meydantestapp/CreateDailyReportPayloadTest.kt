@@ -13,6 +13,9 @@ class CreateDailyReportPayloadTest {
 
         payload.applyDailyReportOptionalFields(
             projectName = "مشروع 1",
+            ownerName = "مالك 1",
+            contractorName = "مقاول 1",
+            consultantName = "استشاري 1",
             projectNumber = "42",
             location = "الرياض",
             latitude = 24.5,
@@ -34,6 +37,9 @@ class CreateDailyReportPayloadTest {
 
         assertFalse(payload.containsKey("organizationName"))
         assertEquals("مشروع 1", payload["projectName"])
+        assertEquals("مالك 1", payload["ownerName"])
+        assertEquals("مقاول 1", payload["contractorName"])
+        assertEquals("استشاري 1", payload["consultantName"])
         assertEquals("م. أحمد", payload["createdByName"])
     }
 
@@ -43,6 +49,9 @@ class CreateDailyReportPayloadTest {
 
         payload.applyDailyReportOptionalFields(
             projectName = null,
+            ownerName = null,
+            contractorName = " ",
+            consultantName = null,
             projectNumber = "   ",
             location = null,
             latitude = null,

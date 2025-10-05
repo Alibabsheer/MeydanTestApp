@@ -432,6 +432,9 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                 // 5) حقول المشروع
                 val projectData = _projectInfo.value.orEmpty()
                 val projectName = (projectData["projectName"] ?: projectData["name"]) as? String
+                val ownerName = projectData["ownerName"]?.toString()?.nullIfBlank()
+                val contractorName = projectData["contractorName"]?.toString()?.nullIfBlank()
+                val consultantName = projectData["consultantName"]?.toString()?.nullIfBlank()
                 val projectNumber = projectData["projectNumber"]?.toString()?.nullIfBlank()
                 val location = projectData["location"]?.toString()?.nullIfBlank()
                 val latitude = when (val v = projectData["latitude"]) {
@@ -477,6 +480,9 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
 
                 data.applyDailyReportOptionalFields(
                     projectName = projectName,
+                    ownerName = ownerName,
+                    contractorName = contractorName,
+                    consultantName = consultantName,
                     projectNumber = projectNumber,
                     location = location,
                     latitude = latitude,
@@ -851,6 +857,9 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
 
 internal fun MutableMap<String, Any>.applyDailyReportOptionalFields(
     projectName: String?,
+    ownerName: String?,
+    contractorName: String?,
+    consultantName: String?,
     projectNumber: String?,
     location: String?,
     latitude: Double?,
@@ -878,6 +887,9 @@ internal fun MutableMap<String, Any>.applyDailyReportOptionalFields(
 
     listOf(
         "projectName" to projectName,
+        "ownerName" to ownerName,
+        "contractorName" to contractorName,
+        "consultantName" to consultantName,
         "projectNumber" to projectNumber,
         "location" to location,
         "latitude" to latitude,

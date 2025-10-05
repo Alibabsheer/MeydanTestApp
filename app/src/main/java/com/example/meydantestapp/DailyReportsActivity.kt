@@ -156,6 +156,9 @@ class DailyReportsActivity : AppCompatActivity() {
                 projectId = this["projectId"] as? String,
                 isArchived = this["isArchived"] as? Boolean,
                 projectName = this["projectName"] as? String,
+                ownerName = (this["ownerName"] as? String)?.takeIf { it.isNotBlank() },
+                contractorName = (this["contractorName"] as? String)?.takeIf { it.isNotBlank() },
+                consultantName = (this["consultantName"] as? String)?.takeIf { it.isNotBlank() },
                 // درجة الحرارة كنص موحّد (لا نضيف رمز °C هنا حتى لا نفرض التنسيق قبل العرض)
                 temperature = tempText,
                 weatherStatus = (this["weatherStatus"] as? String)?.trim(),

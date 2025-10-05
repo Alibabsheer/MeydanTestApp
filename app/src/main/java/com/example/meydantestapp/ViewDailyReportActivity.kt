@@ -59,6 +59,10 @@ class ViewDailyReportActivity : AppCompatActivity() {
     private lateinit var sharePdfButton: Button
     private var progressBar: ProgressBar? = null
     private lateinit var zoomLayout: ZoomLayout
+    private lateinit var reportProjectNameValue: TextView
+    private lateinit var reportOwnerNameValue: TextView
+    private lateinit var reportContractorNameValue: TextView
+    private lateinit var reportConsultantNameValue: TextView
 
     // ===== VM / Data =====
     private lateinit var viewModel: ViewDailyReportViewModel
@@ -88,6 +92,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
         private const val DEFAULT_MIN_ZOOM = 0.8f
         private const val DEFAULT_MAX_ZOOM = 5.0f
         private const val DEFAULT_INITIAL_ZOOM = 1.0f
+        private const val PLACEHOLDER_VALUE = "—"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -103,6 +108,10 @@ class ViewDailyReportActivity : AppCompatActivity() {
         sharePdfButton = findViewById(R.id.sharePdfButton)
         progressBar = findViewById(R.id.progressBar)
         zoomLayout = findViewById(R.id.zoomContainer)
+        reportProjectNameValue = findViewById(R.id.viewReportProjectNameValue)
+        reportOwnerNameValue = findViewById(R.id.viewReportOwnerNameValue)
+        reportContractorNameValue = findViewById(R.id.viewReportContractorNameValue)
+        reportConsultantNameValue = findViewById(R.id.viewReportConsultantNameValue)
 
         // ===== Zoom setup =====
         zoomLayout.setMinZoom(DEFAULT_MIN_ZOOM)
@@ -145,6 +154,8 @@ class ViewDailyReportActivity : AppCompatActivity() {
             finish()
             return
         }
+
+        updateReportInfoSection(report)
 
         lifecycleScope.launch {
             val cachedPages = withContext(Dispatchers.IO) {
@@ -205,6 +216,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
                 sitePageUrls.addAll(urlsForDisplay)
             }
 
+            updateReportInfoSection(reportForRendering)
             setupPdfRenderFlow(reportForRendering, explicitOrgId)
         }
     }
@@ -219,6 +231,25 @@ class ViewDailyReportActivity : AppCompatActivity() {
         renderJob?.cancel()
         pageBitmaps.forEach { it.recycle() }
         pageBitmaps.clear()
+    }
+
+    private fun updateReportInfoSection(report: DailyReport?) {
+        if (report == null) {
+            setReportInfoValue(reportProjectNameValue, null)
+            setReportInfoValue(reportOwnerNameValue, null)
+            setReportInfoValue(reportContractorNameValue, null)
+            setReportInfoValue(reportConsultantNameValue, null)
+            return
+        }
+        setReportInfoValue(reportProjectNameValue, report.projectName)
+        setReportInfoValue(reportOwnerNameValue, report.ownerName)
+        setReportInfoValue(reportContractorNameValue, report.contractorName)
+        setReportInfoValue(reportConsultantNameValue, report.consultantName)
+    }
+
+    private fun setReportInfoValue(view: TextView, raw: String?) {
+        val normalized = raw?.trim()?.takeIf { it.isNotEmpty() }
+        view.text = normalized ?: PLACEHOLDER_VALUE
     }
 
     // ---------------------------------------------------------------------
@@ -329,6 +360,9 @@ class ViewDailyReportActivity : AppCompatActivity() {
 
                 val builderInput = ReportPdfBuilder.DailyReport(
                     projectName = report.projectName,
+                    ownerName = report.ownerName,
+                    contractorName = report.contractorName,
+                    consultantName = report.consultantName,
                     projectLocation = report.projectLocation,
                     projectLocationGoogleMapsUrl = report.googleMapsUrl,
                     reportNumber = report.reportNumber,
