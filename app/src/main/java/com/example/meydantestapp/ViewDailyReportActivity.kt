@@ -49,6 +49,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 class ViewDailyReportActivity : AppCompatActivity() {
@@ -63,6 +64,12 @@ class ViewDailyReportActivity : AppCompatActivity() {
     private lateinit var reportOwnerNameValue: TextView
     private lateinit var reportContractorNameValue: TextView
     private lateinit var reportConsultantNameValue: TextView
+    private lateinit var reportNumberValue: TextView
+    private lateinit var reportDateValue: TextView
+    private lateinit var reportTemperatureValue: TextView
+    private lateinit var reportWeatherStatusValue: TextView
+    private lateinit var reportLocationValue: TextView
+    private lateinit var reportCreatedByValue: TextView
 
     // ===== VM / Data =====
     private lateinit var viewModel: ViewDailyReportViewModel
@@ -95,6 +102,8 @@ class ViewDailyReportActivity : AppCompatActivity() {
         private const val PLACEHOLDER_VALUE = "—"
     }
 
+    private val dateFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_view_daily_report)
@@ -112,6 +121,12 @@ class ViewDailyReportActivity : AppCompatActivity() {
         reportOwnerNameValue = findViewById(R.id.viewReportOwnerNameValue)
         reportContractorNameValue = findViewById(R.id.viewReportContractorNameValue)
         reportConsultantNameValue = findViewById(R.id.viewReportConsultantNameValue)
+        reportNumberValue = findViewById(R.id.viewReportNumberValue)
+        reportDateValue = findViewById(R.id.viewReportDateValue)
+        reportTemperatureValue = findViewById(R.id.viewReportTemperatureValue)
+        reportWeatherStatusValue = findViewById(R.id.viewReportWeatherStatusValue)
+        reportLocationValue = findViewById(R.id.viewReportLocationValue)
+        reportCreatedByValue = findViewById(R.id.viewReportCreatedByValue)
 
         // ===== Zoom setup =====
         zoomLayout.setMinZoom(DEFAULT_MIN_ZOOM)
@@ -239,12 +254,30 @@ class ViewDailyReportActivity : AppCompatActivity() {
             setReportInfoValue(reportOwnerNameValue, null)
             setReportInfoValue(reportContractorNameValue, null)
             setReportInfoValue(reportConsultantNameValue, null)
+            setReportInfoValue(reportNumberValue, null)
+            setReportInfoValue(reportDateValue, null)
+            setReportInfoValue(reportTemperatureValue, null)
+            setReportInfoValue(reportWeatherStatusValue, null)
+            setReportInfoValue(reportLocationValue, null)
+            setReportInfoValue(reportCreatedByValue, null)
             return
         }
+        val dateText = report.date?.let { millis ->
+            runCatching { dateFormatter.format(Date(millis)) }.getOrNull()
+        }
+        val createdBy = report.createdByName?.trim()?.takeIf { it.isNotEmpty() }
+            ?: report.createdBy
+
         setReportInfoValue(reportProjectNameValue, report.projectName)
         setReportInfoValue(reportOwnerNameValue, report.ownerName)
         setReportInfoValue(reportContractorNameValue, report.contractorName)
         setReportInfoValue(reportConsultantNameValue, report.consultantName)
+        setReportInfoValue(reportNumberValue, report.reportNumber)
+        setReportInfoValue(reportDateValue, dateText)
+        setReportInfoValue(reportTemperatureValue, report.temperature)
+        setReportInfoValue(reportWeatherStatusValue, report.weatherStatus)
+        setReportInfoValue(reportLocationValue, report.projectLocation)
+        setReportInfoValue(reportCreatedByValue, createdBy)
     }
 
     private fun setReportInfoValue(view: TextView, raw: String?) {
@@ -367,6 +400,8 @@ class ViewDailyReportActivity : AppCompatActivity() {
                     projectLocationGoogleMapsUrl = report.googleMapsUrl,
                     reportNumber = report.reportNumber,
                     dateText = dateText,
+                    temperatureC = report.temperature,
+                    weatherCondition = report.weatherStatus,
                     weatherText = formatWeatherLine(report.temperature, report.weatherStatus),
                     createdBy = (report.createdByName?.takeIf { it.isNotBlank() } ?: report.createdBy),
                     dailyActivities = report.dailyActivities,

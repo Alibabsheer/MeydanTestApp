@@ -30,6 +30,12 @@
     <string name="label_project_owner">مالك المشروع</string>
     <string name="label_project_contractor">مقاول المشروع</string>
     <string name="label_project_consultant">الاستشاري</string>
+    <string name="label_report_number">رقم التقرير</string>
+    <string name="label_report_date">التاريخ</string>
+    <string name="label_temperature">درجة الحرارة</string>
+    <string name="label_weather_status">حالة الطقس</string>
+    <string name="label_project_location">موقع المشروع</string>
+    <string name="label_report_created_by">تم إنشاء التقرير بواسطة</string>
 
     <string-array name="work_type_options">
         <item>اختر نوع العمل</item>
