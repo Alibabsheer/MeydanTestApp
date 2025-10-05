@@ -379,7 +379,7 @@ class CreateDailyReportActivity : AppCompatActivity() {
         }
     }
 
-    /** تحديد organizationId ثم تحميل المشروع + التقاط organizationName في الـ VM */
+    /** تحديد organizationId ثم تحميل المشروع */
     private fun resolveOrganizationAndLoadProject() {
         val pid = projectId
         if (pid.isNullOrBlank()) {
@@ -390,7 +390,6 @@ class CreateDailyReportActivity : AppCompatActivity() {
         val passedOrg = organizationId
         if (!passedOrg.isNullOrBlank()) {
             organizationId = passedOrg
-            loadOrganizationName(passedOrg)
             loadProject(passedOrg, pid)
             return
         }
@@ -406,7 +405,6 @@ class CreateDailyReportActivity : AppCompatActivity() {
             .addOnSuccessListener { doc ->
                 if (doc.exists()) {
                     organizationId = currentUser.uid
-                    loadOrganizationName(currentUser.uid)
                     loadProject(currentUser.uid, pid)
                 } else {
                     db.collectionGroup("users")
@@ -419,7 +417,6 @@ class CreateDailyReportActivity : AppCompatActivity() {
                                 Toast.makeText(this, "تعذر تحديد مؤسسة المستخدم.", Toast.LENGTH_LONG).show()
                             } else {
                                 organizationId = orgId
-                                loadOrganizationName(orgId)
                                 loadProject(orgId, pid)
                             }
                         }
@@ -431,18 +428,6 @@ class CreateDailyReportActivity : AppCompatActivity() {
             .addOnFailureListener {
                 Toast.makeText(this, "فشل في جلب بيانات المؤسسة.", Toast.LENGTH_LONG).show()
             }
-    }
-
-    /** جلب organizationName وتمريره لـ ViewModel للالتقاط وقت الإنشاء */
-    private fun loadOrganizationName(orgId: String) {
-        db.collection("organizations").document(orgId)
-            .get()
-            .addOnSuccessListener { doc ->
-                val orgName = (doc.get("name") as? String)
-                    ?: (doc.get("organizationName") as? String)
-                vm.setOrganizationName(orgName)
-            }
-            .addOnFailureListener { /* تجاهل */ }
     }
 
     /** تحميل وثيقة المشروع وتمريرها للـ ViewModel (تشمل projectName/lat/lng ...) */
@@ -631,7 +616,6 @@ class CreateDailyReportActivity : AppCompatActivity() {
         }
 
         // تأكيد تمرير أسماء العرض للـ VM قبل الحفظ
-        if (vm.organizationName.value.isNullOrBlank()) { loadOrganizationName(orgId) }
         if (vm.createdByName.value.isNullOrBlank()) { vm.setCreatedByName(auth.currentUser?.displayName) }
 
         // بدء طبقة التحميل من البداية

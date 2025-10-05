@@ -115,9 +115,6 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
     val projectInfo: LiveData<Map<String, Any>?> = _projectInfo
 
     // أسماء إضافية تُلتقط وقت الإنشاء
-    private val _organizationName = MutableLiveData<String?>(null)
-    val organizationName: LiveData<String?> = _organizationName
-
     private val _createdByName = MutableLiveData<String?>(null)
     val createdByName: LiveData<String?> = _createdByName
 
@@ -203,8 +200,6 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
     // ===== ضبط معلومات عامة =====
     fun setProjectInfo(info: Map<String, Any>) { _projectInfo.value = info }
     fun setDate(dateIso: String) { _date.value = dateIso }
-
-    fun setOrganizationName(name: String?) { _organizationName.value = name?.trim()?.takeIf { it.isNotEmpty() } }
 
     fun setCreatedByName(name: String?) {
         val fromArg = name?.trim()?.takeIf { it.isNotEmpty() }
@@ -461,41 +456,45 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     "isArchived" to false
                 )
 
-                val orgNameSnap = _organizationName.value?.nullIfBlank()
                 val createdByNameSnap = _createdByName.value?.nullIfBlank()
+                val temperatureValue = _temperature.value.nullIfBlank()
+                val weatherValue = _weatherStatus.value.nullIfBlank()
+                val resourcesValue = equipmentList?.map { it.trim() }
+                    .orEmpty()
+                    .filter { it.isNotBlank() }
+                    .ifEmpty { null }
+                val challengesValue = challengesList?.map { it.trim() }
+                    .orEmpty()
+                    .filter { it.isNotBlank() }
+                    .ifEmpty { null }
+                val notesValue = notesList?.map { it.trim() }
+                    .orEmpty()
+                    .filter { it.isNotBlank() }
+                    .ifEmpty { null }
+                val photosValue = if (photoUrlsLegacy.isEmpty()) null else photoUrlsLegacy
+                val sitePagesValue = if (pageUrls.isEmpty()) null else pageUrls
+                val sitePagesMetaValue = if (pagesMeta.isEmpty()) null else pagesMeta
 
-                listOf(
-                    // من المشروع
-                    "projectName" to projectName,
-                    "projectNumber" to projectNumber,
-                    "location" to location,
-                    "latitude" to latitude,
-                    "longitude" to longitude,
-
-                    // من الطقس/الواجهة
-                    "temperature" to _temperature.value.nullIfBlank(),
-                    "weatherStatus" to _weatherStatus.value.nullIfBlank(),
-
-                    // من المدخلات
-                    "dailyActivities" to cleanedActivities.ifEmpty { null },
-                    "skilledLabor" to s,
-                    "unskilledLabor" to u,
-                    "totalLabor" to total,
-                    "resourcesUsed" to (equipmentList?.map { it.trim() }.orEmpty().filter { it.isNotBlank() }.ifEmpty { null }),
-                    "challenges" to (challengesList?.map { it.trim() }.orEmpty().filter { it.isNotBlank() }.ifEmpty { null }),
-                    "notes" to (notesList?.map { it.trim() }.orEmpty().filter { it.isNotBlank() }.ifEmpty { null }),
-
-                    // توافق قديم
-                    "photos" to (if (photoUrlsLegacy.isEmpty()) null else photoUrlsLegacy),
-
-                    // الحقول الجديدة (إن وُجدت صفحات)
-                    "sitepages" to (if (pageUrls.isEmpty()) null else pageUrls),
-                    "sitepagesmeta" to (if (pagesMeta.isEmpty()) null else pagesMeta),
-
-                    // الالتقاط وقت الإنشاء
-                    "organizationName" to orgNameSnap,
-                    "createdByName" to createdByNameSnap
-                ).forEach { (k, v) -> if (v != null) data[k] = v }
+                data.applyDailyReportOptionalFields(
+                    projectName = projectName,
+                    projectNumber = projectNumber,
+                    location = location,
+                    latitude = latitude,
+                    longitude = longitude,
+                    temperature = temperatureValue,
+                    weatherStatus = weatherValue,
+                    dailyActivities = cleanedActivities.ifEmpty { null },
+                    skilledLabor = s,
+                    unskilledLabor = u,
+                    totalLabor = total,
+                    resourcesUsed = resourcesValue,
+                    challenges = challengesValue,
+                    notes = notesValue,
+                    photos = photosValue,
+                    sitepages = sitePagesValue,
+                    sitepagesmeta = sitePagesMetaValue,
+                    createdByName = createdByNameSnap
+                )
 
                 // 7) حفظ الوثيقة
                 _saveState.postValue(SaveState.Saving)
@@ -846,6 +845,59 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
             childPath.startsWith(parentPath)
         } catch (_: Exception) {
             false
+        }
+    }
+}
+
+internal fun MutableMap<String, Any>.applyDailyReportOptionalFields(
+    projectName: String?,
+    projectNumber: String?,
+    location: String?,
+    latitude: Double?,
+    longitude: Double?,
+    temperature: String?,
+    weatherStatus: String?,
+    dailyActivities: List<String>?,
+    skilledLabor: Int?,
+    unskilledLabor: Int?,
+    totalLabor: Int?,
+    resourcesUsed: List<String>?,
+    challenges: List<String>?,
+    notes: List<String>?,
+    photos: List<String>?,
+    sitepages: List<String>?,
+    sitepagesmeta: List<Map<String, Any>>?,
+    createdByName: String?
+) {
+    fun shouldSkip(value: Any?): Boolean = when (value) {
+        null -> true
+        is String -> value.isBlank()
+        is Collection<*> -> value.isEmpty()
+        else -> false
+    }
+
+    listOf(
+        "projectName" to projectName,
+        "projectNumber" to projectNumber,
+        "location" to location,
+        "latitude" to latitude,
+        "longitude" to longitude,
+        "temperature" to temperature,
+        "weatherStatus" to weatherStatus,
+        "dailyActivities" to dailyActivities,
+        "skilledLabor" to skilledLabor,
+        "unskilledLabor" to unskilledLabor,
+        "totalLabor" to totalLabor,
+        "resourcesUsed" to resourcesUsed,
+        "challenges" to challenges,
+        "notes" to notes,
+        "photos" to photos,
+        "sitepages" to sitepages,
+        "sitepagesmeta" to sitepagesmeta,
+        "createdByName" to createdByName
+    ).forEach { (key, value) ->
+        if (!shouldSkip(value)) {
+            this[key] = value!!
         }
     }
 }

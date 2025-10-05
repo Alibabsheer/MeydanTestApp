@@ -713,13 +713,10 @@ class ReportPdfBuilder(
         val condToUse = data.weatherCondition ?: condFromText
 
         drawSectionHeader("معلومات التقرير")
-        drawKeyValue("اسم المؤسسة", data.organizationName)
-        drawKeyValue("اسم المشروع", data.projectName)
-        drawKeyValue("موقع المشروع", data.projectLocation, data.projectLocationGoogleMapsUrl)
-        drawKeyValue("رقم التقرير", data.reportNumber)
-        drawKeyValue("تاريخ التقرير", data.dateText)
+        buildReportInfoEntries(data).forEach { entry ->
+            drawKeyValue(entry.label, entry.value, entry.linkUrl)
+        }
         drawWeatherRow(tempToUse, condToUse)
-        drawKeyValue("تم إنشاء التقرير بواسطة", data.createdBy)
         endSectionDivider()
 
         drawBulletedSection("نشاطات المشروع", data.dailyActivities)
@@ -785,4 +782,39 @@ class ReportPdfBuilder(
             return available
         }
     }
+}
+
+internal data class ReportInfoEntry(
+    val label: String,
+    val value: String,
+    val linkUrl: String? = null
+)
+
+internal fun buildReportInfoEntries(data: ReportPdfBuilder.DailyReport): List<ReportInfoEntry> {
+    val entries = mutableListOf<ReportInfoEntry>()
+
+    fun String?.normalizedOrNull(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
+
+    data.projectName.normalizedOrNull()?.let {
+        entries.add(ReportInfoEntry("اسم المشروع", it))
+    }
+
+    val projectLocation = data.projectLocation.normalizedOrNull()
+    if (projectLocation != null) {
+        entries.add(ReportInfoEntry("موقع المشروع", projectLocation, data.projectLocationGoogleMapsUrl))
+    }
+
+    data.reportNumber.normalizedOrNull()?.let {
+        entries.add(ReportInfoEntry("رقم التقرير", it))
+    }
+
+    data.dateText.normalizedOrNull()?.let {
+        entries.add(ReportInfoEntry("تاريخ التقرير", it))
+    }
+
+    data.createdBy.normalizedOrNull()?.let {
+        entries.add(ReportInfoEntry("تم إنشاء التقرير بواسطة", it))
+    }
+
+    return entries
 }
