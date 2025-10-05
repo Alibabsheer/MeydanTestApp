@@ -48,7 +48,10 @@ class CreateProjectViewModel(
         quantitiesTableData: List<QuantityItem>?,
         lumpSumTableData: List<LumpSumItem>?,
         calculatedContractValue: Double?,
-        plusCode: String?
+        plusCode: String?,
+        ownerName: String? = null,
+        contractorName: String? = null,
+        consultantName: String? = null
     ) {
         val organizationId = authProvider.currentUserId()
         if (organizationId.isNullOrEmpty()) {
@@ -76,6 +79,10 @@ class CreateProjectViewModel(
 
         val normalizedAddress = ProjectLocationUtils.normalizeAddressText(addressText)
         val normalizedPlusCode = ProjectLocationUtils.normalizePlusCode(plusCode)
+        val normalizedOwnerName = ownerName?.trim()?.takeIf { it.isNotEmpty() }
+        val normalizedContractorName = contractorName?.trim()?.takeIf { it.isNotEmpty() }
+        val normalizedConsultantName = consultantName?.trim()?.takeIf { it.isNotEmpty() }
+
         val projectData = hashMapOf<String, Any?>(
             "projectName" to projectName,
             "location" to normalizedAddress,
@@ -90,6 +97,10 @@ class CreateProjectViewModel(
             "workType" to workType,
             "createdAt" to Timestamp.now()
         )
+
+        projectData["ownerName"] = normalizedOwnerName
+        projectData["contractorName"] = normalizedContractorName
+        projectData["consultantName"] = normalizedConsultantName
 
         ProjectLocationUtils.buildGoogleMapsUrl(latitude, longitude)?.let { url ->
             projectData["googleMapsUrl"] = url

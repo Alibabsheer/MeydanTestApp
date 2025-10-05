@@ -351,6 +351,9 @@ class CreateNewProjectActivity : AppCompatActivity() {
     private fun saveProjectViaViewModel() {
         val projectName = binding.projectNameInput.text.toString().trim()
         val location = binding.etProjectLocation.text.toString().trim()
+        val ownerName = binding.ownerNameInput.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+        val contractorName = binding.contractorNameInput.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+        val consultantName = binding.consultantNameInput.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }
         val startDateStr = binding.startDateInput.text.toString().trim()
         val endDateStr = binding.endDateInput.text.toString().trim()
         val workType = binding.workTypeSpinner.selectedItem?.toString() ?: ""
@@ -416,7 +419,10 @@ class CreateNewProjectActivity : AppCompatActivity() {
             quantitiesTableData = quantitiesTableData,
             lumpSumTableData = lumpSumTableData,
             calculatedContractValue = calculatedContractValue,
-            plusCode = selectedPlusCode
+            plusCode = selectedPlusCode,
+            ownerName = ownerName,
+            contractorName = contractorName,
+            consultantName = consultantName
         )
     }
 

@@ -270,6 +270,14 @@ class ProjectSettingsActivity : AppCompatActivity() {
                     ?: ""
                 binding.projectNameEditText.setText(projectName)
 
+                val ownerName = (data["ownerName"] as? String)?.takeIf { it.isNotBlank() }
+                val contractorName = (data["contractorName"] as? String)?.takeIf { it.isNotBlank() }
+                val consultantName = (data["consultantName"] as? String)?.takeIf { it.isNotBlank() }
+
+                binding.ownerNameEditText.setText(ownerName ?: "—")
+                binding.contractorNameEditText.setText(contractorName ?: "—")
+                binding.consultantNameEditText.setText(consultantName ?: "—")
+
                 val address = (data["addressText"] as? String)
                     ?: (data["location"] as? String)
                     ?: ""
