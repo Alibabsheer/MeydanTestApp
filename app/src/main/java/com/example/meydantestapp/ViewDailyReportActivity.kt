@@ -328,7 +328,6 @@ class ViewDailyReportActivity : AppCompatActivity() {
                 val dateText = report.date?.let { df.format(java.util.Date(it)) }
 
                 val builderInput = ReportPdfBuilder.DailyReport(
-                    organizationName = report.organizationName,
                     projectName = report.projectName,
                     projectLocation = report.projectLocation,
                     projectLocationGoogleMapsUrl = report.googleMapsUrl,
