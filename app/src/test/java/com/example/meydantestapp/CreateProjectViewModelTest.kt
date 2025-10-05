@@ -77,7 +77,10 @@ class CreateProjectViewModelTest {
             quantitiesTableData = null,
             lumpSumTableData = listOf(LumpSumItem(itemNumber = "1", totalValue = 10.0)),
             calculatedContractValue = 10.0,
-            plusCode = null
+            plusCode = null,
+            ownerName = " أحمد  ",
+            contractorName = "",
+            consultantName = "  مكتب الاستشارات "
         )
 
         advanceUntilIdle()
@@ -91,6 +94,9 @@ class CreateProjectViewModelTest {
 
         assertEquals(LocalDate.of(2025, 9, 30).toEpochDay(), startEpochDay)
         assertEquals(LocalDate.of(2025, 10, 1).toEpochDay(), endEpochDay)
+        assertEquals("أحمد", payload["ownerName"])
+        assertNull(payload["contractorName"])
+        assertEquals("مكتب الاستشارات", payload["consultantName"])
         assertEquals("project-123", viewModel.createSuccess.getOrAwaitValue())
     }
 

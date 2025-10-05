@@ -79,6 +79,93 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
+    <LinearLayout
+        android:id="@+id/projectStakeholdersContainer"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginTop="12dp"
+        android:layoutDirection="rtl"
+        app:layout_constraintTop_toBottomOf="@id/endDateText"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:id="@+id/ownerNameRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="مالك المشروع"
+                android:textStyle="bold"
+                android:textColor="?android:textColorPrimary" />
+
+            <TextView
+                android:id="@+id/ownerNameValue"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="—"
+                android:textColor="?android:textColorSecondary"
+                android:textAlignment="viewStart" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/contractorNameRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="مقاول المشروع"
+                android:textStyle="bold"
+                android:textColor="?android:textColorPrimary" />
+
+            <TextView
+                android:id="@+id/contractorNameValue"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="—"
+                android:textColor="?android:textColorSecondary"
+                android:textAlignment="viewStart" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/consultantNameRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="الاستشاري"
+                android:textStyle="bold"
+                android:textColor="?android:textColorPrimary" />
+
+            <TextView
+                android:id="@+id/consultantNameValue"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="—"
+                android:textColor="?android:textColorSecondary"
+                android:textAlignment="viewStart" />
+        </LinearLayout>
+    </LinearLayout>
+
     <GridLayout
         android:id="@+id/reportsGrid"
         android:layout_width="0dp"
@@ -88,7 +175,7 @@
         android:rowCount="2"
         android:layout_marginTop="16dp"
         android:layout_marginBottom="24dp"
-        app:layout_constraintTop_toBottomOf="@id/endDateText"
+        app:layout_constraintTop_toBottomOf="@id/projectStakeholdersContainer"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 

@@ -165,6 +165,14 @@ class ProjectDetailsActivity : AppCompatActivity() {
                 binding.startDateText.text = dates.startDisplay
                 binding.endDateText.text = dates.endDisplay
 
+                val ownerName = (data["ownerName"] as? String)?.takeIf { it.isNotBlank() }
+                val contractorName = (data["contractorName"] as? String)?.takeIf { it.isNotBlank() }
+                val consultantName = (data["consultantName"] as? String)?.takeIf { it.isNotBlank() }
+
+                binding.ownerNameValue.text = ownerName ?: "—"
+                binding.contractorNameValue.text = contractorName ?: "—"
+                binding.consultantNameValue.text = consultantName ?: "—"
+
                 selectedProject = doc.toProjectSafe(dates.startTimestamp, dates.endTimestamp)
             }
             .addOnFailureListener {

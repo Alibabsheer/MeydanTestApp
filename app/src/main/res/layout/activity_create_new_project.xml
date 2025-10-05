@@ -79,7 +79,63 @@
                     android:id="@+id/projectNameInput"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="text" />
+                    android:inputType="text"
+                    android:maxLength="100"
+                    android:singleLine="true" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/ownerNameLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="مالك المشروع"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                app:boxBackgroundColor="?attr/boxBackgroundColor"
+                android:layout_marginBottom="12dp">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/ownerNameInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textPersonName"
+                    android:maxLength="100"
+                    android:singleLine="true"
+                    android:contentDescription="مالك المشروع" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/contractorNameLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="مقاول المشروع"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                app:boxBackgroundColor="?attr/boxBackgroundColor"
+                android:layout_marginBottom="12dp">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/contractorNameInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textPersonName"
+                    android:maxLength="100"
+                    android:singleLine="true"
+                    android:contentDescription="مقاول المشروع" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/consultantNameLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="الاستشاري"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                app:boxBackgroundColor="?attr/boxBackgroundColor"
+                android:layout_marginBottom="12dp">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/consultantNameInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textPersonName"
+                    android:maxLength="100"
+                    android:singleLine="true"
+                    android:contentDescription="الاستشاري" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <TextView
