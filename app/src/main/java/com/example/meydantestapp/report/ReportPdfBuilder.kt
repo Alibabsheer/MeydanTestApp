@@ -397,53 +397,31 @@ class ReportPdfBuilder(
             currentSectionTitle = null
         }
 
-        fun drawKeyValue(label: String, valueRaw: String?, linkUrlRaw: String? = null) {
-            val horizontalGap = dp(10)
-            val horizontalPadding = fieldHorizontalPadding
-            val verticalPadding = fieldVerticalPadding
-            val minValueWidth = dp(120)
-
-            fun layoutFits(layout: StaticLayout, maxWidth: Int): Boolean {
-                for (line in 0 until layout.lineCount) {
-                    val lineWidth = layout.getLineRight(line) - layout.getLineLeft(line)
-                    if (lineWidth > maxWidth + 0.5f) return false
-                }
-                return true
+        fun layoutFits(layout: StaticLayout, maxWidth: Int): Boolean {
+            for (line in 0 until layout.lineCount) {
+                val lineWidth = layout.getLineRight(line) - layout.getLineLeft(line)
+                if (lineWidth > maxWidth + 0.5f) return false
             }
+            return true
+        }
 
-            data class AutoSizedLayout(val layout: StaticLayout)
+        data class AutoSizedLayout(val layout: StaticLayout)
 
-            fun autoSize(
-                text: CharSequence,
-                basePaint: TextPaint,
-                width: Int,
-                rtl: Boolean
-            ): AutoSizedLayout {
-                val maxLines = 2
-                val minSizePx = sp(10f)
-                val maxSizePx = sp(16f)
-                val stepPx = sp(1f).coerceAtLeast(1f)
-                var size = maxSizePx
-                while (size >= minSizePx) {
-                    val paint = TextPaint(basePaint)
-                    paint.textSize = size
-                    val layout = createLayout(
-                        text = text,
-                        paint = paint,
-                        width = width,
-                        rtl = rtl,
-                        align = Layout.Alignment.ALIGN_NORMAL,
-                        spacingMult = 1f,
-                        spacingAdd = fieldLineSpacingAdd
-                    )
-                    if (layout.lineCount <= maxLines && layoutFits(layout, width)) {
-                        return AutoSizedLayout(layout)
-                    }
-                    size -= stepPx
-                }
+        fun autoSizeText(
+            text: CharSequence,
+            basePaint: TextPaint,
+            width: Int,
+            rtl: Boolean,
+            maxLines: Int
+        ): AutoSizedLayout {
+            val minSizePx = sp(10f)
+            val maxSizePx = sp(16f)
+            val stepPx = sp(1f).coerceAtLeast(1f)
+            var size = maxSizePx
+            while (size >= minSizePx) {
                 val paint = TextPaint(basePaint)
-                paint.textSize = minSizePx
-                val fallback = createLayout(
+                paint.textSize = size
+                val layout = createLayout(
                     text = text,
                     paint = paint,
                     width = width,
@@ -453,8 +431,31 @@ class ReportPdfBuilder(
                     spacingAdd = fieldLineSpacingAdd,
                     maxLines = maxLines
                 )
-                return AutoSizedLayout(fallback)
+                if (layout.lineCount <= maxLines && layoutFits(layout, width)) {
+                    return AutoSizedLayout(layout)
+                }
+                size -= stepPx
             }
+            val paint = TextPaint(basePaint)
+            paint.textSize = minSizePx
+            val fallback = createLayout(
+                text = text,
+                paint = paint,
+                width = width,
+                rtl = rtl,
+                align = Layout.Alignment.ALIGN_NORMAL,
+                spacingMult = 1f,
+                spacingAdd = fieldLineSpacingAdd,
+                maxLines = maxLines
+            )
+            return AutoSizedLayout(fallback)
+        }
+
+        fun drawKeyValue(label: String, valueRaw: String?, linkUrlRaw: String? = null) {
+            val horizontalGap = dp(10)
+            val horizontalPadding = fieldHorizontalPadding
+            val verticalPadding = fieldVerticalPadding
+            val minValueWidth = dp(120)
 
             val sanitized = valueRaw?.trim()?.takeIf { it.isNotEmpty() }
             val normalizedValue = sanitized?.let { value ->
@@ -501,8 +502,8 @@ class ReportPdfBuilder(
                 }
             }
 
-            val labelLayout = autoSize(wrappedLabel, labelPaint, labelAreaWidth, rtl = true).layout
-            val valueLayout = autoSize(wrappedValue, valuePaintBase, valueAreaWidth, rtl = true).layout
+            val labelLayout = autoSizeText(wrappedLabel, labelPaint, labelAreaWidth, rtl = true, maxLines = 2).layout
+            val valueLayout = autoSizeText(wrappedValue, valuePaintBase, valueAreaWidth, rtl = true, maxLines = 4).layout
 
             val rowHeight = max(labelLayout.height, valueLayout.height) + verticalPadding * 2
             val requiredHeight = rowHeight + fieldLineSpacing
@@ -544,6 +545,161 @@ class ReportPdfBuilder(
             }
 
             y += rowHeight + fieldLineSpacing
+        }
+
+        fun drawReportInfoTable(entries: List<ReportInfoEntry>) {
+            if (entries.isEmpty()) {
+                endSectionDivider()
+                return
+            }
+
+            val horizontalPadding = fieldHorizontalPadding
+            val verticalPadding = fieldVerticalPadding
+
+            val minLabelWidth = (contentWidth * 0.35f).roundToInt()
+            val maxLabelWidth = (contentWidth * 0.4f).roundToInt()
+            val minValueWidth = (contentWidth * 0.6f).roundToInt()
+
+            var labelWidth = (contentWidth * 0.38f).roundToInt().coerceIn(minLabelWidth, maxLabelWidth)
+            var valueWidth = contentWidth - labelWidth
+            if (valueWidth < minValueWidth) {
+                valueWidth = minValueWidth.coerceAtMost(contentWidth - minLabelWidth)
+                labelWidth = (contentWidth - valueWidth).coerceIn(minLabelWidth, maxLabelWidth)
+                valueWidth = contentWidth - labelWidth
+            }
+            if (valueWidth <= 0) {
+                valueWidth = max(1, contentWidth - labelWidth)
+            }
+
+            val labelAreaWidth = max(1, labelWidth - horizontalPadding * 2)
+            val valueAreaWidth = max(1, valueWidth - horizontalPadding * 2)
+
+            val labelPaint = TextPaint(bodyPaint).apply {
+                typeface = Typeface.create(typeface, Typeface.BOLD)
+            }
+            val valuePaintBase = TextPaint(bodyPaint)
+
+            val tableBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#D0D0D0")
+                strokeWidth = dpF(0.8f)
+                style = Paint.Style.STROKE
+            }
+            val tableDividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#E4E4E4")
+                strokeWidth = dpF(0.8f)
+            }
+            val alternateRowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#FAFAFA")
+                style = Paint.Style.FILL
+            }
+
+            val labelLeft = contentRight - labelWidth
+            val valueLeft = contentLeft
+            val columnDividerX = labelLeft
+
+            var firstRowOnPage = true
+
+            entries.forEachIndexed { index, entry ->
+                val trimmedValue = entry.value.trim()
+                val isPlaceholder = trimmedValue == REPORT_INFO_PLACEHOLDER
+                val normalizedValue = if (!isPlaceholder && PdfBidiUtils.isArabicLikely(trimmedValue)) {
+                    normalizeArabicCommaSpacing(trimmedValue)
+                } else {
+                    trimmedValue
+                }
+                val wrappedLabel = PdfBidiUtils.wrapMixed(entry.label, rtlBase = true)
+                val wrappedValue = PdfBidiUtils.wrapMixed(normalizedValue, rtlBase = true)
+
+                val linkUrl = if (!isPlaceholder) {
+                    entry.linkUrl?.trim()?.takeIf { it.isNotEmpty() && isHttpUrl(it) }
+                } else {
+                    null
+                }
+
+                val valuePaint = TextPaint(valuePaintBase).apply {
+                    if (linkUrl != null) {
+                        color = hyperlinkBlue
+                        isUnderlineText = true
+                    }
+                }
+
+                val labelLayout = autoSizeText(wrappedLabel, labelPaint, labelAreaWidth, rtl = true, maxLines = 2).layout
+                val valueLayout = autoSizeText(wrappedValue, valuePaint, valueAreaWidth, rtl = true, maxLines = 6).layout
+
+                val rowHeight = max(labelLayout.height, valueLayout.height) + verticalPadding * 2
+                val requiredHeight = rowHeight + dp(1)
+                var attempts = 0
+                while (ensureSpace(requiredHeight)) {
+                    val title = currentSectionTitle
+                    if (title != null && attempts < 3) {
+                        drawSectionHeader(title)
+                        attempts++
+                    } else {
+                        break
+                    }
+                    firstRowOnPage = true
+                }
+
+                val rowTop = y
+                val rowBottom = rowTop + rowHeight
+
+                if (index % 2 == 1) {
+                    canvas.drawRect(
+                        valueLeft.toFloat(),
+                        rowTop.toFloat(),
+                        contentRight.toFloat(),
+                        rowBottom.toFloat(),
+                        alternateRowPaint
+                    )
+                }
+
+                val leftF = valueLeft.toFloat()
+                val rightF = contentRight.toFloat()
+                val topF = rowTop.toFloat()
+                val bottomF = rowBottom.toFloat()
+
+                if (firstRowOnPage) {
+                    canvas.drawLine(leftF, topF, rightF, topF, tableBorderPaint)
+                    firstRowOnPage = false
+                }
+
+                canvas.drawLine(leftF, bottomF, rightF, bottomF, tableBorderPaint)
+                canvas.drawLine(leftF, topF, leftF, bottomF, tableBorderPaint)
+                canvas.drawLine(rightF, topF, rightF, bottomF, tableBorderPaint)
+                canvas.drawLine(columnDividerX.toFloat(), topF, columnDividerX.toFloat(), bottomF, tableDividerPaint)
+
+                val textTop = rowTop + verticalPadding
+
+                canvas.save()
+                canvas.translate((labelLeft + horizontalPadding).toFloat(), textTop.toFloat())
+                labelLayout.draw(canvas)
+                canvas.restore()
+
+                canvas.save()
+                canvas.translate((valueLeft + horizontalPadding).toFloat(), textTop.toFloat())
+                valueLayout.draw(canvas)
+                canvas.restore()
+
+                if (linkUrl != null && valueLayout.height > 0) {
+                    val leftLink = (valueLeft + horizontalPadding).toFloat()
+                    val rightLimit = leftLink + valueAreaWidth.toFloat()
+                    val rightLink = min(leftLink + valueLayout.width.toFloat(), rightLimit)
+                    val rect = RectF(
+                        leftLink,
+                        textTop.toFloat(),
+                        rightLink,
+                        (textTop + valueLayout.height).toFloat()
+                    )
+                    if (rect.intersect(0f, 0f, pageWidth.toFloat(), pageHeight.toFloat())) {
+                        PdfLinkAnnotationSupport.addLink(page, rect, linkUrl)
+                    }
+                }
+
+                y = rowBottom
+            }
+
+            y += fieldLineSpacing
+            endSectionDivider()
         }
 
         fun drawBulletedSection(title: String, items: List<String>?) {
@@ -756,10 +912,7 @@ class ReportPdfBuilder(
         )
 
         drawSectionHeader("معلومات التقرير")
-        buildReportInfoEntries(enrichedData).forEach { entry ->
-            drawKeyValue(entry.label, entry.value, entry.linkUrl)
-        }
-        endSectionDivider()
+        drawReportInfoTable(buildReportInfoEntries(enrichedData))
 
         drawBulletedSection("نشاطات المشروع", data.dailyActivities)
         drawLabor(data.skilledLabor, data.unskilledLabor, data.totalLabor)
