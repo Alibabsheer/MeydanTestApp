@@ -2,6 +2,7 @@ package com.example.meydantestapp.data.model
 
 import com.example.meydantestapp.utils.AppLogger
 import com.example.meydantestapp.utils.FirestoreTimestampConverter
+import com.example.meydantestapp.utils.ProjectDateUtils.toEpochDayUtc
 import com.example.meydantestapp.utils.migrateTimestampIfNeeded
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
@@ -38,6 +39,8 @@ data class Project(
         "contractValue" to contractValue,
         "startDate" to startDate,
         "endDate" to endDate,
+        "startDateEpochDay" to startDate.toEpochDayUtc(),
+        "endDateEpochDay" to endDate.toEpochDayUtc(),
         "status" to status,
         "createdAt" to (createdAt ?: Timestamp.now()),
         "updatedAt" to (updatedAt ?: Timestamp.now())

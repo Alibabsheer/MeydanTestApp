@@ -15,14 +15,15 @@ import androidx.core.widget.addTextChangedListener
 import androidx.lifecycle.ViewModelProvider
 import com.example.meydantestapp.databinding.ActivityCreateNewProjectBinding
 import com.example.meydantestapp.utils.Constants
+import com.example.meydantestapp.utils.ProjectDateUtils
 import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.example.meydantestapp.utils.ValidationUtils
 import org.apache.poi.ss.usermodel.DataFormatter
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import java.text.NumberFormat
-import java.text.ParseException
-import java.text.SimpleDateFormat
-import java.util.*
+import java.time.LocalDate
+import java.util.Calendar
+import java.util.Locale
 
 class CreateNewProjectActivity : AppCompatActivity() {
 
@@ -40,12 +41,8 @@ class CreateNewProjectActivity : AppCompatActivity() {
     private var lumpSumTableData: MutableList<LumpSumItem>? = null
     private var calculatedContractValue: Double? = null
 
-    private val displayDateFormatter = SimpleDateFormat(Constants.DATE_FORMAT_DISPLAY, Locale.getDefault()).apply {
-        isLenient = false
-    }
-    private val legacyInputFormatter = SimpleDateFormat("yyyy-M-d", Locale.getDefault()).apply {
-        isLenient = false
-    }
+    private var selectedStartDate: LocalDate? = null
+    private var selectedEndDate: LocalDate? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -316,17 +313,39 @@ class CreateNewProjectActivity : AppCompatActivity() {
     }
 
     private fun showDatePickerDialog(targetEditText: EditText) {
-        val calendar = Calendar.getInstance()
-        DatePickerDialog(this, { _, year, month, dayOfMonth ->
-            val selected = Calendar.getInstance().apply { set(year, month, dayOfMonth, 0, 0, 0) }
-            val dateStr = displayDateFormatter.format(selected.time)
-            targetEditText.setText(dateStr)
-            when (targetEditText.id) {
-                binding.startDateInput.id -> binding.startDateInputLayout.error = null
-                binding.endDateInput.id -> binding.endDateInputLayout.error = null
-            }
-            updateSaveButtonState()
-        }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show()
+        val currentDate = when (targetEditText.id) {
+            binding.startDateInput.id -> selectedStartDate
+            binding.endDateInput.id -> selectedEndDate ?: selectedStartDate
+            else -> null
+        } ?: LocalDate.now()
+
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.YEAR, currentDate.year)
+            set(Calendar.MONTH, currentDate.monthValue - 1)
+            set(Calendar.DAY_OF_MONTH, currentDate.dayOfMonth)
+        }
+
+        DatePickerDialog(
+            this,
+            { _, year, month, dayOfMonth ->
+                val pickedDate = LocalDate.of(year, month + 1, dayOfMonth)
+                targetEditText.setText(ProjectDateUtils.formatForDisplay(pickedDate, Locale.getDefault()))
+                when (targetEditText.id) {
+                    binding.startDateInput.id -> {
+                        selectedStartDate = pickedDate
+                        binding.startDateInputLayout.error = null
+                    }
+                    binding.endDateInput.id -> {
+                        selectedEndDate = pickedDate
+                        binding.endDateInputLayout.error = null
+                    }
+                }
+                updateSaveButtonState()
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        ).show()
     }
 
     private fun saveProjectViaViewModel() {
@@ -353,25 +372,29 @@ class CreateNewProjectActivity : AppCompatActivity() {
             hasError = true
         }
 
-        val startDate = parseDateOrNull(startDateStr)
+        val startDate = selectedStartDate ?: ProjectDateUtils.parseUserInput(startDateStr, Locale.getDefault())
         if (startDateStr.isBlank()) {
             binding.startDateInputLayout.error = "تاريخ البدء مطلوب"
             hasError = true
+            selectedStartDate = null
         } else if (startDate == null) {
             binding.startDateInputLayout.error = "صيغة تاريخ البدء غير صحيحة"
             hasError = true
+            selectedStartDate = null
         }
 
-        val endDate = parseDateOrNull(endDateStr)
+        val endDate = selectedEndDate ?: ProjectDateUtils.parseUserInput(endDateStr, Locale.getDefault())
         if (endDateStr.isBlank()) {
             binding.endDateInputLayout.error = "تاريخ الانتهاء مطلوب"
             hasError = true
+            selectedEndDate = null
         } else if (endDate == null) {
             binding.endDateInputLayout.error = "صيغة تاريخ الانتهاء غير صحيحة"
             hasError = true
+            selectedEndDate = null
         }
 
-        if (startDate != null && endDate != null && endDate.before(startDate)) {
+        if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
             binding.endDateInputLayout.error = "تاريخ الانتهاء يجب أن يكون بعد تاريخ البدء"
             hasError = true
         }
@@ -387,8 +410,8 @@ class CreateNewProjectActivity : AppCompatActivity() {
             addressText = location,
             latitude = selectedLatitude,
             longitude = selectedLongitude,
-            startDateStr = startDateStr,
-            endDateStr = endDateStr,
+            startDate = startDate,
+            endDate = endDate,
             workType = workType,
             quantitiesTableData = quantitiesTableData,
             lumpSumTableData = lumpSumTableData,
@@ -401,19 +424,6 @@ class CreateNewProjectActivity : AppCompatActivity() {
         if (this == null || !hasExtra(key)) return null
         val value = getDoubleExtra(key, Double.NaN)
         return if (value.isNaN()) null else value
-    }
-
-    private fun parseDateOrNull(dateStr: String): Date? {
-        if (dateStr.isBlank()) return null
-        return try {
-            displayDateFormatter.parse(dateStr)
-        } catch (_: ParseException) {
-            try {
-                legacyInputFormatter.parse(dateStr)
-            } catch (_: ParseException) {
-                null
-            }
-        }
     }
 
     private fun setupInputListeners() {
@@ -432,15 +442,23 @@ class CreateNewProjectActivity : AppCompatActivity() {
         }
 
         binding.startDateInput.addTextChangedListener {
+            val text = it?.toString()?.trim().orEmpty()
+            selectedStartDate = ProjectDateUtils.parseUserInput(text, Locale.getDefault())
             if (!it.isNullOrBlank()) {
                 binding.startDateInputLayout.error = null
+            } else {
+                selectedStartDate = null
             }
             updateSaveButtonState()
         }
 
         binding.endDateInput.addTextChangedListener {
+            val text = it?.toString()?.trim().orEmpty()
+            selectedEndDate = ProjectDateUtils.parseUserInput(text, Locale.getDefault())
             if (!it.isNullOrBlank()) {
                 binding.endDateInputLayout.error = null
+            } else {
+                selectedEndDate = null
             }
             updateSaveButtonState()
         }
@@ -458,8 +476,11 @@ class CreateNewProjectActivity : AppCompatActivity() {
         val locationFilled = binding.etProjectLocation.text?.toString()?.trim()?.isNotEmpty() == true
         val startDateFilled = binding.startDateInput.text?.toString()?.trim()?.isNotEmpty() == true
         val endDateFilled = binding.endDateInput.text?.toString()?.trim()?.isNotEmpty() == true
+        val startDateValid = !startDateFilled || selectedStartDate != null
+        val endDateValid = !endDateFilled || selectedEndDate != null
         val isLoading = viewModel.isLoading.value == true
 
-        binding.saveProjectButton.isEnabled = projectNameFilled && locationFilled && startDateFilled && endDateFilled && !isLoading
+        binding.saveProjectButton.isEnabled =
+            projectNameFilled && locationFilled && startDateFilled && endDateFilled && startDateValid && endDateValid && !isLoading
     }
 }

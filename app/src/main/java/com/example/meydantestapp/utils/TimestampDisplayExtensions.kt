@@ -1,13 +1,16 @@
 package com.example.meydantestapp.utils
 
+import com.example.meydantestapp.utils.ProjectDateUtils.toUtcLocalDate
 import com.google.firebase.Timestamp
-import java.text.SimpleDateFormat
+import java.time.format.DateTimeFormatter
+import java.time.format.DecimalStyle
 import java.util.Locale
 
 fun Timestamp?.toDisplayDateString(): String {
     val ts = this ?: return ""
-    val formatter = SimpleDateFormat(Constants.DATE_FORMAT_DISPLAY, Locale.getDefault()).apply {
-        isLenient = false
-    }
-    return formatter.format(ts.toDate())
+    val locale = Locale.getDefault()
+    val formatter = DateTimeFormatter
+        .ofPattern(Constants.DATE_FORMAT_DISPLAY, locale)
+        .withDecimalStyle(DecimalStyle.of(locale))
+    return formatter.format(ts.toUtcLocalDate())
 }

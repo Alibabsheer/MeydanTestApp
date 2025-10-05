@@ -8,10 +8,11 @@ import com.example.meydantestapp.utils.AppLogger
 import com.example.meydantestapp.repository.ProjectRepository
 import com.example.meydantestapp.utils.AuthProvider
 import com.example.meydantestapp.utils.FirebaseAuthProvider
-import com.example.meydantestapp.utils.FirestoreTimestampConverter
 import com.example.meydantestapp.utils.ProjectLocationUtils
+import com.example.meydantestapp.utils.ProjectDateUtils.toUtcTimestamp
 import com.google.firebase.Timestamp
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 /**
  * ViewModel مسؤول عن إنشاء مشروع جديد عبر ProjectRepository.
@@ -41,8 +42,8 @@ class CreateProjectViewModel(
         addressText: String?,
         latitude: Double?,
         longitude: Double?,
-        startDateStr: String,
-        endDateStr: String,
+        startDate: LocalDate?,
+        endDate: LocalDate?,
         workType: String,
         quantitiesTableData: List<QuantityItem>?,
         lumpSumTableData: List<LumpSumItem>?,
@@ -55,13 +56,18 @@ class CreateProjectViewModel(
             return
         }
 
-        val startTs = FirestoreTimestampConverter.fromAny(startDateStr)
-        val endTs = FirestoreTimestampConverter.fromAny(endDateStr)
-
-        if (startTs == null || endTs == null) {
+        if (startDate == null || endDate == null) {
             _errorMessage.value = "تأكد من إدخال تواريخ صحيحة."
             return
         }
+
+        if (endDate.isBefore(startDate)) {
+            _errorMessage.value = "تاريخ الانتهاء يجب أن يكون بعد تاريخ البدء."
+            return
+        }
+
+        val startTs = startDate.toUtcTimestamp()
+        val endTs = endDate.toUtcTimestamp()
 
         AppLogger.i(
             "CreateProject",
@@ -79,6 +85,8 @@ class CreateProjectViewModel(
             "plusCode" to normalizedPlusCode,
             "startDate" to startTs,
             "endDate" to endTs,
+            "startDateEpochDay" to startDate.toEpochDay(),
+            "endDateEpochDay" to endDate.toEpochDay(),
             "workType" to workType,
             "createdAt" to Timestamp.now()
         )
