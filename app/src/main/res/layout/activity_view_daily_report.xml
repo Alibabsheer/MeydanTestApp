@@ -51,100 +51,430 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
+                android:gravity="center_vertical"
+                android:layoutDirection="rtl">
 
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="4"
+                    android:gravity="end"
+                    android:maxLines="2"
                     android:text="@string/label_project_name"
                     android:textColor="?android:textColorPrimary"
-                    android:textStyle="bold" />
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
 
                 <TextView
                     android:id="@+id/viewReportProjectNameValue"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:layout_weight="1"
+                    android:layout_weight="6"
+                    android:gravity="end"
+                    android:maxLines="2"
                     android:text="—"
                     android:textColor="?android:textColorSecondary"
-                    android:textAlignment="viewStart" />
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
             </LinearLayout>
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
+                android:gravity="center_vertical"
+                android:layoutDirection="rtl">
 
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="4"
+                    android:gravity="end"
+                    android:maxLines="2"
                     android:text="@string/label_project_owner"
                     android:textColor="?android:textColorPrimary"
-                    android:textStyle="bold" />
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
 
                 <TextView
                     android:id="@+id/viewReportOwnerNameValue"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:layout_weight="1"
+                    android:layout_weight="6"
+                    android:gravity="end"
+                    android:maxLines="2"
                     android:text="—"
                     android:textColor="?android:textColorSecondary"
-                    android:textAlignment="viewStart" />
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
             </LinearLayout>
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
+                android:gravity="center_vertical"
+                android:layoutDirection="rtl">
 
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="4"
+                    android:gravity="end"
+                    android:maxLines="2"
                     android:text="@string/label_project_contractor"
                     android:textColor="?android:textColorPrimary"
-                    android:textStyle="bold" />
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
 
                 <TextView
                     android:id="@+id/viewReportContractorNameValue"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:layout_weight="1"
+                    android:layout_weight="6"
+                    android:gravity="end"
+                    android:maxLines="2"
                     android:text="—"
                     android:textColor="?android:textColorSecondary"
-                    android:textAlignment="viewStart" />
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
             </LinearLayout>
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
+                android:gravity="center_vertical"
+                android:layoutDirection="rtl">
 
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="4"
+                    android:gravity="end"
+                    android:maxLines="2"
                     android:text="@string/label_project_consultant"
                     android:textColor="?android:textColorPrimary"
-                    android:textStyle="bold" />
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
 
                 <TextView
                     android:id="@+id/viewReportConsultantNameValue"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:layout_weight="1"
+                    android:layout_weight="6"
+                    android:gravity="end"
+                    android:maxLines="2"
                     android:text="—"
                     android:textColor="?android:textColorSecondary"
-                    android:textAlignment="viewStart" />
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical"
+                android:layoutDirection="rtl">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="4"
+                    android:gravity="end"
+                    android:maxLines="2"
+                    android:text="@string/label_report_number"
+                    android:textColor="?android:textColorPrimary"
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
+
+                <TextView
+                    android:id="@+id/viewReportNumberValue"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="6"
+                    android:gravity="end"
+                    android:maxLines="2"
+                    android:text="—"
+                    android:textColor="?android:textColorSecondary"
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical"
+                android:layoutDirection="rtl">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="4"
+                    android:gravity="end"
+                    android:maxLines="2"
+                    android:text="@string/label_report_date"
+                    android:textColor="?android:textColorPrimary"
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
+
+                <TextView
+                    android:id="@+id/viewReportDateValue"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="6"
+                    android:gravity="end"
+                    android:maxLines="2"
+                    android:text="—"
+                    android:textColor="?android:textColorSecondary"
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical"
+                android:layoutDirection="rtl">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="4"
+                    android:gravity="end"
+                    android:maxLines="2"
+                    android:text="@string/label_temperature"
+                    android:textColor="?android:textColorPrimary"
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
+
+                <TextView
+                    android:id="@+id/viewReportTemperatureValue"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="6"
+                    android:gravity="end"
+                    android:maxLines="2"
+                    android:text="—"
+                    android:textColor="?android:textColorSecondary"
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical"
+                android:layoutDirection="rtl">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="4"
+                    android:gravity="end"
+                    android:maxLines="2"
+                    android:text="@string/label_weather_status"
+                    android:textColor="?android:textColorPrimary"
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
+
+                <TextView
+                    android:id="@+id/viewReportWeatherStatusValue"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="6"
+                    android:gravity="end"
+                    android:maxLines="2"
+                    android:text="—"
+                    android:textColor="?android:textColorSecondary"
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical"
+                android:layoutDirection="rtl">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="4"
+                    android:gravity="end"
+                    android:maxLines="2"
+                    android:text="@string/label_project_location"
+                    android:textColor="?android:textColorPrimary"
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
+
+                <TextView
+                    android:id="@+id/viewReportLocationValue"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="6"
+                    android:gravity="end"
+                    android:maxLines="2"
+                    android:text="—"
+                    android:textColor="?android:textColorSecondary"
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical"
+                android:layoutDirection="rtl">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="4"
+                    android:gravity="end"
+                    android:maxLines="2"
+                    android:text="@string/label_report_created_by"
+                    android:textColor="?android:textColorPrimary"
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
+
+                <TextView
+                    android:id="@+id/viewReportCreatedByValue"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="6"
+                    android:gravity="end"
+                    android:maxLines="2"
+                    android:text="—"
+                    android:textColor="?android:textColorSecondary"
+                    android:textDirection="anyRtl"
+                    android:textSize="16sp"
+                    android:textAlignment="viewEnd"
+                    app:autoSizeMaxTextSize="16sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeStepGranularity="1sp"
+                    app:autoSizeTextType="uniform" />
             </LinearLayout>
 
         </LinearLayout>

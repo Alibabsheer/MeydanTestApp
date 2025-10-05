@@ -3,13 +3,14 @@ package com.example.meydantestapp.report
 import com.example.meydantestapp.report.ReportPdfBuilder
 import com.example.meydantestapp.report.buildReportInfoEntries
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ReportInfoEntriesTest {
 
     @Test
-    fun `buildReportInfoEntries omits organization label`() {
+    fun `buildReportInfoEntries returns ordered rows with values`() {
         val data = ReportPdfBuilder.DailyReport(
             organizationName = "مؤسسة الريادة",
             projectName = "برج الرياض",
@@ -20,6 +21,8 @@ class ReportInfoEntriesTest {
             projectLocationGoogleMapsUrl = "https://maps.google.com/?q=riyadh",
             reportNumber = "DailyReport-5",
             dateText = "2025-01-02",
+            temperatureC = "45",
+            weatherCondition = "مشمس",
             createdBy = "المهندس أحمد"
         )
 
@@ -31,31 +34,54 @@ class ReportInfoEntriesTest {
                 "مالك المشروع",
                 "مقاول المشروع",
                 "الاستشاري",
-                "موقع المشروع",
                 "رقم التقرير",
-                "تاريخ التقرير",
+                "التاريخ",
+                "درجة الحرارة",
+                "حالة الطقس",
+                "موقع المشروع",
                 "تم إنشاء التقرير بواسطة"
             ),
             entries.map { it.label }
         )
+        assertEquals(
+            listOf(
+                "برج الرياض",
+                "مالك المشروع",
+                "شركة المقاولات",
+                "المهندس الاستشاري",
+                "DailyReport-5",
+                "2025-01-02",
+                "45",
+                "مشمس",
+                "الرياض",
+                "المهندس أحمد"
+            ),
+            entries.map { it.value }
+        )
+        assertEquals("https://maps.google.com/?q=riyadh", entries[8].linkUrl)
         assertTrue(entries.none { it.label.contains("المؤسسة") })
     }
 
     @Test
-    fun `buildReportInfoEntries handles blank fields`() {
+    fun `buildReportInfoEntries uses placeholder for blanks`() {
         val data = ReportPdfBuilder.DailyReport(
-            projectName = "مشروع الاختبار",
-            projectLocation = " ",
+            projectName = null,
             ownerName = "  ",
             contractorName = null,
             consultantName = "",
+            projectLocation = " ",
+            projectLocationGoogleMapsUrl = "https://maps.google.com/?q=test",
             reportNumber = null,
-            dateText = "2025-01-03",
+            dateText = " ",
+            temperatureC = null,
+            weatherCondition = null,
             createdBy = ""
         )
 
         val entries = buildReportInfoEntries(data)
 
-        assertEquals(listOf("اسم المشروع", "تاريخ التقرير"), entries.map { it.label })
+        assertEquals(10, entries.size)
+        assertTrue(entries.all { it.value == "—" })
+        assertNull(entries[8].linkUrl)
     }
 }

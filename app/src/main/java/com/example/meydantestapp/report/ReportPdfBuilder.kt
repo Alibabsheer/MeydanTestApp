@@ -24,6 +24,8 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+private const val REPORT_INFO_PLACEHOLDER = "—"
+
 /**
  * ReportPdfBuilder – توليد PDF بقياس A4 (عمودي) بالرسم اليدوي عبر Canvas.
  *
@@ -187,7 +189,8 @@ class ReportPdfBuilder(
         align: Layout.Alignment = Layout.Alignment.ALIGN_NORMAL,
         spacingMult: Float = 1.08f,
         spacingAdd: Float = 0f,
-        includePad: Boolean = false
+        includePad: Boolean = false,
+        maxLines: Int = Int.MAX_VALUE
     ): StaticLayout {
         val dir = if (rtl) TextDirectionHeuristics.RTL else TextDirectionHeuristics.LTR
         return StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
@@ -196,6 +199,7 @@ class ReportPdfBuilder(
             .setLineSpacing(spacingAdd, spacingMult)
             .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NORMAL)
             .setTextDirection(dir)
+            .setMaxLines(maxLines)
             .build()
     }
 
@@ -394,69 +398,111 @@ class ReportPdfBuilder(
         }
 
         fun drawKeyValue(label: String, valueRaw: String?, linkUrlRaw: String? = null) {
-            if (valueRaw.isNullOrBlank()) return
-
-            val linkUrl = linkUrlRaw?.trim()?.let { trimmed ->
-                if (isHttpUrl(trimmed)) trimmed else null
-            }
-
             val horizontalGap = dp(10)
             val horizontalPadding = fieldHorizontalPadding
             val verticalPadding = fieldVerticalPadding
-            val minValueWidth = dp(72)
-            val labelText = "$label:"
-            val wrappedLabel = PdfBidiUtils.wrapMixed(labelText, rtlBase = true)
+            val minValueWidth = dp(120)
 
-            val valueTrimmed = valueRaw.trim()
-            val valueIsRtl = PdfBidiUtils.isArabicLikely(valueTrimmed)
-            val normalizedValue = if (valueIsRtl) {
-                normalizeArabicCommaSpacing(valueTrimmed)
-            } else {
-                valueTrimmed
-            }
-            val wrappedValue = PdfBidiUtils.wrapMixed(normalizedValue, rtlBase = valueIsRtl)
-
-            val valuePaint = if (linkUrl != null) {
-                TextPaint(bodyPaint).apply {
-                    color = hyperlinkBlue
-                    isUnderlineText = true
+            fun layoutFits(layout: StaticLayout, maxWidth: Int): Boolean {
+                for (line in 0 until layout.lineCount) {
+                    val lineWidth = layout.getLineRight(line) - layout.getLineLeft(line)
+                    if (lineWidth > maxWidth + 0.5f) return false
                 }
-            } else {
-                bodyPaint
+                return true
             }
 
-            val maxLabelWidth = (contentWidth * 0.45f).toInt()
-            val measuredLabel = bodyPaint.measureText(wrappedLabel.toString()).roundToInt() + horizontalPadding * 2
-            var labelWidth = max(dp(64), min(maxLabelWidth, measuredLabel))
+            data class AutoSizedLayout(val layout: StaticLayout)
+
+            fun autoSize(
+                text: CharSequence,
+                basePaint: TextPaint,
+                width: Int,
+                rtl: Boolean
+            ): AutoSizedLayout {
+                val maxLines = 2
+                val minSizePx = sp(10f)
+                val maxSizePx = sp(16f)
+                val stepPx = sp(1f).coerceAtLeast(1f)
+                var size = maxSizePx
+                while (size >= minSizePx) {
+                    val paint = TextPaint(basePaint)
+                    paint.textSize = size
+                    val layout = createLayout(
+                        text = text,
+                        paint = paint,
+                        width = width,
+                        rtl = rtl,
+                        align = Layout.Alignment.ALIGN_NORMAL,
+                        spacingMult = 1f,
+                        spacingAdd = fieldLineSpacingAdd
+                    )
+                    if (layout.lineCount <= maxLines && layoutFits(layout, width)) {
+                        return AutoSizedLayout(layout)
+                    }
+                    size -= stepPx
+                }
+                val paint = TextPaint(basePaint)
+                paint.textSize = minSizePx
+                val fallback = createLayout(
+                    text = text,
+                    paint = paint,
+                    width = width,
+                    rtl = rtl,
+                    align = Layout.Alignment.ALIGN_NORMAL,
+                    spacingMult = 1f,
+                    spacingAdd = fieldLineSpacingAdd,
+                    maxLines = maxLines
+                )
+                return AutoSizedLayout(fallback)
+            }
+
+            val sanitized = valueRaw?.trim()?.takeIf { it.isNotEmpty() }
+            val normalizedValue = sanitized?.let { value ->
+                if (PdfBidiUtils.isArabicLikely(value)) normalizeArabicCommaSpacing(value) else value
+            }
+            val displayValue = normalizedValue ?: sanitized ?: REPORT_INFO_PLACEHOLDER
+            val wrappedLabel = PdfBidiUtils.wrapMixed(label, rtlBase = true)
+            val wrappedValue = PdfBidiUtils.wrapMixed(displayValue, rtlBase = true)
+
+            val linkUrl = if (sanitized != null) {
+                linkUrlRaw?.trim()?.takeIf { it.isNotEmpty() && isHttpUrl(it) }
+            } else {
+                null
+            }
+
+            val minLabelWidth = (contentWidth * 0.35f).roundToInt()
+            val maxLabelWidth = (contentWidth * 0.45f).roundToInt()
+            val idealLabelWidth = (contentWidth * 0.4f).roundToInt()
+            val maxLabelAllowed = (contentWidth - horizontalGap - minValueWidth).coerceAtLeast(minLabelWidth)
+
+            var labelWidth = idealLabelWidth.coerceIn(minLabelWidth, maxLabelWidth)
+            labelWidth = labelWidth.coerceAtMost(maxLabelAllowed)
 
             var valueWidth = contentWidth - labelWidth - horizontalGap
             if (valueWidth < minValueWidth) {
-                val adjustedLabelWidth = (contentWidth - horizontalGap - minValueWidth).coerceAtLeast(dp(48))
-                labelWidth = min(labelWidth, adjustedLabelWidth)
+                valueWidth = minValueWidth.coerceAtMost(contentWidth - horizontalGap)
+                labelWidth = (contentWidth - horizontalGap - valueWidth).coerceIn(minLabelWidth, maxLabelWidth)
                 valueWidth = contentWidth - labelWidth - horizontalGap
+            }
+            if (valueWidth <= 0) {
+                valueWidth = max(1, contentWidth - horizontalGap - labelWidth)
             }
 
             val labelAreaWidth = max(1, labelWidth - horizontalPadding * 2)
             val valueAreaWidth = max(1, valueWidth - horizontalPadding * 2)
 
-            val labelLayout = createLayout(
-                wrappedLabel,
-                bodyPaint,
-                labelAreaWidth,
-                rtl = true,
-                spacingMult = 1f,
-                spacingAdd = fieldLineSpacingAdd
-            )
-            val valueAlign = if (valueIsRtl) Layout.Alignment.ALIGN_NORMAL else Layout.Alignment.ALIGN_OPPOSITE
-            val valueLayout = createLayout(
-                wrappedValue,
-                valuePaint,
-                valueAreaWidth,
-                rtl = valueIsRtl,
-                align = valueAlign,
-                spacingMult = 1f,
-                spacingAdd = fieldLineSpacingAdd
-            )
+            val labelPaint = TextPaint(bodyPaint).apply {
+                typeface = Typeface.create(typeface, Typeface.BOLD)
+            }
+            val valuePaintBase = TextPaint(bodyPaint).apply {
+                if (linkUrl != null) {
+                    color = hyperlinkBlue
+                    isUnderlineText = true
+                }
+            }
+
+            val labelLayout = autoSize(wrappedLabel, labelPaint, labelAreaWidth, rtl = true).layout
+            val valueLayout = autoSize(wrappedValue, valuePaintBase, valueAreaWidth, rtl = true).layout
 
             val rowHeight = max(labelLayout.height, valueLayout.height) + verticalPadding * 2
             val requiredHeight = rowHeight + fieldLineSpacing
@@ -471,25 +517,25 @@ class ReportPdfBuilder(
                 }
             }
 
-            val labelLeft = contentRight - labelWidth
             val valueLeft = contentLeft
+            val labelLeft = contentRight - labelWidth
+            val top = y + verticalPadding
 
             canvas.save()
-            canvas.translate((labelLeft + horizontalPadding).toFloat(), (y + verticalPadding).toFloat())
+            canvas.translate((labelLeft + horizontalPadding).toFloat(), top.toFloat())
             labelLayout.draw(canvas)
             canvas.restore()
 
             canvas.save()
-            canvas.translate((valueLeft + horizontalPadding).toFloat(), (y + verticalPadding).toFloat())
+            canvas.translate((valueLeft + horizontalPadding).toFloat(), top.toFloat())
             valueLayout.draw(canvas)
             canvas.restore()
 
             if (linkUrl != null && valueLayout.height > 0) {
                 val leftF = (valueLeft + horizontalPadding).toFloat()
-                val topF = (y + verticalPadding).toFloat()
-                val rawRight = leftF + valueLayout.width.toFloat()
-                val maxRight = (valueLeft + valueWidth - horizontalPadding).toFloat()
-                val rightF = min(rawRight, maxRight)
+                val topF = top.toFloat()
+                val rightLimit = leftF + valueAreaWidth.toFloat()
+                val rightF = min(leftF + valueLayout.width.toFloat(), rightLimit)
                 val bottomF = topF + valueLayout.height.toFloat()
                 val rect = RectF(leftF, topF, rightF, bottomF)
                 if (rect.intersect(0f, 0f, pageWidth.toFloat(), pageHeight.toFloat())) {
@@ -498,14 +544,6 @@ class ReportPdfBuilder(
             }
 
             y += rowHeight + fieldLineSpacing
-        }
-
-        fun drawWeatherRow(tempC: String?, condition: String?) {
-            val temperatureText = (tempC?.trim()?.ifBlank { null })?.let { "$it°C" } ?: "—"
-            val conditionText = condition?.trim()?.ifBlank { "—" } ?: "—"
-
-            drawKeyValue("درجة الحرارة", temperatureText)
-            drawKeyValue("حالة الطقس", conditionText)
         }
 
         fun drawBulletedSection(title: String, items: List<String>?) {
@@ -712,14 +750,15 @@ class ReportPdfBuilder(
         startPageWithHeader()
 
         val (tempFromText, condFromText) = parseWeatherFromCombined(data.weatherText)
-        val tempToUse = data.temperatureC ?: tempFromText
-        val condToUse = data.weatherCondition ?: condFromText
+        val enrichedData = data.copy(
+            temperatureC = data.temperatureC ?: tempFromText,
+            weatherCondition = data.weatherCondition ?: condFromText
+        )
 
         drawSectionHeader("معلومات التقرير")
-        buildReportInfoEntries(data).forEach { entry ->
+        buildReportInfoEntries(enrichedData).forEach { entry ->
             drawKeyValue(entry.label, entry.value, entry.linkUrl)
         }
-        drawWeatherRow(tempToUse, condToUse)
         endSectionDivider()
 
         drawBulletedSection("نشاطات المشروع", data.dailyActivities)
@@ -794,42 +833,25 @@ internal data class ReportInfoEntry(
 )
 
 internal fun buildReportInfoEntries(data: ReportPdfBuilder.DailyReport): List<ReportInfoEntry> {
-    val entries = mutableListOf<ReportInfoEntry>()
+    fun String?.normalized(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
 
-    fun String?.normalizedOrNull(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
-
-    data.projectName.normalizedOrNull()?.let {
-        entries.add(ReportInfoEntry("اسم المشروع", it))
+    fun entry(label: String, raw: String?, link: String? = null): ReportInfoEntry {
+        val normalized = raw.normalized()
+        val value = normalized ?: REPORT_INFO_PLACEHOLDER
+        val url = if (normalized != null) link?.trim()?.takeIf { it.isNotEmpty() } else null
+        return ReportInfoEntry(label, value, url)
     }
 
-    data.ownerName.normalizedOrNull()?.let {
-        entries.add(ReportInfoEntry("مالك المشروع", it))
-    }
-
-    data.contractorName.normalizedOrNull()?.let {
-        entries.add(ReportInfoEntry("مقاول المشروع", it))
-    }
-
-    data.consultantName.normalizedOrNull()?.let {
-        entries.add(ReportInfoEntry("الاستشاري", it))
-    }
-
-    val projectLocation = data.projectLocation.normalizedOrNull()
-    if (projectLocation != null) {
-        entries.add(ReportInfoEntry("موقع المشروع", projectLocation, data.projectLocationGoogleMapsUrl))
-    }
-
-    data.reportNumber.normalizedOrNull()?.let {
-        entries.add(ReportInfoEntry("رقم التقرير", it))
-    }
-
-    data.dateText.normalizedOrNull()?.let {
-        entries.add(ReportInfoEntry("تاريخ التقرير", it))
-    }
-
-    data.createdBy.normalizedOrNull()?.let {
-        entries.add(ReportInfoEntry("تم إنشاء التقرير بواسطة", it))
-    }
-
-    return entries
+    return listOf(
+        entry("اسم المشروع", data.projectName),
+        entry("مالك المشروع", data.ownerName),
+        entry("مقاول المشروع", data.contractorName),
+        entry("الاستشاري", data.consultantName),
+        entry("رقم التقرير", data.reportNumber),
+        entry("التاريخ", data.dateText),
+        entry("درجة الحرارة", data.temperatureC),
+        entry("حالة الطقس", data.weatherCondition),
+        entry("موقع المشروع", data.projectLocation, data.projectLocationGoogleMapsUrl),
+        entry("تم إنشاء التقرير بواسطة", data.createdBy)
+    )
 }
