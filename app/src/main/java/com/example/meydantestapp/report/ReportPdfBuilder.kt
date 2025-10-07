@@ -412,9 +412,10 @@ class ReportPdfBuilder(
             basePaint: TextPaint,
             width: Int,
             rtl: Boolean,
-            maxLines: Int
+            maxLines: Int,
+            align: Layout.Alignment = Layout.Alignment.ALIGN_NORMAL
         ): AutoSizedLayout {
-            val minSizePx = sp(10f)
+            val minSizePx = sp(9.5f)
             val maxSizePx = sp(16f)
             val stepPx = sp(1f).coerceAtLeast(1f)
             var size = maxSizePx
@@ -426,7 +427,7 @@ class ReportPdfBuilder(
                     paint = paint,
                     width = width,
                     rtl = rtl,
-                    align = Layout.Alignment.ALIGN_NORMAL,
+                    align = align,
                     spacingMult = 1f,
                     spacingAdd = fieldLineSpacingAdd,
                     maxLines = maxLines
@@ -443,7 +444,7 @@ class ReportPdfBuilder(
                 paint = paint,
                 width = width,
                 rtl = rtl,
-                align = Layout.Alignment.ALIGN_NORMAL,
+                align = align,
                 spacingMult = 1f,
                 spacingAdd = fieldLineSpacingAdd,
                 maxLines = maxLines
@@ -502,8 +503,22 @@ class ReportPdfBuilder(
                 }
             }
 
-            val labelLayout = autoSizeText(wrappedLabel, labelPaint, labelAreaWidth, rtl = true, maxLines = 2).layout
-            val valueLayout = autoSizeText(wrappedValue, valuePaintBase, valueAreaWidth, rtl = true, maxLines = 4).layout
+            val labelLayout = autoSizeText(
+                wrappedLabel,
+                labelPaint,
+                labelAreaWidth,
+                rtl = true,
+                maxLines = 2,
+                align = Layout.Alignment.ALIGN_CENTER
+            ).layout
+            val valueLayout = autoSizeText(
+                wrappedValue,
+                valuePaintBase,
+                valueAreaWidth,
+                rtl = true,
+                maxLines = 4,
+                align = Layout.Alignment.ALIGN_CENTER
+            ).layout
 
             val rowHeight = max(labelLayout.height, valueLayout.height) + verticalPadding * 2
             val requiredHeight = rowHeight + fieldLineSpacing
@@ -520,21 +535,23 @@ class ReportPdfBuilder(
 
             val valueLeft = contentLeft
             val labelLeft = contentRight - labelWidth
-            val top = y + verticalPadding
+            val availableHeight = rowHeight - verticalPadding * 2
+            val labelTop = y + verticalPadding + ((availableHeight - labelLayout.height) / 2f).coerceAtLeast(0f)
+            val valueTop = y + verticalPadding + ((availableHeight - valueLayout.height) / 2f).coerceAtLeast(0f)
 
             canvas.save()
-            canvas.translate((labelLeft + horizontalPadding).toFloat(), top.toFloat())
+            canvas.translate((labelLeft + horizontalPadding).toFloat(), labelTop)
             labelLayout.draw(canvas)
             canvas.restore()
 
             canvas.save()
-            canvas.translate((valueLeft + horizontalPadding).toFloat(), top.toFloat())
+            canvas.translate((valueLeft + horizontalPadding).toFloat(), valueTop)
             valueLayout.draw(canvas)
             canvas.restore()
 
             if (linkUrl != null && valueLayout.height > 0) {
                 val leftF = (valueLeft + horizontalPadding).toFloat()
-                val topF = top.toFloat()
+                val topF = valueTop
                 val rightLimit = leftF + valueAreaWidth.toFloat()
                 val rightF = min(leftF + valueLayout.width.toFloat(), rightLimit)
                 val bottomF = topF + valueLayout.height.toFloat()
@@ -623,8 +640,22 @@ class ReportPdfBuilder(
                     }
                 }
 
-                val labelLayout = autoSizeText(wrappedLabel, labelPaint, labelAreaWidth, rtl = true, maxLines = 2).layout
-                val valueLayout = autoSizeText(wrappedValue, valuePaint, valueAreaWidth, rtl = true, maxLines = 6).layout
+                val labelLayout = autoSizeText(
+                    wrappedLabel,
+                    labelPaint,
+                    labelAreaWidth,
+                    rtl = true,
+                    maxLines = 2,
+                    align = Layout.Alignment.ALIGN_CENTER
+                ).layout
+                val valueLayout = autoSizeText(
+                    wrappedValue,
+                    valuePaint,
+                    valueAreaWidth,
+                    rtl = true,
+                    maxLines = 6,
+                    align = Layout.Alignment.ALIGN_CENTER
+                ).layout
 
                 val rowHeight = max(labelLayout.height, valueLayout.height) + verticalPadding * 2
                 val requiredHeight = rowHeight + dp(1)
@@ -668,15 +699,17 @@ class ReportPdfBuilder(
                 canvas.drawLine(rightF, topF, rightF, bottomF, tableBorderPaint)
                 canvas.drawLine(columnDividerX.toFloat(), topF, columnDividerX.toFloat(), bottomF, tableDividerPaint)
 
-                val textTop = rowTop + verticalPadding
+                val availableHeight = rowHeight - verticalPadding * 2
+                val labelTop = rowTop + verticalPadding + ((availableHeight - labelLayout.height) / 2f).coerceAtLeast(0f)
+                val valueTop = rowTop + verticalPadding + ((availableHeight - valueLayout.height) / 2f).coerceAtLeast(0f)
 
                 canvas.save()
-                canvas.translate((labelLeft + horizontalPadding).toFloat(), textTop.toFloat())
+                canvas.translate((labelLeft + horizontalPadding).toFloat(), labelTop)
                 labelLayout.draw(canvas)
                 canvas.restore()
 
                 canvas.save()
-                canvas.translate((valueLeft + horizontalPadding).toFloat(), textTop.toFloat())
+                canvas.translate((valueLeft + horizontalPadding).toFloat(), valueTop)
                 valueLayout.draw(canvas)
                 canvas.restore()
 
@@ -686,9 +719,9 @@ class ReportPdfBuilder(
                     val rightLink = min(leftLink + valueLayout.width.toFloat(), rightLimit)
                     val rect = RectF(
                         leftLink,
-                        textTop.toFloat(),
+                        valueTop,
                         rightLink,
-                        (textTop + valueLayout.height).toFloat()
+                        valueTop + valueLayout.height
                     )
                     if (rect.intersect(0f, 0f, pageWidth.toFloat(), pageHeight.toFloat())) {
                         PdfLinkAnnotationSupport.addLink(page, rect, linkUrl)

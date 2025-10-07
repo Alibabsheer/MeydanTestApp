@@ -68,9 +68,12 @@
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
                     android:textStyle="bold"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
@@ -84,9 +87,12 @@
                     android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
             <TableRow
@@ -108,9 +114,12 @@
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
                     android:textStyle="bold"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
@@ -124,9 +133,12 @@
                     android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
             <TableRow
@@ -148,9 +160,12 @@
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
                     android:textStyle="bold"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
@@ -164,9 +179,12 @@
                     android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
             <TableRow
@@ -188,9 +206,12 @@
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
                     android:textStyle="bold"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
@@ -204,9 +225,12 @@
                     android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
             <TableRow
@@ -228,9 +252,12 @@
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
                     android:textStyle="bold"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
@@ -244,9 +271,12 @@
                     android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
             <TableRow
@@ -268,9 +298,12 @@
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
                     android:textStyle="bold"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
@@ -284,9 +317,12 @@
                     android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
             <TableRow
@@ -308,9 +344,12 @@
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
                     android:textStyle="bold"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
@@ -324,9 +363,12 @@
                     android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
             <TableRow
@@ -348,9 +390,12 @@
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
                     android:textStyle="bold"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
@@ -364,9 +409,12 @@
                     android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
             <TableRow
@@ -388,9 +436,12 @@
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
                     android:textStyle="bold"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
@@ -404,9 +455,12 @@
                     android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
             <TableRow
@@ -428,9 +482,12 @@
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
                     android:textStyle="bold"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
@@ -444,9 +501,12 @@
                     android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
                     android:textSize="16sp"
-                    android:textAlignment="viewEnd"
-                    android:gravity="end"
+                    android:textAlignment="center"
+                    android:gravity="center"
                     android:lineSpacingExtra="2dp"
+                    android:breakStrategy="balanced"
+                    android:hyphenationFrequency="normal"
+                    android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
         </TableLayout>
