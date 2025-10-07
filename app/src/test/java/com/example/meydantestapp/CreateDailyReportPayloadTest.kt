@@ -40,6 +40,8 @@ class CreateDailyReportPayloadTest {
         assertEquals("مالك 1", payload["ownerName"])
         assertEquals("مقاول 1", payload["contractorName"])
         assertEquals("استشاري 1", payload["consultantName"])
+        assertEquals("الرياض", payload["projectLocation"])
+        assertEquals("الرياض", payload["location"])
         assertEquals("م. أحمد", payload["createdByName"])
     }
 

@@ -885,13 +885,16 @@ internal fun MutableMap<String, Any>.applyDailyReportOptionalFields(
         else -> false
     }
 
+    val normalizedLocation = location?.trim()?.takeIf { it.isNotEmpty() }
+
     listOf(
         "projectName" to projectName,
         "ownerName" to ownerName,
         "contractorName" to contractorName,
         "consultantName" to consultantName,
         "projectNumber" to projectNumber,
-        "location" to location,
+        "projectLocation" to normalizedLocation,
+        "location" to normalizedLocation,
         "latitude" to latitude,
         "longitude" to longitude,
         "temperature" to temperature,
