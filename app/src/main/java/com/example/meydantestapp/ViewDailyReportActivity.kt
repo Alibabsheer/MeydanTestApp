@@ -84,6 +84,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
     private var pdfFile: File? = null
     private val pageBitmaps = mutableListOf<Bitmap>() // لعرض PDF المُرندَر
     private val sitePageUrls = mutableListOf<String>() // لعرض صفحات جاهزة حسب القالب
+    private var resolvedReportNumber: String? = null
 
     // ===== Rendering guards =====
     private var alreadyRendered = false
@@ -170,6 +171,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
             return
         }
 
+        resolvedReportNumber = report.reportNumber
         updateReportInfoSection(report)
 
         lifecycleScope.launch {
@@ -250,6 +252,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
 
     private fun updateReportInfoSection(report: DailyReport?) {
         if (report == null) {
+            resolvedReportNumber = null
             setReportInfoValue(reportProjectNameValue, null)
             setReportInfoValue(reportOwnerNameValue, null)
             setReportInfoValue(reportContractorNameValue, null)
@@ -262,6 +265,8 @@ class ViewDailyReportActivity : AppCompatActivity() {
             setReportInfoValue(reportCreatedByValue, null)
             return
         }
+        resolvedReportNumber = report.reportNumber
+
         val dateText = report.date?.let { millis ->
             runCatching { dateFormatter.format(Date(millis)) }.getOrNull()
         }
@@ -416,8 +421,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
                     sitepages = report.sitepages
                 )
 
-                val out = File(cacheDir, "reports/report_${report.id ?: System.currentTimeMillis()}.pdf")
-                out.parentFile?.mkdirs()
+                val out = prepareExportFile()
 
                 val pdf = withContext(Dispatchers.IO) {
                     ReportPdfBuilder(this@ViewDailyReportActivity).buildPdf(builderInput, logo, out)
@@ -490,6 +494,45 @@ class ViewDailyReportActivity : AppCompatActivity() {
         startActivity(Intent.createChooser(intent, "مشاركة التقرير PDF"))
     }
 
+    private fun prepareExportFile(): File {
+        val reportsDir = File(cacheDir, "reports")
+        if (!reportsDir.exists()) {
+            reportsDir.mkdirs()
+        }
+        val fileName = resolveExportFileName()
+        val target = File(reportsDir, fileName)
+        target.parentFile?.mkdirs()
+        if (target.exists() && !target.isDirectory) {
+            target.delete()
+        }
+        return target
+    }
+
+    private fun resolveExportFileName(): String {
+        val rawNumber = resolvedReportNumber?.trim()?.takeIf { it.isNotEmpty() }
+        val numberWithoutPrefix = rawNumber?.let { value ->
+            val prefix = "DailyReport-"
+            when {
+                value.startsWith(prefix) -> value.removePrefix(prefix).trim()
+                value.startsWith(prefix, ignoreCase = true) -> value.substring(prefix.length).trim()
+                else -> value
+            }
+        }?.takeIf { it.isNotEmpty() }
+
+        val candidate = numberWithoutPrefix ?: rawNumber
+        val sanitizedCandidate = candidate
+            ?.replace(Regex("[^0-9A-Za-z_-]"), "_")
+            ?.trim('_')
+            ?.takeIf { it.isNotEmpty() }
+
+        if (sanitizedCandidate != null) {
+            return "DailyReport-$sanitizedCandidate.pdf"
+        }
+
+        val fallback = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+        return "DailyReport-$fallback.pdf"
+    }
+
     private fun exportSitePagesThenShare() {
         // إن كان لدينا ملف PDF جاهز من قبل (من صفحات الموقع)، شاركه مباشرة
         if (pdfFile != null && currentMode == DisplayMode.SITE_PAGES) {
@@ -505,8 +548,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
             try {
                 showLoading(true)
                 sharePdfButton.isEnabled = false
-                val out = File(cacheDir, "reports/sitepages_${System.currentTimeMillis()}.pdf")
-                out.parentFile?.mkdirs()
+                val out = prepareExportFile()
 
                 withContext(Dispatchers.IO) { buildPdfFromSitePages(urls, out) }
                 pdfFile = out
