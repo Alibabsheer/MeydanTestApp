@@ -268,6 +268,8 @@ class ViewDailyReportActivity : AppCompatActivity() {
         val createdBy = report.createdByName?.trim()?.takeIf { it.isNotEmpty() }
             ?: report.createdBy
 
+        val resolvedLocation = report.resolveProjectLocation()
+
         setReportInfoValue(reportProjectNameValue, report.projectName)
         setReportInfoValue(reportOwnerNameValue, report.ownerName)
         setReportInfoValue(reportContractorNameValue, report.contractorName)
@@ -276,7 +278,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
         setReportInfoValue(reportDateValue, dateText)
         setReportInfoValue(reportTemperatureValue, report.temperature)
         setReportInfoValue(reportWeatherStatusValue, report.weatherStatus)
-        setReportInfoValue(reportLocationValue, report.projectLocation)
+        setReportInfoValue(reportLocationValue, resolvedLocation)
         setReportInfoValue(reportCreatedByValue, createdBy)
     }
 
@@ -391,12 +393,14 @@ class ViewDailyReportActivity : AppCompatActivity() {
                 val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
                 val dateText = report.date?.let { df.format(java.util.Date(it)) }
 
+                val resolvedLocation = report.resolveProjectLocation()
+
                 val builderInput = ReportPdfBuilder.DailyReport(
                     projectName = report.projectName,
                     ownerName = report.ownerName,
                     contractorName = report.contractorName,
                     consultantName = report.consultantName,
-                    projectLocation = report.projectLocation,
+                    projectLocation = resolvedLocation,
                     projectLocationGoogleMapsUrl = report.googleMapsUrl,
                     reportNumber = report.reportNumber,
                     dateText = dateText,
@@ -886,4 +890,11 @@ class ViewDailyReportActivity : AppCompatActivity() {
     }
 
 
+}
+
+private fun String?.normalizedOrNull(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
+
+private fun DailyReport.resolveProjectLocation(): String? {
+    return projectLocation.normalizedOrNull()
+        ?: location.normalizedOrNull()
 }

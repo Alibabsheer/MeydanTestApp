@@ -86,6 +86,7 @@ data class DailyReport(
     val reportNumber: String? = null,
     val createdBy: String? = null,
     val createdByName: String? = null,      // اسم مُنشئ التقرير (إن توفر)
+    val location: String? = null,           // الموقع الخام المخزّن في الوثيقة (توافق)
     val projectLocation: String? = null,    // موقع المشروع لعرضه في الشاشة/الـ PDF
     val googleMapsUrl: String? = null,      // رابط خرائط Google للموقع (اختياري)
     val organizationName: String? = null,
