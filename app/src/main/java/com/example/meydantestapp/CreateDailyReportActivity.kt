@@ -15,7 +15,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.ImageView
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -58,17 +57,6 @@ class CreateDailyReportActivity : AppCompatActivity() {
     private var projectName: String? = null
     private var selectedProject: Project? = null
 
-    private var infoProjectName: String? = null
-    private var infoOwnerName: String? = null
-    private var infoContractorName: String? = null
-    private var infoConsultantName: String? = null
-    private var infoReportNumber: String? = null
-    private var infoReportDate: String? = null
-    private var infoTemperature: String? = null
-    private var infoWeatherStatus: String? = null
-    private var infoProjectLocation: String? = null
-    private var infoCreatedBy: String? = null
-
     // ملف مؤقت للكاميرا
     private var cameraTempFile: File? = null
 
@@ -82,7 +70,6 @@ class CreateDailyReportActivity : AppCompatActivity() {
     companion object {
         private const val MAX_SELECTION = 10
         private const val FINISH_DELAY_MS = 700L
-        private const val PLACEHOLDER_VALUE = "—"
     }
 
     // ===== لانشرات =====
@@ -136,8 +123,6 @@ class CreateDailyReportActivity : AppCompatActivity() {
         projectName = intent.getStringExtra("projectName")
         organizationId = intent.getStringExtra("organizationId")
 
-        updateReportInfoSection(name = projectName, createdBy = auth.currentUser?.displayName)
-
         // تمهيد أسماء العرض الملتقطة وقت الإنشاء
         vm.setCreatedByName(auth.currentUser?.displayName)
 
@@ -160,33 +145,16 @@ class CreateDailyReportActivity : AppCompatActivity() {
         // مراقبة الطقس (تحويل درجة الحرارة لعدد صحيح قبل العرض)
         vm.temperature.observe(this) { raw ->
             binding.temperatureInput.setText(formatTempToIntString(raw))
-            updateReportInfoSection(temperature = raw)
         }
         vm.weatherStatus.observe(this) {
             binding.weatherStatusInput.setText(it ?: "")
-            updateReportInfoSection(weatherStatus = it)
         }
-        vm.date.observe(this) { updateReportInfoSection(reportDate = it) }
-        vm.createdByName.observe(this) { updateReportInfoSection(createdBy = it) }
 
         vm.projectInfo.observe(this) { info ->
             val map = info.orEmpty()
             val resolvedName = ((map["projectName"] ?: map["name"]) as? String)?.nullIfBlank()
                 ?: projectName
             projectName = resolvedName ?: projectName
-            val owner = map["ownerName"]?.toString()?.nullIfBlank()
-            val contractor = map["contractorName"]?.toString()?.nullIfBlank()
-            val consultant = map["consultantName"]?.toString()?.nullIfBlank()
-            val location = (map["projectLocation"] ?: map["location"] ?: map["addressText"])
-                ?.toString()
-                ?.nullIfBlank()
-            updateReportInfoSection(
-                name = resolvedName ?: projectName,
-                owner = owner,
-                contractor = contractor,
-                consultant = consultant,
-                location = location
-            )
         }
 
         // ربط الحقول لتجميع العمالة لحظيًا
@@ -487,17 +455,6 @@ class CreateDailyReportActivity : AppCompatActivity() {
                         ?: (projectMap["name"] as? String)
                 }
 
-                val location = (projectMap["projectLocation"] ?: projectMap["location"] ?: projectMap["addressText"])
-                    ?.toString()
-                    ?.nullIfBlank()
-                updateReportInfoSection(
-                    name = projectName,
-                    owner = projectMap["ownerName"]?.toString()?.nullIfBlank(),
-                    contractor = projectMap["contractorName"]?.toString()?.nullIfBlank(),
-                    consultant = projectMap["consultantName"]?.toString()?.nullIfBlank(),
-                    location = location
-                )
-
                 binding.reportDateInput.isEnabled = true
             }
             .addOnFailureListener {
@@ -516,7 +473,6 @@ class CreateDailyReportActivity : AppCompatActivity() {
                 val dateStr = df.format(c.time)
                 binding.reportDateInput.setText(dateStr)
                 vm.setDate(dateStr)
-                updateReportInfoSection(reportDate = dateStr)
 
                 var lat = selectedProject?.latitude
                 var lng = selectedProject?.longitude
@@ -762,50 +718,6 @@ class CreateDailyReportActivity : AppCompatActivity() {
         val row = LayoutInflater.from(this).inflate(R.layout.item_note, binding.noteInputContainer, false)
         row.findViewById<ImageButton?>(R.id.addNoteButton)?.setOnClickListener { addNoteRow() }
         binding.noteInputContainer.addView(row)
-    }
-
-    private fun updateReportInfoSection(
-        name: String? = infoProjectName,
-        owner: String? = infoOwnerName,
-        contractor: String? = infoContractorName,
-        consultant: String? = infoConsultantName,
-        reportNumber: String? = infoReportNumber,
-        reportDate: String? = infoReportDate,
-        temperature: String? = infoTemperature,
-        weatherStatus: String? = infoWeatherStatus,
-        location: String? = infoProjectLocation,
-        createdBy: String? = infoCreatedBy
-    ) {
-        infoProjectName = name.nullIfBlank()
-        infoOwnerName = owner.nullIfBlank()
-        infoContractorName = contractor.nullIfBlank()
-        infoConsultantName = consultant.nullIfBlank()
-        infoReportNumber = reportNumber.nullIfBlank()
-        infoReportDate = reportDate.nullIfBlank()
-        infoTemperature = temperature.nullIfBlank()
-        infoWeatherStatus = weatherStatus.nullIfBlank()
-        infoProjectLocation = location.nullIfBlank()
-        infoCreatedBy = createdBy.nullIfBlank()
-
-        refreshReportInfoSection()
-    }
-
-    private fun refreshReportInfoSection() {
-        setReportInfoValue(binding.reportProjectNameValue, infoProjectName)
-        setReportInfoValue(binding.reportOwnerNameValue, infoOwnerName)
-        setReportInfoValue(binding.reportContractorNameValue, infoContractorName)
-        setReportInfoValue(binding.reportConsultantNameValue, infoConsultantName)
-        setReportInfoValue(binding.reportNumberValue, infoReportNumber)
-        setReportInfoValue(binding.reportDateValue, infoReportDate)
-        setReportInfoValue(binding.reportTemperatureValue, infoTemperature)
-        setReportInfoValue(binding.reportWeatherStatusValue, infoWeatherStatus)
-        setReportInfoValue(binding.reportLocationValue, infoProjectLocation)
-        setReportInfoValue(binding.reportCreatedByValue, infoCreatedBy)
-    }
-
-    private fun setReportInfoValue(view: TextView, raw: String?) {
-        val normalized = raw?.trim()?.takeIf { it.isNotEmpty() }
-        view.text = normalized ?: PLACEHOLDER_VALUE
     }
 
     private fun String?.nullIfBlank(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
