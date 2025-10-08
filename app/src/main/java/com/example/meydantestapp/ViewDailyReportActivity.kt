@@ -60,17 +60,6 @@ class ViewDailyReportActivity : AppCompatActivity() {
     private lateinit var sharePdfButton: Button
     private var progressBar: ProgressBar? = null
     private lateinit var zoomLayout: ZoomLayout
-    private lateinit var reportProjectNameValue: TextView
-    private lateinit var reportOwnerNameValue: TextView
-    private lateinit var reportContractorNameValue: TextView
-    private lateinit var reportConsultantNameValue: TextView
-    private lateinit var reportNumberValue: TextView
-    private lateinit var reportDateValue: TextView
-    private lateinit var reportTemperatureValue: TextView
-    private lateinit var reportWeatherStatusValue: TextView
-    private lateinit var reportLocationValue: TextView
-    private lateinit var reportCreatedByValue: TextView
-
     // ===== VM / Data =====
     private lateinit var viewModel: ViewDailyReportViewModel
     private val db by lazy { FirebaseFirestore.getInstance() }
@@ -100,10 +89,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
         private const val DEFAULT_MIN_ZOOM = 0.8f
         private const val DEFAULT_MAX_ZOOM = 5.0f
         private const val DEFAULT_INITIAL_ZOOM = 1.0f
-        private const val PLACEHOLDER_VALUE = "—"
     }
-
-    private val dateFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -118,17 +104,6 @@ class ViewDailyReportActivity : AppCompatActivity() {
         sharePdfButton = findViewById(R.id.sharePdfButton)
         progressBar = findViewById(R.id.progressBar)
         zoomLayout = findViewById(R.id.zoomContainer)
-        reportProjectNameValue = findViewById(R.id.viewReportProjectNameValue)
-        reportOwnerNameValue = findViewById(R.id.viewReportOwnerNameValue)
-        reportContractorNameValue = findViewById(R.id.viewReportContractorNameValue)
-        reportConsultantNameValue = findViewById(R.id.viewReportConsultantNameValue)
-        reportNumberValue = findViewById(R.id.viewReportNumberValue)
-        reportDateValue = findViewById(R.id.viewReportDateValue)
-        reportTemperatureValue = findViewById(R.id.viewReportTemperatureValue)
-        reportWeatherStatusValue = findViewById(R.id.viewReportWeatherStatusValue)
-        reportLocationValue = findViewById(R.id.viewReportLocationValue)
-        reportCreatedByValue = findViewById(R.id.viewReportCreatedByValue)
-
         // ===== Zoom setup =====
         zoomLayout.setMinZoom(DEFAULT_MIN_ZOOM)
         zoomLayout.setMaxZoom(DEFAULT_MAX_ZOOM)
@@ -251,45 +226,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
     }
 
     private fun updateReportInfoSection(report: DailyReport?) {
-        if (report == null) {
-            resolvedReportNumber = null
-            setReportInfoValue(reportProjectNameValue, null)
-            setReportInfoValue(reportOwnerNameValue, null)
-            setReportInfoValue(reportContractorNameValue, null)
-            setReportInfoValue(reportConsultantNameValue, null)
-            setReportInfoValue(reportNumberValue, null)
-            setReportInfoValue(reportDateValue, null)
-            setReportInfoValue(reportTemperatureValue, null)
-            setReportInfoValue(reportWeatherStatusValue, null)
-            setReportInfoValue(reportLocationValue, null)
-            setReportInfoValue(reportCreatedByValue, null)
-            return
-        }
-        resolvedReportNumber = report.reportNumber
-
-        val dateText = report.date?.let { millis ->
-            runCatching { dateFormatter.format(Date(millis)) }.getOrNull()
-        }
-        val createdBy = report.createdByName?.trim()?.takeIf { it.isNotEmpty() }
-            ?: report.createdBy
-
-        val resolvedLocation = report.resolveProjectLocation()
-
-        setReportInfoValue(reportProjectNameValue, report.projectName)
-        setReportInfoValue(reportOwnerNameValue, report.ownerName)
-        setReportInfoValue(reportContractorNameValue, report.contractorName)
-        setReportInfoValue(reportConsultantNameValue, report.consultantName)
-        setReportInfoValue(reportNumberValue, report.reportNumber)
-        setReportInfoValue(reportDateValue, dateText)
-        setReportInfoValue(reportTemperatureValue, report.temperature)
-        setReportInfoValue(reportWeatherStatusValue, report.weatherStatus)
-        setReportInfoValue(reportLocationValue, resolvedLocation)
-        setReportInfoValue(reportCreatedByValue, createdBy)
-    }
-
-    private fun setReportInfoValue(view: TextView, raw: String?) {
-        val normalized = raw?.trim()?.takeIf { it.isNotEmpty() }
-        view.text = normalized ?: PLACEHOLDER_VALUE
+        resolvedReportNumber = report?.reportNumber
     }
 
     // ---------------------------------------------------------------------

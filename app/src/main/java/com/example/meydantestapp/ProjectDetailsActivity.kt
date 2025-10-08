@@ -136,8 +136,6 @@ class ProjectDetailsActivity : AppCompatActivity() {
             .addOnSuccessListener { doc ->
                 if (!doc.exists()) {
                     AppLogger.w("ProjectDetails", "Project document not found for id=$pid")
-                    binding.startDateText.text = ""
-                    binding.endDateText.text = ""
                     selectedProject = null
                     return@addOnSuccessListener
                 }
@@ -161,17 +159,6 @@ class ProjectDetailsActivity : AppCompatActivity() {
                     "ProjectDetails",
                     "Resolved project dates → start=${dates.startTimestamp?.seconds} end=${dates.endTimestamp?.seconds}"
                 )
-
-                binding.startDateText.text = dates.startDisplay
-                binding.endDateText.text = dates.endDisplay
-
-                val ownerName = (data["ownerName"] as? String)?.takeIf { it.isNotBlank() }
-                val contractorName = (data["contractorName"] as? String)?.takeIf { it.isNotBlank() }
-                val consultantName = (data["consultantName"] as? String)?.takeIf { it.isNotBlank() }
-
-                binding.ownerNameValue.text = ownerName ?: "—"
-                binding.contractorNameValue.text = contractorName ?: "—"
-                binding.consultantNameValue.text = consultantName ?: "—"
 
                 selectedProject = doc.toProjectSafe(dates.startTimestamp, dates.endTimestamp)
             }
