@@ -594,6 +594,7 @@ class ReportPdfBuilder(
 
             val labelPaint = TextPaint(bodyPaint).apply {
                 typeface = Typeface.create(typeface, Typeface.BOLD)
+                textSize = sp(11f)
             }
             val valuePaintBase = TextPaint(bodyPaint)
 
