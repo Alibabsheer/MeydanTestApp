@@ -274,7 +274,7 @@ class ReportPdfBuilder(
         }
         val bodyPaint = arabicPaint {
             color = black
-            textSize = sp(9.5f)
+            textSize = sp(10.5f)
             textAlign = Paint.Align.RIGHT
         }
         val footerPaintLeft = arabicPaint {
@@ -416,7 +416,7 @@ class ReportPdfBuilder(
             align: Layout.Alignment = Layout.Alignment.ALIGN_NORMAL
         ): AutoSizedLayout {
             val minSizePx = sp(9.5f)
-            val maxSizePx = sp(16f)
+            val maxSizePx = min(sp(16f), basePaint.textSize)
             val stepPx = sp(1f).coerceAtLeast(1f)
             var size = maxSizePx
             while (size >= minSizePx) {
@@ -495,6 +495,7 @@ class ReportPdfBuilder(
 
             val labelPaint = TextPaint(bodyPaint).apply {
                 typeface = Typeface.create(typeface, Typeface.BOLD)
+                textSize = sp(11f)
             }
             val valuePaintBase = TextPaint(bodyPaint).apply {
                 if (linkUrl != null) {

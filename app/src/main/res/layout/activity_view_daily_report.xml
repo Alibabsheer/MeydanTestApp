@@ -45,7 +45,7 @@
             android:layout_marginBottom="12dp"
             android:background="@drawable/bg_rounded_card"
             android:layoutDirection="rtl"
-            android:padding="16dp"
+            android:padding="12dp"
             android:stretchColumns="0,1"
             android:shrinkColumns="0,1">
 
@@ -54,29 +54,23 @@
                 android:layout_height="wrap_content"
                 android:layoutDirection="rtl"
                 android:gravity="center_vertical"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp">
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
 
                 <TextView
+                    style="@style/DailyReportInfoLabelText"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="4"
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="@string/label_project_name"
-                    android:textColor="?android:textColorPrimary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
+                    style="@style/DailyReportInfoValueText"
                     android:id="@+id/viewReportProjectNameValue"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -84,14 +78,7 @@
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="—"
-                    android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
@@ -100,29 +87,23 @@
                 android:layout_height="wrap_content"
                 android:layoutDirection="rtl"
                 android:gravity="center_vertical"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp">
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
 
                 <TextView
+                    style="@style/DailyReportInfoLabelText"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="4"
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="@string/label_project_owner"
-                    android:textColor="?android:textColorPrimary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
+                    style="@style/DailyReportInfoValueText"
                     android:id="@+id/viewReportOwnerNameValue"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -130,14 +111,7 @@
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="—"
-                    android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
@@ -146,29 +120,23 @@
                 android:layout_height="wrap_content"
                 android:layoutDirection="rtl"
                 android:gravity="center_vertical"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp">
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
 
                 <TextView
+                    style="@style/DailyReportInfoLabelText"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="4"
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="@string/label_project_contractor"
-                    android:textColor="?android:textColorPrimary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
+                    style="@style/DailyReportInfoValueText"
                     android:id="@+id/viewReportContractorNameValue"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -176,14 +144,7 @@
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="—"
-                    android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
@@ -192,29 +153,23 @@
                 android:layout_height="wrap_content"
                 android:layoutDirection="rtl"
                 android:gravity="center_vertical"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp">
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
 
                 <TextView
+                    style="@style/DailyReportInfoLabelText"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="4"
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="@string/label_project_consultant"
-                    android:textColor="?android:textColorPrimary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
+                    style="@style/DailyReportInfoValueText"
                     android:id="@+id/viewReportConsultantNameValue"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -222,14 +177,7 @@
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="—"
-                    android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
@@ -238,29 +186,23 @@
                 android:layout_height="wrap_content"
                 android:layoutDirection="rtl"
                 android:gravity="center_vertical"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp">
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
 
                 <TextView
+                    style="@style/DailyReportInfoLabelText"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="4"
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="@string/label_report_number"
-                    android:textColor="?android:textColorPrimary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
+                    style="@style/DailyReportInfoValueText"
                     android:id="@+id/viewReportNumberValue"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -268,14 +210,7 @@
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="—"
-                    android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
@@ -284,29 +219,23 @@
                 android:layout_height="wrap_content"
                 android:layoutDirection="rtl"
                 android:gravity="center_vertical"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp">
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
 
                 <TextView
+                    style="@style/DailyReportInfoLabelText"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="4"
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="@string/label_report_date"
-                    android:textColor="?android:textColorPrimary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
+                    style="@style/DailyReportInfoValueText"
                     android:id="@+id/viewReportDateValue"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -314,14 +243,7 @@
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="—"
-                    android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
@@ -330,29 +252,23 @@
                 android:layout_height="wrap_content"
                 android:layoutDirection="rtl"
                 android:gravity="center_vertical"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp">
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
 
                 <TextView
+                    style="@style/DailyReportInfoLabelText"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="4"
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="@string/label_temperature"
-                    android:textColor="?android:textColorPrimary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
+                    style="@style/DailyReportInfoValueText"
                     android:id="@+id/viewReportTemperatureValue"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -360,14 +276,7 @@
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="—"
-                    android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
@@ -376,29 +285,23 @@
                 android:layout_height="wrap_content"
                 android:layoutDirection="rtl"
                 android:gravity="center_vertical"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp">
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
 
                 <TextView
+                    style="@style/DailyReportInfoLabelText"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="4"
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="@string/label_weather_status"
-                    android:textColor="?android:textColorPrimary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
+                    style="@style/DailyReportInfoValueText"
                     android:id="@+id/viewReportWeatherStatusValue"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -406,14 +309,7 @@
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="—"
-                    android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
@@ -422,29 +318,23 @@
                 android:layout_height="wrap_content"
                 android:layoutDirection="rtl"
                 android:gravity="center_vertical"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp">
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
 
                 <TextView
+                    style="@style/DailyReportInfoLabelText"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="4"
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="@string/label_project_location"
-                    android:textColor="?android:textColorPrimary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
+                    style="@style/DailyReportInfoValueText"
                     android:id="@+id/viewReportLocationValue"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -452,14 +342,7 @@
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="—"
-                    android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
@@ -468,29 +351,23 @@
                 android:layout_height="wrap_content"
                 android:layoutDirection="rtl"
                 android:gravity="center_vertical"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp">
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp">
 
                 <TextView
+                    style="@style/DailyReportInfoLabelText"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="4"
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="@string/label_report_created_by"
-                    android:textColor="?android:textColorPrimary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="4"
                     android:minLines="1" />
 
                 <TextView
+                    style="@style/DailyReportInfoValueText"
                     android:id="@+id/viewReportCreatedByValue"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -498,14 +375,7 @@
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="—"
-                    android:textColor="?android:textColorSecondary"
                     android:textDirection="anyRtl"
-                    android:textSize="16sp"
-                    android:textAlignment="center"
-                    android:gravity="center"
-                    android:lineSpacingExtra="2dp"
-                    android:breakStrategy="balanced"
-                    android:hyphenationFrequency="normal"
                     android:maxLines="6"
                     android:minLines="1" />
             </TableRow>
