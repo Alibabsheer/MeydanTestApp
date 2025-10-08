@@ -37,8 +37,6 @@ data class Project(
     @get:Exclude var id: String? = null,
     var projectName: String? = null,
     var projectNumber: String? = null,
-    var location: String? = null,
-    var projectLocation: String? = null,
     var addressText: String? = null,
     var latitude: Double? = null,
     var longitude: Double? = null,
@@ -86,8 +84,7 @@ data class DailyReport(
     val reportNumber: String? = null,
     val createdBy: String? = null,
     val createdByName: String? = null,      // اسم مُنشئ التقرير (إن توفر)
-    val location: String? = null,           // الموقع الخام المخزّن في الوثيقة (توافق)
-    val projectLocation: String? = null,    // موقع المشروع لعرضه في الشاشة/الـ PDF
+    val addressText: String? = null,        // الموقع النصي الموحّد للتقرير
     val googleMapsUrl: String? = null,      // رابط خرائط Google للموقع (اختياري)
     val organizationName: String? = null,
     val isArchived: Boolean? = false        // لأرشفة التقارير بعد إنشاء الأسبوعي

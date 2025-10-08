@@ -31,9 +31,7 @@ class ProjectAdapter(
     override fun onBindViewHolder(holder: ProjectViewHolder, position: Int) {
         val project = projects[position]
         holder.projectNameText.text = project.projectName
-        holder.projectLocationText.text = project.projectLocation?.takeIf { it.isNotBlank() }
-            ?: project.addressText
-            ?: ""
+        holder.projectLocationText.text = project.addressText ?: ""
         holder.editProjectButton.setOnClickListener { onEditClick(project) }
         holder.viewProjectButton.setOnClickListener { onViewClick(project) }
     }

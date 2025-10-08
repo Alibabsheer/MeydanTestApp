@@ -5,6 +5,7 @@ import android.app.DatePickerDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.graphics.Paint
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -155,6 +156,10 @@ class CreateDailyReportActivity : AppCompatActivity() {
             val resolvedName = ((map["projectName"] ?: map["name"]) as? String)?.nullIfBlank()
                 ?: projectName
             projectName = resolvedName ?: projectName
+
+            val address = (map["addressText"] as? String)?.nullIfBlank()
+            val mapsUrl = (map["googleMapsUrl"] as? String)?.nullIfBlank()
+            applyProjectLocationSnapshot(address, mapsUrl)
         }
 
         // ربط الحقول لتجميع العمالة لحظيًا
@@ -446,6 +451,10 @@ class CreateDailyReportActivity : AppCompatActivity() {
             .get()
             .addOnSuccessListener { doc ->
                 selectedProject = doc.toProjectSafe()
+                applyProjectLocationSnapshot(
+                    selectedProject?.addressText.nullIfBlank(),
+                    selectedProject?.googleMapsUrl.nullIfBlank()
+                )
 
                 val projectMap = doc.data ?: emptyMap<String, Any>()
                 vm.setProjectInfo(projectMap)
@@ -556,6 +565,40 @@ class CreateDailyReportActivity : AppCompatActivity() {
         pendingSlotIndex = -1
         if (uri != null && slot >= 0) {
             setEntryForSlot(slot, uri)
+        }
+    }
+
+    private fun applyProjectLocationSnapshot(address: String?, mapsUrl: String?) {
+        val normalizedAddress = address.nullIfBlank()
+        val normalizedUrl = mapsUrl.nullIfBlank()
+        val linkView = binding.projectLocationLink
+        if (normalizedAddress != null) {
+            linkView.visibility = View.VISIBLE
+            linkView.text = normalizedAddress
+            linkView.paintFlags = linkView.paintFlags or Paint.UNDERLINE_TEXT_FLAG
+            linkView.setTextColor(ContextCompat.getColor(this, android.R.color.holo_blue_dark))
+            if (normalizedUrl != null) {
+                linkView.isClickable = true
+                linkView.isFocusable = true
+                linkView.setOnClickListener { openProjectLocationLink(normalizedUrl) }
+            } else {
+                linkView.isClickable = false
+                linkView.isFocusable = false
+                linkView.setOnClickListener(null)
+            }
+        } else {
+            linkView.visibility = View.GONE
+            linkView.text = ""
+            linkView.isClickable = false
+            linkView.isFocusable = false
+            linkView.setOnClickListener(null)
+        }
+    }
+
+    private fun openProjectLocationLink(url: String) {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        runCatching { startActivity(intent) }.onFailure {
+            Toast.makeText(this, "تعذّر فتح الرابط", Toast.LENGTH_SHORT).show()
         }
     }
 

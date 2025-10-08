@@ -10,8 +10,7 @@ class ProjectLocationUtilsTest {
     @Test
     fun buildGoogleMapsUrl_requiresCoordinates() {
         val data = mapOf(
-            "addressText" to "الرياض",
-            "location" to "الرياض"
+            "addressText" to "الرياض"
         )
 
         val url = ProjectLocationUtils.buildGoogleMapsUrl(data)

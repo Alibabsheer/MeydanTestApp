@@ -278,9 +278,7 @@ class ProjectSettingsActivity : AppCompatActivity() {
                 binding.contractorNameEditText.setText(contractorName ?: "—")
                 binding.consultantNameEditText.setText(consultantName ?: "—")
 
-                val address = (data["addressText"] as? String)
-                    ?: (data["location"] as? String)
-                    ?: ""
+                val address = (data["addressText"] as? String) ?: ""
                 withLocationTextUpdate {
                     binding.projectLocationEditText.setText(address)
                 }
@@ -417,7 +415,6 @@ class ProjectSettingsActivity : AppCompatActivity() {
         val data = mutableMapOf<String, Any?>(
             "name" to name,
             "projectName" to name,
-            "location" to normalizedAddress,
             "addressText" to normalizedAddress,
             "latitude" to lat,
             "longitude" to lng,
@@ -438,7 +435,6 @@ class ProjectSettingsActivity : AppCompatActivity() {
             data["contractValue"] = parsed ?: FieldValue.delete()
         }
         if (normalizedAddress == null) {
-            data["location"] = FieldValue.delete()
             data["addressText"] = FieldValue.delete()
         }
         if (lat == null) {

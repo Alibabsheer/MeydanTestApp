@@ -12,7 +12,6 @@ import com.google.firebase.firestore.IgnoreExtraProperties
 data class Project(
     val projectId: String,
     val projectName: String,
-    val projectLocation: String? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
     val addressText: String? = null,
@@ -29,7 +28,6 @@ data class Project(
     fun toMap(): Map<String, Any?> = mapOf(
         "projectId" to projectId,
         "projectName" to projectName,
-        "projectLocation" to projectLocation,
         "latitude" to latitude,
         "longitude" to longitude,
         "addressText" to addressText,
@@ -67,11 +65,9 @@ data class Project(
                 projectName = doc.getString("projectName")
                     ?: data["name"] as? String
                     ?: "",
-                projectLocation = doc.getString("projectLocation")
-                    ?: data["location"] as? String,
                 latitude = doc.getDouble("latitude"),
                 longitude = doc.getDouble("longitude"),
-                addressText = doc.getString("addressText") ?: data["location"] as? String,
+                addressText = doc.getString("addressText"),
                 plusCode = doc.getString("plusCode"),
                 googleMapsUrl = doc.getString("googleMapsUrl"),
                 workType = doc.getString("workType") ?: "Lump Sum",

@@ -85,7 +85,6 @@ class CreateProjectViewModel(
 
         val projectData = hashMapOf<String, Any?>(
             "projectName" to projectName,
-            "location" to normalizedAddress,
             "addressText" to normalizedAddress,
             "latitude" to latitude,
             "longitude" to longitude,

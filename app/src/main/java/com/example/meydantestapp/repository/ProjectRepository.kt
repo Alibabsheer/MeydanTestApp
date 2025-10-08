@@ -62,14 +62,13 @@ open class ProjectRepository(
         projectName: String,
         projectDescription: String,
         organizationId: String,
-        location: String? = null,
+        addressText: String? = null,
         latitude: Double? = null,
         longitude: Double? = null
     ): Result<String> = runCatching {
         val baseData = mapOf(
             "projectName" to projectName,
-            "projectLocation" to location,
-            "addressText" to location,
+            "addressText" to addressText,
             "latitude" to latitude,
             "longitude" to longitude,
             "googleMapsUrl" to ProjectLocationUtils.buildGoogleMapsUrl(latitude, longitude),
@@ -189,17 +188,16 @@ open class ProjectRepository(
 
     // أدوات مساعدة لدمج حقول المشروع داخل وثيقة التقرير
     fun toEmbeddedReportFields(project: Map<String, Any?>): Map<String, Any?> {
-        val normalizedLocation = normalizeAddress(project["projectLocation"])
-        val normalizedAddress = normalizeAddress(project["addressText"]) ?: normalizedLocation
+        val normalizedAddress = normalizeAddress(project["addressText"])
+        val normalizedMapsUrl = (project["googleMapsUrl"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
         return mapOf(
             "projectName" to (project["projectName"] as? String)?.takeIf { it.isNotBlank() },
             "projectNumber" to project["projectNumber"],
-            "projectLocation" to normalizedLocation,
             "addressText" to normalizedAddress,
             "latitude" to project["latitude"],
             "longitude" to project["longitude"],
             "plusCode" to project["plusCode"],
-            "googleMapsUrl" to project["googleMapsUrl"]
+            "googleMapsUrl" to normalizedMapsUrl
         ).filterValues { it != null }
     }
 }
@@ -212,7 +210,6 @@ private val LEGACY_PROJECT_KEYS = setOf(
 private val CANONICAL_PROJECT_KEYS = setOf(
     "projectId",
     "projectName",
-    "projectLocation",
     "latitude",
     "longitude",
     "addressText",
@@ -229,8 +226,7 @@ private val CANONICAL_PROJECT_KEYS = setOf(
 
 private fun Map<String, Any?>.buildProjectForCreate(projectId: String): Project {
     val projectName = (this["projectName"] as? String)?.trim().orEmpty()
-    val normalizedLocation = normalizeAddress(this["projectLocation"])
-    val normalizedAddress = normalizeAddress(this["addressText"]) ?: normalizedLocation
+    val normalizedAddress = normalizeAddress(this["addressText"])
     val latitude = ProjectLocationUtils.normalizeLatitude(this["latitude"])
     val longitude = ProjectLocationUtils.normalizeLongitude(this["longitude"])
     val plusCode = ProjectLocationUtils.normalizePlusCode(this["plusCode"] as? String)
@@ -245,7 +241,6 @@ private fun Map<String, Any?>.buildProjectForCreate(projectId: String): Project 
     return Project(
         projectId = projectId,
         projectName = projectName,
-        projectLocation = normalizedLocation,
         latitude = latitude,
         longitude = longitude,
         addressText = normalizedAddress,
@@ -264,12 +259,6 @@ private fun Map<String, Any?>.buildProjectForCreate(projectId: String): Project 
 private fun Project.mergeWithUpdates(updates: Map<String, Any?>): Project {
     val updatedProjectName = (updates["projectName"] as? String)?.trim()
         ?.takeIf { it.isNotEmpty() } ?: projectName
-    val hasLocationUpdate = updates.containsKey("projectLocation")
-    val updatedLocation = normalizeAddress(updates["projectLocation"])
-    val resolvedProjectLocation = when {
-        hasLocationUpdate -> updatedLocation
-        else -> projectLocation
-    }
     val hasAddressUpdate = updates.containsKey("addressText")
     val updatedAddress = normalizeAddress(updates["addressText"])
     val resolvedAddressText = when {
@@ -338,7 +327,6 @@ private fun Project.mergeWithUpdates(updates: Map<String, Any?>): Project {
 
     return copy(
         projectName = updatedProjectName,
-        projectLocation = resolvedProjectLocation,
         latitude = resolvedLatitude,
         longitude = resolvedLongitude,
         addressText = resolvedAddressText,

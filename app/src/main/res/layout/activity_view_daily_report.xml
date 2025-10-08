@@ -29,6 +29,20 @@
         android:textAlignment="viewStart">
 
         <!-- منطقة العرض المكبّرة -->
+        <TextView
+            android:id="@+id/projectLocationLink"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="4dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:textColor="@android:color/holo_blue_dark"
+            android:textDirection="anyRtl"
+            android:layoutDirection="rtl"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
         <com.otaliastudios.zoom.ZoomLayout
             android:id="@+id/zoomContainer"
             android:layout_width="match_parent"

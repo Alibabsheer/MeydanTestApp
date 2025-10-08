@@ -44,6 +44,20 @@
                 android:textSize="20sp"
                 android:textStyle="bold" />
 
+            <TextView
+                android:id="@+id/projectLocationLink"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="4dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:textColor="@android:color/holo_blue_dark"
+                android:textDirection="anyRtl"
+                android:layoutDirection="rtl"
+                android:visibility="gone"
+                android:textStyle="bold" />
+
             <!-- تاريخ التقرير -->
             <com.google.android.material.textfield.TextInputLayout
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox"

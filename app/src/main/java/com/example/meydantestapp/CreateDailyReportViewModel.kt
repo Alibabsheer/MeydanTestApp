@@ -436,7 +436,8 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                 val contractorName = projectData["contractorName"]?.toString()?.nullIfBlank()
                 val consultantName = projectData["consultantName"]?.toString()?.nullIfBlank()
                 val projectNumber = projectData["projectNumber"]?.toString()?.nullIfBlank()
-                val location = projectData["location"]?.toString()?.nullIfBlank()
+                val addressText = projectData["addressText"]?.toString()?.nullIfBlank()
+                val googleMapsUrl = projectData["googleMapsUrl"]?.toString()?.nullIfBlank()
                 val latitude = when (val v = projectData["latitude"]) {
                     is Number -> v.toDouble()
                     is String -> v.toDoubleOrNull()
@@ -484,7 +485,8 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     contractorName = contractorName,
                     consultantName = consultantName,
                     projectNumber = projectNumber,
-                    location = location,
+                    addressText = addressText,
+                    googleMapsUrl = googleMapsUrl,
                     latitude = latitude,
                     longitude = longitude,
                     temperature = temperatureValue,
@@ -861,7 +863,8 @@ internal fun MutableMap<String, Any>.applyDailyReportOptionalFields(
     contractorName: String?,
     consultantName: String?,
     projectNumber: String?,
-    location: String?,
+    addressText: String?,
+    googleMapsUrl: String?,
     latitude: Double?,
     longitude: Double?,
     temperature: String?,
@@ -885,7 +888,8 @@ internal fun MutableMap<String, Any>.applyDailyReportOptionalFields(
         else -> false
     }
 
-    val normalizedLocation = location?.trim()?.takeIf { it.isNotEmpty() }
+    val normalizedAddress = addressText?.trim()?.takeIf { it.isNotEmpty() }
+    val normalizedMapsUrl = googleMapsUrl?.trim()?.takeIf { it.isNotEmpty() }
 
     listOf(
         "projectName" to projectName,
@@ -893,8 +897,8 @@ internal fun MutableMap<String, Any>.applyDailyReportOptionalFields(
         "contractorName" to contractorName,
         "consultantName" to consultantName,
         "projectNumber" to projectNumber,
-        "projectLocation" to normalizedLocation,
-        "location" to normalizedLocation,
+        "addressText" to normalizedAddress,
+        "googleMapsUrl" to normalizedMapsUrl,
         "latitude" to latitude,
         "longitude" to longitude,
         "temperature" to temperature,

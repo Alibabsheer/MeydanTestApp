@@ -3,6 +3,7 @@ package com.example.meydantestapp
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
 import android.graphics.pdf.PdfRenderer
 import android.net.ConnectivityManager
@@ -23,6 +24,7 @@ import android.util.Log
 import kotlin.math.roundToInt
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
@@ -58,6 +60,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
     private lateinit var recycler: RecyclerView
     private lateinit var backButton: Button
     private lateinit var sharePdfButton: Button
+    private lateinit var projectLocationLink: TextView
     private var progressBar: ProgressBar? = null
     private lateinit var zoomLayout: ZoomLayout
     // ===== VM / Data =====
@@ -74,6 +77,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
     private val pageBitmaps = mutableListOf<Bitmap>() // لعرض PDF المُرندَر
     private val sitePageUrls = mutableListOf<String>() // لعرض صفحات جاهزة حسب القالب
     private var resolvedReportNumber: String? = null
+    private var currentProjectMapsUrl: String? = null
 
     // ===== Rendering guards =====
     private var alreadyRendered = false
@@ -104,6 +108,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
         sharePdfButton = findViewById(R.id.sharePdfButton)
         progressBar = findViewById(R.id.progressBar)
         zoomLayout = findViewById(R.id.zoomContainer)
+        projectLocationLink = findViewById(R.id.projectLocationLink)
         // ===== Zoom setup =====
         zoomLayout.setMinZoom(DEFAULT_MIN_ZOOM)
         zoomLayout.setMaxZoom(DEFAULT_MAX_ZOOM)
@@ -227,6 +232,9 @@ class ViewDailyReportActivity : AppCompatActivity() {
 
     private fun updateReportInfoSection(report: DailyReport?) {
         resolvedReportNumber = report?.reportNumber
+        val address = report?.addressText.normalizedOrNull()
+        val mapsUrl = report?.googleMapsUrl?.trim()?.takeIf { it.isNotEmpty() }
+        updateProjectLocationLink(address, mapsUrl)
     }
 
     // ---------------------------------------------------------------------
@@ -335,15 +343,15 @@ class ViewDailyReportActivity : AppCompatActivity() {
                 val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
                 val dateText = report.date?.let { df.format(java.util.Date(it)) }
 
-                val resolvedLocation = report.resolveProjectLocation()
+                val resolvedAddress = report.addressText.normalizedOrNull()
 
                 val builderInput = ReportPdfBuilder.DailyReport(
                     projectName = report.projectName,
                     ownerName = report.ownerName,
                     contractorName = report.contractorName,
                     consultantName = report.consultantName,
-                    projectLocation = resolvedLocation,
-                    projectLocationGoogleMapsUrl = report.googleMapsUrl,
+                    projectAddressText = resolvedAddress,
+                    projectGoogleMapsUrl = report.googleMapsUrl,
                     reportNumber = report.reportNumber,
                     dateText = dateText,
                     temperatureC = report.temperature,
@@ -873,7 +881,36 @@ class ViewDailyReportActivity : AppCompatActivity() {
 
 private fun String?.normalizedOrNull(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
 
-private fun DailyReport.resolveProjectLocation(): String? {
-    return projectLocation.normalizedOrNull()
-        ?: location.normalizedOrNull()
+private fun ViewDailyReportActivity.updateProjectLocationLink(addressText: String?, mapsUrl: String?) {
+    currentProjectMapsUrl = mapsUrl?.trim()?.takeIf { it.isNotEmpty() }
+    if (!addressText.isNullOrBlank()) {
+        projectLocationLink.visibility = View.VISIBLE
+        projectLocationLink.text = addressText
+        projectLocationLink.paintFlags = projectLocationLink.paintFlags or Paint.UNDERLINE_TEXT_FLAG
+        projectLocationLink.setTextColor(ContextCompat.getColor(this, android.R.color.holo_blue_dark))
+        val normalizedUrl = currentProjectMapsUrl
+        if (normalizedUrl != null) {
+            projectLocationLink.isClickable = true
+            projectLocationLink.isFocusable = true
+            projectLocationLink.setOnClickListener { openGoogleMapsLink(normalizedUrl) }
+        } else {
+            projectLocationLink.isClickable = false
+            projectLocationLink.isFocusable = false
+            projectLocationLink.setOnClickListener(null)
+        }
+    } else {
+        projectLocationLink.visibility = View.GONE
+        projectLocationLink.text = ""
+        projectLocationLink.isClickable = false
+        projectLocationLink.isFocusable = false
+        projectLocationLink.setOnClickListener(null)
+    }
+}
+
+private fun ViewDailyReportActivity.openGoogleMapsLink(url: String?) {
+    val sanitized = url?.trim()?.takeIf { it.isNotEmpty() } ?: return
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(sanitized))
+    runCatching { startActivity(intent) }.onFailure {
+        Toast.makeText(this, "تعذّر فتح الرابط", Toast.LENGTH_SHORT).show()
+    }
 }
