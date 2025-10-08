@@ -45,6 +45,12 @@ class ReportPdfBuilder(
     private val fieldLineSpacingPt: Float = 6f
 ) {
 
+    private val reportInfoHorizontalPaddingPt: Float = 4.5f
+    private val reportInfoVerticalPaddingPt: Float = 2.4f
+    private val reportInfoLineSpacingPt: Float = 3.2f
+    private val reportInfoMinTextSp: Float = 9.5f
+    private val reportInfoMaxTextSp: Float = 11.5f
+
     private val basePageWidth = 595f
     private val basePageHeight = 842f
     private val pageScale: Float = min(
@@ -412,10 +418,13 @@ class ReportPdfBuilder(
             basePaint: TextPaint,
             width: Int,
             rtl: Boolean,
-            maxLines: Int
+            maxLines: Int,
+            minSizeSp: Float = 10f,
+            maxSizeSp: Float = 16f,
+            spacingAdd: Float = fieldLineSpacingAdd
         ): AutoSizedLayout {
-            val minSizePx = sp(10f)
-            val maxSizePx = sp(16f)
+            val minSizePx = sp(minSizeSp)
+            val maxSizePx = sp(maxSizeSp)
             val stepPx = sp(1f).coerceAtLeast(1f)
             var size = maxSizePx
             while (size >= minSizePx) {
@@ -428,7 +437,7 @@ class ReportPdfBuilder(
                     rtl = rtl,
                     align = Layout.Alignment.ALIGN_NORMAL,
                     spacingMult = 1f,
-                    spacingAdd = fieldLineSpacingAdd,
+                    spacingAdd = spacingAdd,
                     maxLines = maxLines
                 )
                 if (layout.lineCount <= maxLines && layoutFits(layout, width)) {
@@ -445,7 +454,7 @@ class ReportPdfBuilder(
                 rtl = rtl,
                 align = Layout.Alignment.ALIGN_NORMAL,
                 spacingMult = 1f,
-                spacingAdd = fieldLineSpacingAdd,
+                spacingAdd = spacingAdd,
                 maxLines = maxLines
             )
             return AutoSizedLayout(fallback)
@@ -553,8 +562,10 @@ class ReportPdfBuilder(
                 return
             }
 
-            val horizontalPadding = fieldHorizontalPadding
-            val verticalPadding = fieldVerticalPadding
+            val horizontalPadding = pxFromPt(reportInfoHorizontalPaddingPt).coerceAtLeast(1)
+            val verticalPadding = pxFromPt(reportInfoVerticalPaddingPt).coerceAtLeast(1)
+            val rowSpacing = pxFromPt(reportInfoLineSpacingPt).coerceAtLeast(1)
+            val layoutSpacingAdd = dpF(reportInfoLineSpacingPt)
 
             val minLabelWidth = (contentWidth * 0.35f).roundToInt()
             val maxLabelWidth = (contentWidth * 0.4f).roundToInt()
@@ -623,11 +634,29 @@ class ReportPdfBuilder(
                     }
                 }
 
-                val labelLayout = autoSizeText(wrappedLabel, labelPaint, labelAreaWidth, rtl = true, maxLines = 2).layout
-                val valueLayout = autoSizeText(wrappedValue, valuePaint, valueAreaWidth, rtl = true, maxLines = 6).layout
+                val labelLayout = autoSizeText(
+                    wrappedLabel,
+                    labelPaint,
+                    labelAreaWidth,
+                    rtl = true,
+                    maxLines = 2,
+                    minSizeSp = reportInfoMinTextSp,
+                    maxSizeSp = reportInfoMaxTextSp,
+                    spacingAdd = layoutSpacingAdd
+                ).layout
+                val valueLayout = autoSizeText(
+                    wrappedValue,
+                    valuePaint,
+                    valueAreaWidth,
+                    rtl = true,
+                    maxLines = 6,
+                    minSizeSp = reportInfoMinTextSp,
+                    maxSizeSp = reportInfoMaxTextSp,
+                    spacingAdd = layoutSpacingAdd
+                ).layout
 
                 val rowHeight = max(labelLayout.height, valueLayout.height) + verticalPadding * 2
-                val requiredHeight = rowHeight + dp(1)
+                val requiredHeight = rowHeight + max(1, rowSpacing / 2)
                 var attempts = 0
                 while (ensureSpace(requiredHeight)) {
                     val title = currentSectionTitle
@@ -698,7 +727,7 @@ class ReportPdfBuilder(
                 y = rowBottom
             }
 
-            y += fieldLineSpacing
+            y += rowSpacing
             endSectionDivider()
         }
 
