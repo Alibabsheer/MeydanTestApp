@@ -436,7 +436,10 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                 val contractorName = projectData["contractorName"]?.toString()?.nullIfBlank()
                 val consultantName = projectData["consultantName"]?.toString()?.nullIfBlank()
                 val projectNumber = projectData["projectNumber"]?.toString()?.nullIfBlank()
-                val location = projectData["location"]?.toString()?.nullIfBlank()
+                val addressText = sequenceOf("addressText", "projectLocation", "location")
+                    .mapNotNull { key -> projectData[key]?.toString()?.trim()?.nullIfBlank() }
+                    .firstOrNull()
+                val googleMapsUrl = projectData["googleMapsUrl"]?.toString()?.trim()?.nullIfBlank()
                 val latitude = when (val v = projectData["latitude"]) {
                     is Number -> v.toDouble()
                     is String -> v.toDoubleOrNull()
@@ -484,7 +487,8 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     contractorName = contractorName,
                     consultantName = consultantName,
                     projectNumber = projectNumber,
-                    location = location,
+                    addressText = addressText,
+                    googleMapsUrl = googleMapsUrl,
                     latitude = latitude,
                     longitude = longitude,
                     temperature = temperatureValue,
@@ -861,7 +865,8 @@ internal fun MutableMap<String, Any>.applyDailyReportOptionalFields(
     contractorName: String?,
     consultantName: String?,
     projectNumber: String?,
-    location: String?,
+    addressText: String?,
+    googleMapsUrl: String?,
     latitude: Double?,
     longitude: Double?,
     temperature: String?,
@@ -885,16 +890,14 @@ internal fun MutableMap<String, Any>.applyDailyReportOptionalFields(
         else -> false
     }
 
-    val normalizedLocation = location?.trim()?.takeIf { it.isNotEmpty() }
-
     listOf(
         "projectName" to projectName,
         "ownerName" to ownerName,
         "contractorName" to contractorName,
         "consultantName" to consultantName,
         "projectNumber" to projectNumber,
-        "projectLocation" to normalizedLocation,
-        "location" to normalizedLocation,
+        "addressText" to addressText,
+        "googleMapsUrl" to googleMapsUrl,
         "latitude" to latitude,
         "longitude" to longitude,
         "temperature" to temperature,

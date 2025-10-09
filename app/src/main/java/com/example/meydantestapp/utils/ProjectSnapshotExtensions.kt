@@ -25,17 +25,11 @@ fun DocumentSnapshot.toProjectSafe(
         project.projectName = (data["projectName"] as? String)
             ?: (data["name"] as? String)
     }
-    val resolvedLocation = (data["projectLocation"] as? String)
-        ?: (data["addressText"] as? String)
+    val resolvedAddress = (data["addressText"] as? String)
+        ?: (data["projectLocation"] as? String)
         ?: (data["location"] as? String)
-    if (project.location.isNullOrBlank()) {
-        project.location = resolvedLocation
-    }
-    if (project.projectLocation.isNullOrBlank()) {
-        project.projectLocation = resolvedLocation ?: project.location
-    }
     if (project.addressText.isNullOrBlank()) {
-        project.addressText = data["addressText"] as? String
+        project.addressText = resolvedAddress
     }
     if (project.plusCode.isNullOrBlank()) {
         project.plusCode = data["plusCode"] as? String

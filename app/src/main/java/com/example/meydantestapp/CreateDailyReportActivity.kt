@@ -2,8 +2,10 @@ package com.example.meydantestapp
 
 import android.Manifest
 import android.app.DatePickerDialog
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Paint
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -56,6 +58,7 @@ class CreateDailyReportActivity : AppCompatActivity() {
     private var projectId: String? = null
     private var projectName: String? = null
     private var selectedProject: Project? = null
+    private var defaultProjectLocationTextColor: Int = 0
 
     // ملف مؤقت للكاميرا
     private var cameraTempFile: File? = null
@@ -117,6 +120,7 @@ class CreateDailyReportActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityCreateDailyReportBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        defaultProjectLocationTextColor = binding.projectLocationValue.currentTextColor
 
         // قيَم من الشاشة السابقة
         projectId = intent.getStringExtra("projectId")
@@ -155,6 +159,18 @@ class CreateDailyReportActivity : AppCompatActivity() {
             val resolvedName = ((map["projectName"] ?: map["name"]) as? String)?.nullIfBlank()
                 ?: projectName
             projectName = resolvedName ?: projectName
+
+            val fallbackProject = selectedProject
+            val resolvedAddress = sequenceOf(
+                map["addressText"] as? String,
+                map["projectLocation"] as? String,
+                map["location"] as? String,
+                fallbackProject?.addressText
+            ).firstOrNull { !it.isNullOrBlank() }?.trim()
+            val resolvedMapsUrl = (map["googleMapsUrl"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+                ?: fallbackProject?.googleMapsUrl?.takeIf { !it.isNullOrBlank() }
+
+            renderProjectLocation(resolvedAddress, resolvedMapsUrl)
         }
 
         // ربط الحقول لتجميع العمالة لحظيًا
@@ -365,6 +381,53 @@ class CreateDailyReportActivity : AppCompatActivity() {
         vm.removeSlot(slotIndex)
     }
 
+    private fun renderProjectLocation(addressText: String?, googleMapsUrl: String?) {
+        val labelView = binding.projectLocationLabel
+        val valueView = binding.projectLocationValue
+        val trimmedAddress = addressText?.trim()?.takeIf { it.isNotEmpty() }
+
+        if (trimmedAddress == null) {
+            labelView.visibility = View.GONE
+            valueView.visibility = View.GONE
+            valueView.text = ""
+            valueView.paintFlags = valueView.paintFlags and Paint.UNDERLINE_TEXT_FLAG.inv()
+            valueView.setTextColor(defaultProjectLocationTextColor)
+            valueView.setOnClickListener(null)
+            valueView.isClickable = false
+            valueView.isFocusable = false
+            return
+        }
+
+        labelView.visibility = View.VISIBLE
+        valueView.visibility = View.VISIBLE
+        valueView.text = trimmedAddress
+
+        val mapsUrl = googleMapsUrl?.trim()?.takeIf { it.isNotEmpty() }
+        if (mapsUrl != null) {
+            valueView.setTextColor(ContextCompat.getColor(this, R.color.hyperlink_blue))
+            valueView.paintFlags = valueView.paintFlags or Paint.UNDERLINE_TEXT_FLAG
+            valueView.isClickable = true
+            valueView.isFocusable = true
+            valueView.setOnClickListener { openProjectLocationLink(mapsUrl) }
+        } else {
+            valueView.setTextColor(defaultProjectLocationTextColor)
+            valueView.paintFlags = valueView.paintFlags and Paint.UNDERLINE_TEXT_FLAG.inv()
+            valueView.isClickable = false
+            valueView.isFocusable = false
+            valueView.setOnClickListener(null)
+        }
+    }
+
+    private fun openProjectLocationLink(url: String) {
+        val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return
+        val intent = Intent(Intent.ACTION_VIEW, uri)
+        try {
+            startActivity(intent)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(this, "لا يمكن فتح رابط الموقع.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     /** يحوّل أي تمثيل لدرجة الحرارة إلى عدد صحيح كسلسلة دون فواصل أو وحدات */
     private fun formatTempToIntString(src: String?): String {
         if (src.isNullOrBlank()) return ""
@@ -454,6 +517,8 @@ class CreateDailyReportActivity : AppCompatActivity() {
                     projectName = (projectMap["projectName"] as? String)
                         ?: (projectMap["name"] as? String)
                 }
+
+                renderProjectLocation(selectedProject?.addressText, selectedProject?.googleMapsUrl)
 
                 binding.reportDateInput.isEnabled = true
             }

@@ -279,6 +279,7 @@ class ProjectSettingsActivity : AppCompatActivity() {
                 binding.consultantNameEditText.setText(consultantName ?: "—")
 
                 val address = (data["addressText"] as? String)
+                    ?: (data["projectLocation"] as? String)
                     ?: (data["location"] as? String)
                     ?: ""
                 withLocationTextUpdate {
@@ -417,7 +418,6 @@ class ProjectSettingsActivity : AppCompatActivity() {
         val data = mutableMapOf<String, Any?>(
             "name" to name,
             "projectName" to name,
-            "location" to normalizedAddress,
             "addressText" to normalizedAddress,
             "latitude" to lat,
             "longitude" to lng,
@@ -432,13 +432,15 @@ class ProjectSettingsActivity : AppCompatActivity() {
             "googleMapsUrl" to googleMapsUrl
         )
 
+        data["location"] = FieldValue.delete()
+        data["projectLocation"] = FieldValue.delete()
+
         if (workType != "جدول كميات" && workType != "مقطوعية") {
             val valueStr = binding.contractValueEditText.text.toString().replace(",", "")
             val parsed = valueStr.toDoubleOrNull()
             data["contractValue"] = parsed ?: FieldValue.delete()
         }
         if (normalizedAddress == null) {
-            data["location"] = FieldValue.delete()
             data["addressText"] = FieldValue.delete()
         }
         if (lat == null) {
