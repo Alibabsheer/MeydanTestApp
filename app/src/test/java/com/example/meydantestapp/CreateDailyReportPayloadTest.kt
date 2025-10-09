@@ -17,7 +17,8 @@ class CreateDailyReportPayloadTest {
             contractorName = "مقاول 1",
             consultantName = "استشاري 1",
             projectNumber = "42",
-            location = "الرياض",
+            addressText = "الرياض",
+            googleMapsUrl = "https://maps.google.com/?q=test",
             latitude = 24.5,
             longitude = 46.7,
             temperature = "30",
@@ -40,8 +41,10 @@ class CreateDailyReportPayloadTest {
         assertEquals("مالك 1", payload["ownerName"])
         assertEquals("مقاول 1", payload["contractorName"])
         assertEquals("استشاري 1", payload["consultantName"])
-        assertEquals("الرياض", payload["projectLocation"])
-        assertEquals("الرياض", payload["location"])
+        assertEquals("الرياض", payload["addressText"])
+        assertEquals("https://maps.google.com/?q=test", payload["googleMapsUrl"])
+        assertFalse(payload.containsKey("projectLocation"))
+        assertFalse(payload.containsKey("location"))
         assertEquals("م. أحمد", payload["createdByName"])
     }
 
@@ -55,7 +58,8 @@ class CreateDailyReportPayloadTest {
             contractorName = " ",
             consultantName = null,
             projectNumber = "   ",
-            location = null,
+            addressText = null,
+            googleMapsUrl = null,
             latitude = null,
             longitude = null,
             temperature = null,

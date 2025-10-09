@@ -142,6 +142,12 @@ class ProjectReportsActivity : AppCompatActivity() {
                 reportList.clear()
                 for (document in documents) {
                     val report = document.toObject(DailyReport::class.java)
+                    if (report.addressText.isNullOrBlank()) {
+                        val raw = document.getString("addressText")
+                            ?: document.getString("projectLocation")
+                            ?: document.getString("location")
+                        report.addressText = raw?.trim()?.takeIf { it.isNotEmpty() }
+                    }
                     report.id = document.id
                     reportList.add(report)
                 }

@@ -1,8 +1,10 @@
 package com.example.meydantestapp
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
 import android.graphics.pdf.PdfRenderer
 import android.net.ConnectivityManager
@@ -24,6 +26,7 @@ import kotlin.math.roundToInt
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -58,6 +61,8 @@ class ViewDailyReportActivity : AppCompatActivity() {
     private lateinit var recycler: RecyclerView
     private lateinit var backButton: Button
     private lateinit var sharePdfButton: Button
+    private lateinit var projectLocationLabel: TextView
+    private lateinit var projectLocationValue: TextView
     private var progressBar: ProgressBar? = null
     private lateinit var zoomLayout: ZoomLayout
     // ===== VM / Data =====
@@ -82,6 +87,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
     // ===== Zoom config / state =====
     private var initialZoomFromIntent: Float? = null
     private var savedZoom: Float? = null
+    private var defaultProjectLocationColor: Int = 0
 
     companion object {
         const val EXTRA_INITIAL_ZOOM = "initial_zoom"
@@ -102,8 +108,11 @@ class ViewDailyReportActivity : AppCompatActivity() {
         recycler = findViewById(R.id.pdfPagesRecycler)
         backButton = findViewById(R.id.backButton)
         sharePdfButton = findViewById(R.id.sharePdfButton)
+        projectLocationLabel = findViewById(R.id.projectLocationLabel)
+        projectLocationValue = findViewById(R.id.projectLocationValue)
         progressBar = findViewById(R.id.progressBar)
         zoomLayout = findViewById(R.id.zoomContainer)
+        defaultProjectLocationColor = projectLocationValue.currentTextColor
         // ===== Zoom setup =====
         zoomLayout.setMinZoom(DEFAULT_MIN_ZOOM)
         zoomLayout.setMaxZoom(DEFAULT_MAX_ZOOM)
@@ -227,6 +236,53 @@ class ViewDailyReportActivity : AppCompatActivity() {
 
     private fun updateReportInfoSection(report: DailyReport?) {
         resolvedReportNumber = report?.reportNumber
+        val addressText = report?.addressText.normalizedOrNull()
+        val mapsUrl = report?.googleMapsUrl
+        renderProjectLocation(addressText, mapsUrl)
+    }
+
+    private fun renderProjectLocation(addressText: String?, googleMapsUrl: String?) {
+        val trimmedAddress = addressText?.trim()?.takeIf { it.isNotEmpty() }
+        if (trimmedAddress == null) {
+            projectLocationLabel.visibility = View.GONE
+            projectLocationValue.visibility = View.GONE
+            projectLocationValue.text = ""
+            projectLocationValue.paintFlags = projectLocationValue.paintFlags and Paint.UNDERLINE_TEXT_FLAG.inv()
+            projectLocationValue.setTextColor(defaultProjectLocationColor)
+            projectLocationValue.setOnClickListener(null)
+            projectLocationValue.isClickable = false
+            projectLocationValue.isFocusable = false
+            return
+        }
+
+        projectLocationLabel.visibility = View.VISIBLE
+        projectLocationValue.visibility = View.VISIBLE
+        projectLocationValue.text = trimmedAddress
+
+        val mapsUrl = googleMapsUrl?.trim()?.takeIf { it.isNotEmpty() }
+        if (mapsUrl != null) {
+            projectLocationValue.setTextColor(ContextCompat.getColor(this, R.color.hyperlink_blue))
+            projectLocationValue.paintFlags = projectLocationValue.paintFlags or Paint.UNDERLINE_TEXT_FLAG
+            projectLocationValue.isClickable = true
+            projectLocationValue.isFocusable = true
+            projectLocationValue.setOnClickListener { openProjectLocationLink(mapsUrl) }
+        } else {
+            projectLocationValue.setTextColor(defaultProjectLocationColor)
+            projectLocationValue.paintFlags = projectLocationValue.paintFlags and Paint.UNDERLINE_TEXT_FLAG.inv()
+            projectLocationValue.isClickable = false
+            projectLocationValue.isFocusable = false
+            projectLocationValue.setOnClickListener(null)
+        }
+    }
+
+    private fun openProjectLocationLink(url: String) {
+        val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return
+        val intent = Intent(Intent.ACTION_VIEW, uri)
+        try {
+            startActivity(intent)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(this, "لا يمكن فتح رابط الموقع.", Toast.LENGTH_SHORT).show()
+        }
     }
 
     // ---------------------------------------------------------------------
@@ -335,15 +391,13 @@ class ViewDailyReportActivity : AppCompatActivity() {
                 val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
                 val dateText = report.date?.let { df.format(java.util.Date(it)) }
 
-                val resolvedLocation = report.resolveProjectLocation()
-
                 val builderInput = ReportPdfBuilder.DailyReport(
                     projectName = report.projectName,
                     ownerName = report.ownerName,
                     contractorName = report.contractorName,
                     consultantName = report.consultantName,
-                    projectLocation = resolvedLocation,
-                    projectLocationGoogleMapsUrl = report.googleMapsUrl,
+                    projectAddressText = report.addressText.normalizedOrNull(),
+                    projectGoogleMapsUrl = report.googleMapsUrl,
                     reportNumber = report.reportNumber,
                     dateText = dateText,
                     temperatureC = report.temperature,
@@ -872,8 +926,3 @@ class ViewDailyReportActivity : AppCompatActivity() {
 }
 
 private fun String?.normalizedOrNull(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
-
-private fun DailyReport.resolveProjectLocation(): String? {
-    return projectLocation.normalizedOrNull()
-        ?: location.normalizedOrNull()
-}

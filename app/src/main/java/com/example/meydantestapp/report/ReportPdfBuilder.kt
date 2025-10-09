@@ -74,8 +74,8 @@ class ReportPdfBuilder(
         val ownerName: String? = null,
         val contractorName: String? = null,
         val consultantName: String? = null,
-        val projectLocation: String? = null,
-        val projectLocationGoogleMapsUrl: String? = null,
+        val projectAddressText: String? = null,
+        val projectGoogleMapsUrl: String? = null,
         val reportNumber: String? = null,
         val dateText: String? = null,
 
@@ -1033,7 +1033,7 @@ internal fun buildReportInfoEntries(data: ReportPdfBuilder.DailyReport): List<Re
         entry("التاريخ", data.dateText),
         entry("درجة الحرارة", data.temperatureC),
         entry("حالة الطقس", data.weatherCondition),
-        entry("موقع المشروع", data.projectLocation, data.projectLocationGoogleMapsUrl),
+        entry("موقع المشروع", data.projectAddressText, data.projectGoogleMapsUrl),
         entry("تم إنشاء التقرير بواسطة", data.createdBy)
     )
 }

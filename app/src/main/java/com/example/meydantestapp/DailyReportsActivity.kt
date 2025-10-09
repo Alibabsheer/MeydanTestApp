@@ -21,7 +21,7 @@ import com.google.firebase.auth.FirebaseAuth
  * الإضافات الأهم في هذا التحديث:
  * 1) تمرير حقول جديدة ضمن DailyReport لعرض "معلومات التقرير" كاملة لاحقًا:
  *    - createdByName (اسم مُنشئ التقرير المقروء إن وُجد)
- *    - projectLocation (موقع المشروع)
+ *    - addressText (موقع المشروع النصي)
  * 2) قراءة درجة الحرارة سواء كانت محفوظة كنص أو رقم، وتوحيدها إلى نص.
  */
 class DailyReportsActivity : AppCompatActivity() {
@@ -174,9 +174,9 @@ class DailyReportsActivity : AppCompatActivity() {
                 // الحقول الجديدة المطلوبة لعرض "معلومات التقرير"
                 createdBy = (this["createdBy"] as? String),
                 createdByName = (this["createdByName"] as? String)?.takeIf { it.isNotBlank() },
-                projectLocation = (
-                        (this["projectLocation"] as? String)?.takeIf { it.isNotBlank() }
-                            ?: (this["addressText"] as? String)?.takeIf { it.isNotBlank() }
+                addressText = (
+                        (this["addressText"] as? String)?.takeIf { it.isNotBlank() }
+                            ?: (this["projectLocation"] as? String)?.takeIf { it.isNotBlank() }
                             ?: (this["location"] as? String)?.takeIf { it.isNotBlank() }
                         ),
                 googleMapsUrl = (this["googleMapsUrl"] as? String)?.takeIf { it.isNotBlank() },
