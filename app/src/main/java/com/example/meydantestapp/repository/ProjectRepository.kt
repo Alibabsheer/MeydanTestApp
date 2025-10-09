@@ -188,7 +188,7 @@ open class ProjectRepository(
 
     // أدوات مساعدة لدمج حقول المشروع داخل وثيقة التقرير
     fun toEmbeddedReportFields(project: Map<String, Any?>): Map<String, Any?> {
-        val normalizedAddress = normalizeAddress(project["addressText"])
+        val normalizedAddress = resolveAddressWithLegacyFallback(project)
         val normalizedMapsUrl = (project["googleMapsUrl"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
         return mapOf(
             "projectName" to (project["projectName"] as? String)?.takeIf { it.isNotBlank() },
@@ -359,6 +359,12 @@ private fun applyAdditionalProjectUpdates(
 
 private fun normalizeAddress(value: Any?): String? =
     ProjectLocationUtils.normalizeAddressText((value as? String)?.takeIf { it.isNotBlank() })
+
+private fun resolveAddressWithLegacyFallback(project: Map<String, Any?>): String? {
+    return normalizeAddress(project["addressText"])
+        ?: normalizeAddress(project["projectLocation"])
+        ?: normalizeAddress(project["location"])
+}
 
 private fun Any?.toDoubleOrNull(): Double? = when (this) {
     is Number -> this.toDouble()

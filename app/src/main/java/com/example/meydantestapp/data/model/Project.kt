@@ -3,6 +3,7 @@ package com.example.meydantestapp.data.model
 import com.example.meydantestapp.utils.AppLogger
 import com.example.meydantestapp.utils.FirestoreTimestampConverter
 import com.example.meydantestapp.utils.ProjectDateUtils.toEpochDayUtc
+import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.example.meydantestapp.utils.migrateTimestampIfNeeded
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
@@ -60,6 +61,13 @@ data class Project(
                 "from(doc=${doc.id}) start=${startTs?.seconds} end=${endTs?.seconds}"
             )
 
+            val legacyAddress = doc.getString("addressText")
+                ?: doc.getString("projectLocation")
+                ?: doc.getString("location")
+            val normalizedAddress = ProjectLocationUtils.normalizeAddressText(
+                legacyAddress?.takeIf { it.isNotBlank() }
+            )
+
             return Project(
                 projectId = doc.getString("projectId") ?: doc.id,
                 projectName = doc.getString("projectName")
@@ -67,7 +75,7 @@ data class Project(
                     ?: "",
                 latitude = doc.getDouble("latitude"),
                 longitude = doc.getDouble("longitude"),
-                addressText = doc.getString("addressText"),
+                addressText = normalizedAddress,
                 plusCode = doc.getString("plusCode"),
                 googleMapsUrl = doc.getString("googleMapsUrl"),
                 workType = doc.getString("workType") ?: "Lump Sum",
