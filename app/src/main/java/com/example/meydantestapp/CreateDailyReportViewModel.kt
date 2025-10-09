@@ -25,6 +25,7 @@ import com.example.meydantestapp.repository.DailyReportUploadTarget
 import com.example.meydantestapp.repository.DailyReportUploadWorker
 import com.example.meydantestapp.repository.WeatherRepository
 import com.example.meydantestapp.utils.ImageUtils
+import com.example.meydantestapp.utils.ProjectLocationSnapshotFactory
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
@@ -436,10 +437,7 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                 val contractorName = projectData["contractorName"]?.toString()?.nullIfBlank()
                 val consultantName = projectData["consultantName"]?.toString()?.nullIfBlank()
                 val projectNumber = projectData["projectNumber"]?.toString()?.nullIfBlank()
-                val addressText = sequenceOf("addressText", "projectLocation", "location")
-                    .mapNotNull { key -> projectData[key]?.toString()?.trim()?.nullIfBlank() }
-                    .firstOrNull()
-                val googleMapsUrl = projectData["googleMapsUrl"]?.toString()?.trim()?.nullIfBlank()
+                val projectLocation = ProjectLocationSnapshotFactory.fromProjectData(projectData)
                 val latitude = when (val v = projectData["latitude"]) {
                     is Number -> v.toDouble()
                     is String -> v.toDoubleOrNull()
@@ -450,6 +448,12 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     is String -> v.toDoubleOrNull()
                     else -> null
                 }
+                val locationSnapshot = ProjectLocationSnapshotFactory.snapshotForReport(
+                    projectLocation.addressText,
+                    projectLocation.googleMapsUrl,
+                    latitude,
+                    longitude
+                )
 
                 // 6) بناء البيانات الأساسية
                 val data = mutableMapOf<String, Any>(
@@ -487,8 +491,8 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     contractorName = contractorName,
                     consultantName = consultantName,
                     projectNumber = projectNumber,
-                    addressText = addressText,
-                    googleMapsUrl = googleMapsUrl,
+                    addressText = locationSnapshot.addressText,
+                    googleMapsUrl = locationSnapshot.googleMapsUrl,
                     latitude = latitude,
                     longitude = longitude,
                     temperature = temperatureValue,

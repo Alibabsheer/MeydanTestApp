@@ -84,4 +84,17 @@ class ReportInfoEntriesTest {
         assertTrue(entries.all { it.value == "—" })
         assertNull(entries[8].linkUrl)
     }
+
+    @Test
+    fun `buildReportInfoEntries keeps address without link when url missing`() {
+        val data = ReportPdfBuilder.DailyReport(
+            projectAddressText = "الخبر",
+            projectGoogleMapsUrl = null
+        )
+
+        val entries = buildReportInfoEntries(data)
+
+        assertEquals("الخبر", entries[8].value)
+        assertNull(entries[8].linkUrl)
+    }
 }
