@@ -44,6 +44,7 @@ class ProjectLocationSnapshotFactoryTest {
         assertEquals("حي الملز، الرياض", snapshot.addressText)
         assertTrue(snapshot.googleMapsUrl!!.contains("maps/search"))
         assertTrue(snapshot.googleMapsUrl!!.contains("query="))
+        assertTrue(snapshot.hasLink)
     }
 
     @Test

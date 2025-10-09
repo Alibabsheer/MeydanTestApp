@@ -63,13 +63,13 @@ open class ProjectRepository(
         projectName: String,
         projectDescription: String,
         organizationId: String,
-        location: String? = null,
+        addressText: String? = null,
         latitude: Double? = null,
         longitude: Double? = null
     ): Result<String> = runCatching {
         val baseData = mapOf(
             "projectName" to projectName,
-            "addressText" to location,
+            "addressText" to addressText,
             "latitude" to latitude,
             "longitude" to longitude,
             "googleMapsUrl" to ProjectLocationUtils.buildGoogleMapsUrl(latitude, longitude),

@@ -1,5 +1,7 @@
 package com.example.meydantestapp.utils
 
+import com.example.meydantestapp.repository.LegacyLocationFieldAdapter
+
 /**
  * Canonical snapshot for project location information used across project + daily report flows.
  */
@@ -14,11 +16,7 @@ data class ProjectLocationSnapshot(
 object ProjectLocationSnapshotFactory {
 
     fun fromProjectData(data: Map<String, Any?>): ProjectLocationSnapshot {
-        val address = resolveAddress(
-            data["addressText"],
-            data["projectLocation"],
-            data["location"]
-        )
+        val address = LegacyLocationFieldAdapter.resolveAddress(data)
         val url = ProjectLocationUtils.normalizeGoogleMapsUrl(data["googleMapsUrl"] as? String)
         return ProjectLocationSnapshot(address, url)
     }
@@ -31,11 +29,7 @@ object ProjectLocationSnapshotFactory {
     }
 
     fun fromDailyReportData(data: Map<String, Any?>): ProjectLocationSnapshot {
-        val address = resolveAddress(
-            data["addressText"],
-            data["projectLocation"],
-            data["location"]
-        )
+        val address = LegacyLocationFieldAdapter.resolveAddress(data)
         val url = ProjectLocationUtils.normalizeGoogleMapsUrl(data["googleMapsUrl"] as? String)
         return ProjectLocationSnapshot(address, url)
     }
@@ -54,11 +48,4 @@ object ProjectLocationSnapshotFactory {
         return ProjectLocationSnapshot(normalizedAddress, resolvedUrl)
     }
 
-    private fun resolveAddress(vararg candidates: Any?): String? {
-        candidates.forEach { candidate ->
-            val normalized = ProjectLocationUtils.normalizeAddressText(candidate as? String)
-            if (normalized != null) return normalized
-        }
-        return null
-    }
 }

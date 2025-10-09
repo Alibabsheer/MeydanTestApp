@@ -545,7 +545,7 @@ class ReportPdfBuilder(
                 val leftF = (valueLeft + horizontalPadding).toFloat()
                 val topF = top.toFloat()
                 val rightLimit = leftF + valueAreaWidth.toFloat()
-                val rightF = min(leftF + valueLayout.width.toFloat(), rightLimit)
+                val rightF = rightLimit
                 val bottomF = topF + valueLayout.height.toFloat()
                 val rect = RectF(leftF, topF, rightF, bottomF)
                 if (rect.intersect(0f, 0f, pageWidth.toFloat(), pageHeight.toFloat())) {
