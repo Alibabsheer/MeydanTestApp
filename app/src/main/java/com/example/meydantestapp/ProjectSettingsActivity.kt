@@ -30,6 +30,7 @@ import com.example.meydantestapp.utils.ProjectDateUtils.formatForDisplay
 import com.example.meydantestapp.utils.ProjectDateUtils.parseUserInput
 import com.example.meydantestapp.utils.ProjectDateUtils.toUtcLocalDate
 import com.example.meydantestapp.utils.ProjectDateUtils.toUtcTimestamp
+import com.example.meydantestapp.utils.ProjectLocationSnapshotFactory
 import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.example.meydantestapp.utils.migrateTimestampIfNeeded
 
@@ -278,12 +279,9 @@ class ProjectSettingsActivity : AppCompatActivity() {
                 binding.contractorNameEditText.setText(contractorName ?: "—")
                 binding.consultantNameEditText.setText(consultantName ?: "—")
 
-                val address = (data["addressText"] as? String)
-                    ?: (data["projectLocation"] as? String)
-                    ?: (data["location"] as? String)
-                    ?: ""
+                val locationSnapshot = ProjectLocationSnapshotFactory.fromProjectData(data)
                 withLocationTextUpdate {
-                    binding.projectLocationEditText.setText(address)
+                    binding.projectLocationEditText.setText(locationSnapshot.addressText ?: "")
                 }
 
                 selectedLatitude = (data["latitude"] as? Number)?.toDouble()
@@ -431,9 +429,6 @@ class ProjectSettingsActivity : AppCompatActivity() {
             "projectNumber" to projectId,
             "googleMapsUrl" to googleMapsUrl
         )
-
-        data["location"] = FieldValue.delete()
-        data["projectLocation"] = FieldValue.delete()
 
         if (workType != "جدول كميات" && workType != "مقطوعية") {
             val valueStr = binding.contractValueEditText.text.toString().replace(",", "")

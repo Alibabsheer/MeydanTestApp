@@ -11,6 +11,7 @@ import com.example.meydantestapp.utils.Constants
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.example.meydantestapp.utils.ProjectLocationSnapshotFactory
 import com.example.meydantestapp.utils.toProjectSafe
 
 class ProjectReportsActivity : AppCompatActivity() {
@@ -142,12 +143,10 @@ class ProjectReportsActivity : AppCompatActivity() {
                 reportList.clear()
                 for (document in documents) {
                     val report = document.toObject(DailyReport::class.java)
-                    if (report.addressText.isNullOrBlank()) {
-                        val raw = document.getString("addressText")
-                            ?: document.getString("projectLocation")
-                            ?: document.getString("location")
-                        report.addressText = raw?.trim()?.takeIf { it.isNotEmpty() }
-                    }
+                    val locationSnapshot = ProjectLocationSnapshotFactory.fromDailyReportData(
+                        document.data ?: emptyMap()
+                    )
+                    report.addressText = locationSnapshot.addressText
                     report.id = document.id
                     reportList.add(report)
                 }

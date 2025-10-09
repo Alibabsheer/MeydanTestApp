@@ -3,6 +3,7 @@ package com.example.meydantestapp.utils
 import com.example.meydantestapp.Project
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
+import com.example.meydantestapp.utils.ProjectLocationSnapshotFactory
 
 fun DocumentSnapshot.toProjectSafe(
     precomputedStart: Timestamp? = null,
@@ -25,17 +26,15 @@ fun DocumentSnapshot.toProjectSafe(
         project.projectName = (data["projectName"] as? String)
             ?: (data["name"] as? String)
     }
-    val resolvedAddress = (data["addressText"] as? String)
-        ?: (data["projectLocation"] as? String)
-        ?: (data["location"] as? String)
+    val locationSnapshot = ProjectLocationSnapshotFactory.fromProjectDataForReport(data)
     if (project.addressText.isNullOrBlank()) {
-        project.addressText = resolvedAddress
+        project.addressText = locationSnapshot.addressText
     }
     if (project.plusCode.isNullOrBlank()) {
         project.plusCode = data["plusCode"] as? String
     }
     if (project.googleMapsUrl.isNullOrBlank()) {
-        project.googleMapsUrl = data["googleMapsUrl"] as? String
+        project.googleMapsUrl = locationSnapshot.googleMapsUrl
     }
     if (project.workType.isNullOrBlank()) {
         project.workType = data["workType"] as? String

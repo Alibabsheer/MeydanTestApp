@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.meydantestapp.databinding.ActivityDailyReportsBinding
 import com.example.meydantestapp.utils.Constants
+import com.example.meydantestapp.utils.ProjectLocationSnapshotFactory
 import com.google.firebase.auth.FirebaseAuth
 
 /**
@@ -149,6 +150,8 @@ class DailyReportsActivity : AppCompatActivity() {
                 if (skilled != null && unskilled != null) skilled + unskilled else null
             }
 
+            val locationSnapshot = ProjectLocationSnapshotFactory.fromDailyReportData(this)
+
             DailyReport(
                 id = this["id"] as? String,
                 reportNumber = this["reportNumber"] as? String,
@@ -174,12 +177,8 @@ class DailyReportsActivity : AppCompatActivity() {
                 // الحقول الجديدة المطلوبة لعرض "معلومات التقرير"
                 createdBy = (this["createdBy"] as? String),
                 createdByName = (this["createdByName"] as? String)?.takeIf { it.isNotBlank() },
-                addressText = (
-                        (this["addressText"] as? String)?.takeIf { it.isNotBlank() }
-                            ?: (this["projectLocation"] as? String)?.takeIf { it.isNotBlank() }
-                            ?: (this["location"] as? String)?.takeIf { it.isNotBlank() }
-                        ),
-                googleMapsUrl = (this["googleMapsUrl"] as? String)?.takeIf { it.isNotBlank() },
+                addressText = locationSnapshot.addressText,
+                googleMapsUrl = locationSnapshot.googleMapsUrl,
                 organizationName = (this["organizationName"] as? String)
             )
         } catch (_: Exception) {

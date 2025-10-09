@@ -3,6 +3,7 @@ package com.example.meydantestapp.repository
 import com.example.meydantestapp.data.model.Project
 import com.example.meydantestapp.utils.Constants
 import com.example.meydantestapp.utils.FirestoreTimestampConverter
+import com.example.meydantestapp.utils.ProjectLocationSnapshotFactory
 import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.example.meydantestapp.utils.DefaultFirestoreProvider
 import com.example.meydantestapp.utils.FirestoreProvider
@@ -188,17 +189,15 @@ open class ProjectRepository(
 
     // أدوات مساعدة لدمج حقول المشروع داخل وثيقة التقرير
     fun toEmbeddedReportFields(project: Map<String, Any?>): Map<String, Any?> {
-        val normalizedAddress = normalizeAddress(project["addressText"])
-            ?: normalizeAddress(project["projectLocation"])
-            ?: normalizeAddress(project["location"])
+        val locationSnapshot = ProjectLocationSnapshotFactory.fromProjectDataForReport(project)
         return mapOf(
             "projectName" to (project["projectName"] as? String)?.takeIf { it.isNotBlank() },
             "projectNumber" to project["projectNumber"],
-            "addressText" to normalizedAddress,
+            "addressText" to locationSnapshot.addressText,
             "latitude" to project["latitude"],
             "longitude" to project["longitude"],
             "plusCode" to project["plusCode"],
-            "googleMapsUrl" to project["googleMapsUrl"]
+            "googleMapsUrl" to locationSnapshot.googleMapsUrl
         ).filterValues { it != null }
     }
 }
@@ -228,14 +227,16 @@ private val CANONICAL_PROJECT_KEYS = setOf(
 
 private fun Map<String, Any?>.buildProjectForCreate(projectId: String): Project {
     val projectName = (this["projectName"] as? String)?.trim().orEmpty()
-    val normalizedAddress = normalizeAddress(this["addressText"])
-        ?: normalizeAddress(this["projectLocation"])
-        ?: normalizeAddress(this["location"])
     val latitude = ProjectLocationUtils.normalizeLatitude(this["latitude"])
     val longitude = ProjectLocationUtils.normalizeLongitude(this["longitude"])
     val plusCode = ProjectLocationUtils.normalizePlusCode(this["plusCode"] as? String)
-    val googleMapsUrl = (this["googleMapsUrl"] as? String)?.takeIf { it.isNotBlank() }
-        ?: ProjectLocationUtils.buildGoogleMapsUrl(latitude, longitude)
+    val projectLocation = ProjectLocationSnapshotFactory.fromProjectData(this)
+    val locationSnapshot = ProjectLocationSnapshotFactory.snapshotForReport(
+        projectLocation.addressText,
+        projectLocation.googleMapsUrl,
+        latitude,
+        longitude
+    )
     val workType = (this["workType"] as? String)?.takeIf { it.isNotBlank() } ?: "Lump Sum"
     val contractValue = this["contractValue"].toDoubleOrNull()
     val startTimestamp = FirestoreTimestampConverter.fromAny(this["startDate"])
@@ -247,9 +248,9 @@ private fun Map<String, Any?>.buildProjectForCreate(projectId: String): Project 
         projectName = projectName,
         latitude = latitude,
         longitude = longitude,
-        addressText = normalizedAddress,
+        addressText = locationSnapshot.addressText,
         plusCode = plusCode,
-        googleMapsUrl = googleMapsUrl,
+        googleMapsUrl = locationSnapshot.googleMapsUrl,
         workType = workType,
         contractValue = contractValue,
         startDate = startTimestamp,
@@ -264,15 +265,8 @@ private fun Project.mergeWithUpdates(updates: Map<String, Any?>): Project {
     val updatedProjectName = (updates["projectName"] as? String)?.trim()
         ?.takeIf { it.isNotEmpty() } ?: projectName
     val hasAddressUpdate = updates.containsKey("addressText")
-        || updates.containsKey("projectLocation")
-        || updates.containsKey("location")
     val updatedAddress = normalizeAddress(updates["addressText"])
-        ?: normalizeAddress(updates["projectLocation"])
-        ?: normalizeAddress(updates["location"])
-    val resolvedAddressText = when {
-        hasAddressUpdate -> updatedAddress
-        else -> addressText
-    }
+    val resolvedAddressText = if (hasAddressUpdate) updatedAddress else addressText
     val hasLatitudeUpdate = updates.containsKey("latitude")
     val resolvedLatitude = if (hasLatitudeUpdate) {
         ProjectLocationUtils.normalizeLatitude(updates["latitude"])
@@ -322,10 +316,17 @@ private fun Project.mergeWithUpdates(updates: Map<String, Any?>): Project {
         status
     }
     val hasMapsUpdate = updates.containsKey("googleMapsUrl")
-    val resolvedMapsUrl = when {
-        hasMapsUpdate -> (updates["googleMapsUrl"] as? String)?.takeIf { it.isNotBlank() }
-        else -> ProjectLocationUtils.buildGoogleMapsUrl(resolvedLatitude, resolvedLongitude)
+    val updatedMapsUrl = if (hasMapsUpdate) {
+        ProjectLocationUtils.normalizeGoogleMapsUrl(updates["googleMapsUrl"] as? String)
+    } else {
+        googleMapsUrl
     }
+    val locationSnapshot = ProjectLocationSnapshotFactory.snapshotForReport(
+        resolvedAddressText,
+        updatedMapsUrl,
+        resolvedLatitude,
+        resolvedLongitude
+    )
     val hasCreatedAtUpdate = updates.containsKey("createdAt")
     val resolvedCreatedAt = if (hasCreatedAtUpdate) {
         updates["createdAt"] as? Timestamp ?: createdAt
@@ -337,9 +338,9 @@ private fun Project.mergeWithUpdates(updates: Map<String, Any?>): Project {
         projectName = updatedProjectName,
         latitude = resolvedLatitude,
         longitude = resolvedLongitude,
-        addressText = resolvedAddressText,
+        addressText = locationSnapshot.addressText,
         plusCode = resolvedPlusCode,
-        googleMapsUrl = resolvedMapsUrl,
+        googleMapsUrl = locationSnapshot.googleMapsUrl,
         workType = resolvedWorkType,
         contractValue = resolvedContractValue,
         startDate = resolvedStartDate,
