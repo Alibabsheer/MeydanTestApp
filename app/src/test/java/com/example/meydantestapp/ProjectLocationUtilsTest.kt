@@ -28,4 +28,14 @@ class ProjectLocationUtilsTest {
             url
         )
     }
+
+    @Test
+    fun buildGoogleMapsSearchUrl_encodesQuery() {
+        val url = ProjectLocationUtils.buildGoogleMapsSearchUrl("الرياض Main St 123")
+
+        assertEquals(
+            "https://www.google.com/maps/search/?api=1&query=%D8%A7%D9%84%D8%B1%D9%8A%D8%A7%D8%B6+Main+St+123",
+            url
+        )
+    }
 }

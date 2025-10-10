@@ -3,6 +3,8 @@ package com.example.meydantestapp.utils
 /**
  * Utilities for handling project location metadata.
  */
+import java.net.URLEncoder
+
 object ProjectLocationUtils {
 
     /**
@@ -19,6 +21,13 @@ object ProjectLocationUtils {
         val latitude = extractDouble(data["latitude"])
         val longitude = extractDouble(data["longitude"])
         return buildGoogleMapsUrl(latitude, longitude)
+    }
+
+    fun buildGoogleMapsSearchUrl(addressText: String): String {
+        val normalized = normalizeAddressText(addressText)
+            ?: error("addressText must be non-blank")
+        val encoded = URLEncoder.encode(normalized, Charsets.UTF_8.name())
+        return "https://www.google.com/maps/search/?api=1&query=$encoded"
     }
 
     fun normalizeAddressText(value: String?): String? = value
