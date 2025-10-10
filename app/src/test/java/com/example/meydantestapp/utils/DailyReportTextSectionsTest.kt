@@ -10,7 +10,7 @@ class DailyReportTextSectionsTest {
     fun `sanitizeAndMapViberText maps labeled arabic and english sections`() {
         val input = """
             Activities: تركيب القواعد الخرسانية
-            الآلات والمعدات : الرافعة البرجية
+            الآليات والمعدات – الرافعة البرجية
             العوائق والتحديات: لا يوجد
         """.trimIndent()
 
@@ -18,6 +18,36 @@ class DailyReportTextSectionsTest {
 
         assertEquals("تركيب القواعد الخرسانية", sections.activities)
         assertEquals("الرافعة البرجية", sections.machines)
+        assertEquals("لا يوجد", sections.obstacles)
+    }
+
+    @Test
+    fun `sanitizeAndMapViberText strips english label variants with punctuation`() {
+        val input = """
+            Obstacles and Challenges : None reported
+            Machines & Equipment - Tower crane
+            Activities : Pouring concrete for slab
+        """.trimIndent()
+
+        val sections = sanitizeAndMapViberText(input)
+
+        assertEquals("Pouring concrete for slab", sections.activities)
+        assertEquals("Tower crane", sections.machines)
+        assertEquals("None reported", sections.obstacles)
+    }
+
+    @Test
+    fun `sanitizeAndMapViberText handles bullet prefixed arabic labels`() {
+        val input = """
+            • الأنشطة: تجهيز الموقع النهائي
+            - الآليات والمعدات : حفارة صغيرة
+            * العوائق والتحديات: لا يوجد
+        """.trimIndent()
+
+        val sections = sanitizeAndMapViberText(input)
+
+        assertEquals("تجهيز الموقع النهائي", sections.activities)
+        assertEquals("حفارة صغيرة", sections.machines)
         assertEquals("لا يوجد", sections.obstacles)
     }
 
@@ -34,6 +64,21 @@ class DailyReportTextSectionsTest {
         assertEquals("صب الأعمدة للطابق الرابع", sections.activities)
         assertEquals("خلاطات اسمنت إضافية", sections.machines)
         assertEquals("توقف للعمل بسبب الأمطار", sections.obstacles)
+    }
+
+    @Test
+    fun `sanitizeAndMapViberText keeps placeholders after stripping labels`() {
+        val input = """
+            Activities: —
+            Machines and Equipment: لا يوجد
+            Obstacles: —
+        """.trimIndent()
+
+        val sections = sanitizeAndMapViberText(input)
+
+        assertEquals("—", sections.activities)
+        assertEquals("لا يوجد", sections.machines)
+        assertEquals("—", sections.obstacles)
     }
 
     @Test

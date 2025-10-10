@@ -164,6 +164,14 @@ private fun sanitizeLines(value: String): String {
 }
 
 private fun extractLabeledSection(line: String): Pair<SectionKey, String>? {
+    SECTION_LABEL_PATTERNS.forEach { (section, pattern) ->
+        val match = pattern.matchEntire(line)
+        if (match != null) {
+            val value = match.groups[1]?.value?.trim(*TRIM_CHARS) ?: ""
+            return section to value
+        }
+    }
+
     val separatorIndex = findSeparatorIndex(line)
     if (separatorIndex <= 0 || separatorIndex >= line.length - 1) return null
 
@@ -204,50 +212,145 @@ private val BULLET_PREFIX_REGEX = Regex(
     """^[\s•◦▪‣·*\u2022\u25CF\u25A0\u25E6\u2219\u2023\u2043\u2219–—-]+"""
 )
 
+private val SECTION_LABEL_VARIANTS: Map<SectionKey, Set<String>> = mapOf(
+    SectionKey.ACTIVITIES to buildSet {
+        addAll(
+            listOf(
+                "Activities",
+                "Activity",
+                "Project Activities",
+                "Project Activity"
+            )
+        )
+        addAll(
+            listOf(
+                "الأنشطة",
+                "أنشطة",
+                "نشاطات",
+                "نشاطات المشروع",
+                "أنشطة المشروع",
+                "الأعمال",
+                "الاعمال",
+                "أعمال",
+                "اعمال",
+                "اعمال المشروع",
+                "أعمال المشروع"
+            )
+        )
+    },
+    SectionKey.MACHINES to buildSet {
+        addAll(
+            listOf(
+                "Machines",
+                "Machinery",
+                "Equipment",
+                "Machines & Equipment",
+                "Equipment & Machines",
+                "Machines and Equipment",
+                "Equipment and Machines"
+            )
+        )
+        addAll(
+            listOf(
+                "الآليات والمعدات",
+                "معدات وآليات",
+                "المعدات والآليات",
+                "الآلات والمعدات",
+                "الآليات",
+                "آليات",
+                "الآلات",
+                "الات",
+                "المعدات",
+                "معدات"
+            )
+        )
+    },
+    SectionKey.OBSTACLES to buildSet {
+        addAll(
+            listOf(
+                "Obstacles",
+                "Obstacles & Challenges",
+                "Obstacles and Challenges",
+                "Challenges"
+            )
+        )
+        addAll(
+            listOf(
+                "العوائق والتحديات",
+                "العوائق",
+                "المعوقات",
+                "المعيقات",
+                "التحديات",
+                "الصعوبات"
+            )
+        )
+    }
+)
+
+private val SECTION_LABEL_PATTERNS: Map<SectionKey, Regex> = SECTION_LABEL_VARIANTS.mapValues { (_, labels) ->
+    val alternation = labels
+        .map { Regex.escape(it.trim()) }
+        .sortedByDescending { it.length }
+        .joinToString(separator = "|")
+    Regex(
+        """^\s*(?:$alternation)(?:\s*(?:[:：\-–—﹘﹣‒−،]\s*)(.*)|\s*)$""",
+        setOf(RegexOption.IGNORE_CASE)
+    )
+}
+
 private val SECTION_KEYWORDS: Map<SectionKey, Set<String>> = mapOf(
-    SectionKey.ACTIVITIES to setOf(
-        "activities",
-        "activity",
-        "projectactivities",
-        "projectactivity",
-        "نشاطات",
-        "نشاطاتالمشروع",
-        "انشطة",
-        "الانشطة",
-        "الأعمال",
-        "الاعمال",
-        "اعمال",
-        "اعمالالمشروع"
+    SectionKey.ACTIVITIES to (
+        setOf(
+            "activities",
+            "activity",
+            "projectactivities",
+            "projectactivity",
+            "نشاطات",
+            "نشاطاتالمشروع",
+            "انشطة",
+            "الانشطة",
+            "الأعمال",
+            "الاعمال",
+            "اعمال",
+            "اعمالالمشروع",
+            "الأنشطة",
+            "أنشطة",
+            "أنشطةالمشروع"
+        ) + SECTION_LABEL_VARIANTS.getValue(SectionKey.ACTIVITIES)
     ).map { canonicalize(it) }.toSet(),
-    SectionKey.MACHINES to setOf(
-        "machines",
-        "machinery",
-        "equipment",
-        "machinesequipment",
-        "machinesandequipment",
-        "equipmentandmachines",
-        "الالات",
-        "الات",
-        "الآلات",
-        "آلات",
-        "المعدات",
-        "معدات",
-        "الالاتوالمعدات",
-        "الاتوالمعدات",
-        "الآلاتوالمعدات"
+    SectionKey.MACHINES to (
+        setOf(
+            "machines",
+            "machinery",
+            "equipment",
+            "machinesequipment",
+            "machinesandequipment",
+            "equipmentandmachines",
+            "الالات",
+            "الات",
+            "الآلات",
+            "آلات",
+            "المعدات",
+            "معدات",
+            "الالاتوالمعدات",
+            "الاتوالمعدات",
+            "الآلاتوالمعدات"
+        ) + SECTION_LABEL_VARIANTS.getValue(SectionKey.MACHINES)
     ).map { canonicalize(it) }.toSet(),
-    SectionKey.OBSTACLES to setOf(
-        "obstacles",
-        "issues",
-        "challenges",
-        "problems",
-        "العوائق",
-        "عوائق",
-        "المعوقات",
-        "معوقات",
-        "التحديات",
-        "تحديات",
-        "الصعوبات",
-        "صعوبات"
+    SectionKey.OBSTACLES to (
+        setOf(
+            "obstacles",
+            "issues",
+            "challenges",
+            "problems",
+            "العوائق",
+            "عوائق",
+            "المعوقات",
+            "معوقات",
+            "التحديات",
+            "تحديات",
+            "الصعوبات",
+            "صعوبات"
+        ) + SECTION_LABEL_VARIANTS.getValue(SectionKey.OBSTACLES)
     ).map { canonicalize(it) }.toSet()
 )
