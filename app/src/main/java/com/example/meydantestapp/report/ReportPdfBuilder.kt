@@ -11,8 +11,10 @@ import android.text.TextPaint
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import com.example.meydantestapp.R
+import com.example.meydantestapp.utils.DailyReportTextSections
 import com.example.meydantestapp.utils.ImageUtils
 import com.example.meydantestapp.utils.PdfBidiUtils
+import com.example.meydantestapp.utils.resolveDailyReportSections
 import java.io.File
 import java.io.FileOutputStream
 import java.lang.reflect.Constructor
@@ -92,6 +94,9 @@ class ReportPdfBuilder(
         val totalLabor: String? = null,
         val resourcesUsed: List<String>? = null,
         val challenges: List<String>? = null,
+        val activitiesText: String? = null,
+        val machinesText: String? = null,
+        val obstaclesText: String? = null,
         val notes: List<String>? = null,
 
         // صور قديمة
@@ -731,6 +736,25 @@ class ReportPdfBuilder(
             endSectionDivider()
         }
 
+        fun drawActivitiesSummary(values: DailyReportTextSections) {
+            drawSectionHeader("نشاطات المشروع / الآلات والمعدات / العوائق")
+            val rows = listOf(
+                ReportInfoEntry(
+                    label = "نشاطات المشروع",
+                    value = values.activities.takeIf { it.isNotBlank() } ?: REPORT_INFO_PLACEHOLDER
+                ),
+                ReportInfoEntry(
+                    label = "الآلات والمعدات",
+                    value = values.machines.takeIf { it.isNotBlank() } ?: REPORT_INFO_PLACEHOLDER
+                ),
+                ReportInfoEntry(
+                    label = "العوائق والتحديات",
+                    value = values.obstacles.takeIf { it.isNotBlank() } ?: REPORT_INFO_PLACEHOLDER
+                )
+            )
+            drawReportInfoTable(rows)
+        }
+
         fun drawBulletedSection(title: String, items: List<String>?) {
             val list = items?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
             drawSectionHeader(title)
@@ -940,13 +964,19 @@ class ReportPdfBuilder(
             weatherCondition = data.weatherCondition ?: condFromText
         )
 
+        val sectionValues = resolveDailyReportSections(
+            activitiesList = enrichedData.dailyActivities,
+            machinesList = enrichedData.resourcesUsed,
+            obstaclesList = enrichedData.challenges,
+            activitiesText = enrichedData.activitiesText,
+            machinesText = enrichedData.machinesText,
+            obstaclesText = enrichedData.obstaclesText
+        )
+
         drawSectionHeader("معلومات التقرير")
         drawReportInfoTable(buildReportInfoEntries(enrichedData))
-
-        drawBulletedSection("نشاطات المشروع", data.dailyActivities)
+        drawActivitiesSummary(sectionValues)
         drawLabor(data.skilledLabor, data.unskilledLabor, data.totalLabor)
-        drawBulletedSection("الآلات والمعدات", data.resourcesUsed)
-        drawBulletedSection("العوائق والتحديات", data.challenges)
         drawBulletedSection("الملاحظات", data.notes)
 
         finishPage()
