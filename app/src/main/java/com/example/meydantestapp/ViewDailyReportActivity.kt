@@ -41,6 +41,8 @@ import com.example.meydantestapp.report.ReportPdfBuilder
 import com.example.meydantestapp.repository.DailyReportRepository
 import com.example.meydantestapp.utils.Constants
 import com.example.meydantestapp.utils.ImageUtils
+import com.example.meydantestapp.utils.DailyReportTextSections
+import com.example.meydantestapp.utils.resolveDailyReportSections
 import com.google.firebase.firestore.FirebaseFirestore
 import com.otaliastudios.zoom.ZoomLayout
 import kotlinx.coroutines.CoroutineScope
@@ -63,6 +65,10 @@ class ViewDailyReportActivity : AppCompatActivity() {
     private lateinit var sharePdfButton: Button
     private lateinit var projectLocationLabel: TextView
     private lateinit var projectLocationValue: TextView
+    private lateinit var activitiesValue: TextView
+    private lateinit var machinesValue: TextView
+    private lateinit var obstaclesValue: TextView
+    private lateinit var sectionsTable: View
     private var progressBar: ProgressBar? = null
     private lateinit var zoomLayout: ZoomLayout
     // ===== VM / Data =====
@@ -88,6 +94,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
     private var initialZoomFromIntent: Float? = null
     private var savedZoom: Float? = null
     private var defaultProjectLocationColor: Int = 0
+    private val sectionPlaceholder = "—"
 
     companion object {
         const val EXTRA_INITIAL_ZOOM = "initial_zoom"
@@ -110,6 +117,10 @@ class ViewDailyReportActivity : AppCompatActivity() {
         sharePdfButton = findViewById(R.id.sharePdfButton)
         projectLocationLabel = findViewById(R.id.projectLocationLabel)
         projectLocationValue = findViewById(R.id.projectLocationValue)
+        sectionsTable = findViewById(R.id.reportSectionsTable)
+        activitiesValue = findViewById(R.id.activitiesValue)
+        machinesValue = findViewById(R.id.machinesValue)
+        obstaclesValue = findViewById(R.id.obstaclesValue)
         progressBar = findViewById(R.id.progressBar)
         zoomLayout = findViewById(R.id.zoomContainer)
         defaultProjectLocationColor = projectLocationValue.currentTextColor
@@ -239,6 +250,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
         val addressText = report?.addressText.normalizedOrNull()
         val mapsUrl = report?.googleMapsUrl
         renderProjectLocation(addressText, mapsUrl)
+        renderReportSections(report)
     }
 
     private fun renderProjectLocation(addressText: String?, googleMapsUrl: String?) {
@@ -273,6 +285,30 @@ class ViewDailyReportActivity : AppCompatActivity() {
             projectLocationValue.isFocusable = false
             projectLocationValue.setOnClickListener(null)
         }
+    }
+
+    private fun renderReportSections(report: DailyReport?) {
+        val sections = if (report != null) {
+            resolveDailyReportSections(
+                activitiesList = report.dailyActivities,
+                machinesList = report.resourcesUsed,
+                obstaclesList = report.challenges,
+                activitiesText = report.activitiesText,
+                machinesText = report.machinesText,
+                obstaclesText = report.obstaclesText
+            )
+        } else {
+            DailyReportTextSections.EMPTY
+        }
+
+        applySectionValue(activitiesValue, sections.activities)
+        applySectionValue(machinesValue, sections.machines)
+        applySectionValue(obstaclesValue, sections.obstacles)
+    }
+
+    private fun applySectionValue(view: TextView, value: String) {
+        val display = value.takeIf { it.isNotBlank() } ?: sectionPlaceholder
+        view.text = display
     }
 
     private fun openProjectLocationLink(url: String) {
@@ -391,6 +427,15 @@ class ViewDailyReportActivity : AppCompatActivity() {
                 val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
                 val dateText = report.date?.let { df.format(java.util.Date(it)) }
 
+                val sectionsForPdf = resolveDailyReportSections(
+                    activitiesList = report.dailyActivities,
+                    machinesList = report.resourcesUsed,
+                    obstaclesList = report.challenges,
+                    activitiesText = report.activitiesText,
+                    machinesText = report.machinesText,
+                    obstaclesText = report.obstaclesText
+                )
+
                 val builderInput = ReportPdfBuilder.DailyReport(
                     projectName = report.projectName,
                     ownerName = report.ownerName,
@@ -410,6 +455,9 @@ class ViewDailyReportActivity : AppCompatActivity() {
                     totalLabor = report.totalLabor?.toString(),
                     resourcesUsed = report.resourcesUsed,
                     challenges = report.challenges,
+                    activitiesText = sectionsForPdf.activities,
+                    machinesText = sectionsForPdf.machines,
+                    obstaclesText = sectionsForPdf.obstacles,
                     notes = report.notes,
                     // ✅ تم تمرير القيم الجديدة/القديمة معًا
                     photoUrls = report.photos,

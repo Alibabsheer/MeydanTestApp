@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.meydantestapp.databinding.ActivityDailyReportsBinding
 import com.example.meydantestapp.utils.Constants
 import com.example.meydantestapp.utils.ProjectLocationSnapshotResolver
+import com.example.meydantestapp.utils.resolveDailyReportSections
 import com.google.firebase.auth.FirebaseAuth
 
 /**
@@ -152,6 +153,40 @@ class DailyReportsActivity : AppCompatActivity() {
 
             val locationSnapshot = ProjectLocationSnapshotResolver.fromReportData(this)
 
+            val activitiesList = (this["dailyActivities"] as? List<*>)?.mapNotNull { it?.toString() }
+            val resourcesList = (this["resourcesUsed"] as? List<*>)?.mapNotNull { it?.toString() }
+            val challengesList = (this["challenges"] as? List<*>)?.mapNotNull { it?.toString() }
+
+            val activitiesTextRaw = firstString(
+                "activitiesText",
+                "dailyActivitiesText",
+                "projectActivities",
+                "projectActivitiesText"
+            )
+            val machinesTextRaw = firstString(
+                "machinesText",
+                "machinesEquipment",
+                "machinesEquipmentText",
+                "equipmentText"
+            )
+            val obstaclesTextRaw = firstString(
+                "obstaclesText",
+                "challengesText",
+                "issuesText",
+                "obstacles"
+            )
+            val viberRaw = firstString("viberText", "viberSections", "sectionsRaw")
+
+            val sections = resolveDailyReportSections(
+                activitiesList = activitiesList,
+                machinesList = resourcesList,
+                obstaclesList = challengesList,
+                activitiesText = activitiesTextRaw,
+                machinesText = machinesTextRaw,
+                obstaclesText = obstaclesTextRaw,
+                viberText = viberRaw
+            )
+
             DailyReport(
                 id = this["id"] as? String,
                 reportNumber = this["reportNumber"] as? String,
@@ -168,9 +203,12 @@ class DailyReportsActivity : AppCompatActivity() {
                 skilledLabor = skilled,
                 unskilledLabor = unskilled,
                 totalLabor = totalLaborSafe,
-                dailyActivities = (this["dailyActivities"] as? List<*>)?.mapNotNull { it?.toString() },
-                resourcesUsed = (this["resourcesUsed"] as? List<*>)?.mapNotNull { it?.toString() },
-                challenges = (this["challenges"] as? List<*>)?.mapNotNull { it?.toString() },
+                dailyActivities = activitiesList,
+                resourcesUsed = resourcesList,
+                challenges = challengesList,
+                activitiesText = sections.activities.takeIf { it.isNotBlank() },
+                machinesText = sections.machines.takeIf { it.isNotBlank() },
+                obstaclesText = sections.obstacles.takeIf { it.isNotBlank() },
                 notes = (this["notes"] as? List<*>)?.mapNotNull { it?.toString() },
                 photos = (this["photos"] as? List<*>)?.mapNotNull { it?.toString() },
                 sitepages = (this["sitepages"] as? List<*>)?.mapNotNull { it?.toString() },
@@ -185,4 +223,13 @@ class DailyReportsActivity : AppCompatActivity() {
             null
         }
     }
+}
+
+private fun Map<String, Any>.firstString(vararg keys: String): String? {
+    return keys.asSequence()
+        .mapNotNull { key ->
+            val value = this[key]
+            if (value is String) value.trim() else null
+        }
+        .firstOrNull { it.isNotEmpty() }
 }

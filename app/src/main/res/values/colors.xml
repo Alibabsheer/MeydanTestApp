@@ -25,4 +25,8 @@
     <color name="material_red_700">#D32F2F</color>
 
     <color name="input_field_border_light">#E0E0E0</color>
-    <color name="on_primary_dark_theme">#000000</color> <color name="error_dark_theme">#FF5252</color> <color name="outline_dark_theme">#616161</color> </resources>
+    <color name="on_primary_dark_theme">#000000</color>
+    <color name="error_dark_theme">#FF5252</color>
+    <color name="outline_dark_theme">#616161</color>
+    <color name="divider">#FFE0E0E0</color>
+</resources>

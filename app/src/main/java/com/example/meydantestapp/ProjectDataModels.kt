@@ -72,6 +72,9 @@ data class DailyReport(
     val dailyActivities: List<String>? = null,
     val resourcesUsed: List<String>? = null,
     val challenges: List<String>? = null,
+    val activitiesText: String? = null,
+    val machinesText: String? = null,
+    val obstaclesText: String? = null,
     val notes: List<String>? = null,
 
     @Deprecated("Use sitepages")
