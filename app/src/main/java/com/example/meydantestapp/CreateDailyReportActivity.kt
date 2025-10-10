@@ -39,6 +39,7 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.example.meydantestapp.utils.ProjectLocationSnapshotResolver
 import com.example.meydantestapp.utils.toProjectSafe
 import java.io.File
 import java.text.SimpleDateFormat
@@ -160,17 +161,8 @@ class CreateDailyReportActivity : AppCompatActivity() {
                 ?: projectName
             projectName = resolvedName ?: projectName
 
-            val fallbackProject = selectedProject
-            val resolvedAddress = sequenceOf(
-                map["addressText"] as? String,
-                map["projectLocation"] as? String,
-                map["location"] as? String,
-                fallbackProject?.addressText
-            ).firstOrNull { !it.isNullOrBlank() }?.trim()
-            val resolvedMapsUrl = (map["googleMapsUrl"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
-                ?: fallbackProject?.googleMapsUrl?.takeIf { !it.isNullOrBlank() }
-
-            renderProjectLocation(resolvedAddress, resolvedMapsUrl)
+            val snapshot = ProjectLocationSnapshotResolver.fromProjectData(map, selectedProject)
+            renderProjectLocation(snapshot.addressText, snapshot.googleMapsUrl)
         }
 
         // ربط الحقول لتجميع العمالة لحظيًا
@@ -509,6 +501,7 @@ class CreateDailyReportActivity : AppCompatActivity() {
             .get()
             .addOnSuccessListener { doc ->
                 selectedProject = doc.toProjectSafe()
+                vm.setProjectLocationFallback(selectedProject)
 
                 val projectMap = doc.data ?: emptyMap<String, Any>()
                 vm.setProjectInfo(projectMap)
@@ -518,7 +511,8 @@ class CreateDailyReportActivity : AppCompatActivity() {
                         ?: (projectMap["name"] as? String)
                 }
 
-                renderProjectLocation(selectedProject?.addressText, selectedProject?.googleMapsUrl)
+                val snapshot = ProjectLocationSnapshotResolver.fromProjectData(projectMap, selectedProject)
+                renderProjectLocation(snapshot.addressText, snapshot.googleMapsUrl)
 
                 binding.reportDateInput.isEnabled = true
             }

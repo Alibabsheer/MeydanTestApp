@@ -25,6 +25,8 @@ import com.example.meydantestapp.repository.DailyReportUploadTarget
 import com.example.meydantestapp.repository.DailyReportUploadWorker
 import com.example.meydantestapp.repository.WeatherRepository
 import com.example.meydantestapp.utils.ImageUtils
+import com.example.meydantestapp.utils.ProjectLocationSnapshotResolver
+import com.example.meydantestapp.utils.ProjectLocationUtils
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
@@ -114,6 +116,8 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
     private val _projectInfo = MutableLiveData<Map<String, Any>?>(null)
     val projectInfo: LiveData<Map<String, Any>?> = _projectInfo
 
+    private var projectLocationFallback: Project? = null
+
     // أسماء إضافية تُلتقط وقت الإنشاء
     private val _createdByName = MutableLiveData<String?>(null)
     val createdByName: LiveData<String?> = _createdByName
@@ -199,6 +203,10 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
 
     // ===== ضبط معلومات عامة =====
     fun setProjectInfo(info: Map<String, Any>) { _projectInfo.value = info }
+
+    fun setProjectLocationFallback(project: Project?) {
+        projectLocationFallback = project
+    }
     fun setDate(dateIso: String) { _date.value = dateIso }
 
     fun setCreatedByName(name: String?) {
@@ -436,20 +444,12 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                 val contractorName = projectData["contractorName"]?.toString()?.nullIfBlank()
                 val consultantName = projectData["consultantName"]?.toString()?.nullIfBlank()
                 val projectNumber = projectData["projectNumber"]?.toString()?.nullIfBlank()
-                val addressText = sequenceOf("addressText", "projectLocation", "location")
-                    .mapNotNull { key -> projectData[key]?.toString()?.trim()?.nullIfBlank() }
-                    .firstOrNull()
-                val googleMapsUrl = projectData["googleMapsUrl"]?.toString()?.trim()?.nullIfBlank()
-                val latitude = when (val v = projectData["latitude"]) {
-                    is Number -> v.toDouble()
-                    is String -> v.toDoubleOrNull()
-                    else -> null
-                }
-                val longitude = when (val v = projectData["longitude"]) {
-                    is Number -> v.toDouble()
-                    is String -> v.toDoubleOrNull()
-                    else -> null
-                }
+                val locationSnapshot = ProjectLocationSnapshotResolver.fromProjectData(
+                    projectData,
+                    projectLocationFallback
+                )
+                val latitude = ProjectLocationUtils.normalizeLatitude(projectData["latitude"]) ?: projectLocationFallback?.latitude
+                val longitude = ProjectLocationUtils.normalizeLongitude(projectData["longitude"]) ?: projectLocationFallback?.longitude
 
                 // 6) بناء البيانات الأساسية
                 val data = mutableMapOf<String, Any>(
@@ -487,8 +487,8 @@ class CreateDailyReportViewModel(app: Application) : AndroidViewModel(app) {
                     contractorName = contractorName,
                     consultantName = consultantName,
                     projectNumber = projectNumber,
-                    addressText = addressText,
-                    googleMapsUrl = googleMapsUrl,
+                    addressText = locationSnapshot.addressText,
+                    googleMapsUrl = locationSnapshot.googleMapsUrl,
                     latitude = latitude,
                     longitude = longitude,
                     temperature = temperatureValue,
