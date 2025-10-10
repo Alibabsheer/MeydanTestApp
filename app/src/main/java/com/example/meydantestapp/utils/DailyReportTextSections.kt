@@ -41,7 +41,7 @@ fun sanitizeAndMapViberText(raw: String?): DailyReportTextSections {
         .map { line ->
             line
                 .replace(BULLET_PREFIX_REGEX, "")
-                .replace(Regex("\\s+"), " ")
+                .replace(WHITESPACE_REGEX, " ")
                 .trim()
         }
         .filter { it.isNotEmpty() }
@@ -67,17 +67,17 @@ fun sanitizeAndMapViberText(raw: String?): DailyReportTextSections {
         if (assigned[section].isNullOrEmpty()) {
             val fallback = unlabeled.removeFirstOrNull()
             if (!fallback.isNullOrEmpty()) {
-                assigned[section] = fallback
+                assigned[section] = normalizeSectionValue(fallback)
             } else {
-                assigned[section] = ""
+                assigned[section] = normalizeSectionValue("")
             }
         }
     }
 
     return DailyReportTextSections(
-        activities = assigned[SectionKey.ACTIVITIES] ?: "",
-        machines = assigned[SectionKey.MACHINES] ?: "",
-        obstacles = assigned[SectionKey.OBSTACLES] ?: ""
+        activities = assigned[SectionKey.ACTIVITIES] ?: normalizeSectionValue(""),
+        machines = assigned[SectionKey.MACHINES] ?: normalizeSectionValue(""),
+        obstacles = assigned[SectionKey.OBSTACLES] ?: normalizeSectionValue("")
     )
 }
 
@@ -164,10 +164,10 @@ private fun sanitizeLines(value: String): String {
 }
 
 private fun extractLabeledSection(line: String): Pair<SectionKey, String>? {
-    SECTION_LABEL_PATTERNS.forEach { (section, pattern) ->
+    SECTION_LABEL_STRIP_PATTERNS.forEach { (section, pattern) ->
         val match = pattern.matchEntire(line)
         if (match != null) {
-            val value = match.groups[1]?.value?.trim(*TRIM_CHARS) ?: ""
+            val value = normalizeSectionValue(match.groupValues.getOrNull(1).orEmpty())
             return section to value
         }
     }
@@ -176,7 +176,7 @@ private fun extractLabeledSection(line: String): Pair<SectionKey, String>? {
     if (separatorIndex <= 0 || separatorIndex >= line.length - 1) return null
 
     val labelPart = line.substring(0, separatorIndex).trim(*TRIM_CHARS)
-    val valuePart = line.substring(separatorIndex + 1).trim(*TRIM_CHARS)
+    val valuePart = normalizeSectionValue(line.substring(separatorIndex + 1))
     if (labelPart.isEmpty() || valuePart.isEmpty()) return null
 
     val canonical = canonicalize(labelPart)
@@ -206,7 +206,15 @@ private enum class SectionKey { ACTIVITIES, MACHINES, OBSTACLES }
 
 private val TRIM_CHARS = charArrayOf(' ', '\t', '-', '–', '—', ':', '：', '،')
 
+private val TRIM_CHAR_SET = TRIM_CHARS.toSet()
+
 private val SEPARATOR_CHARS = charArrayOf(':', '：', '-', '–', '—', '﹘', '﹣', '‒', '−', '،')
+
+private const val PLACEHOLDER_TEXT = "—"
+
+private const val PLACEHOLDER_CHAR = '—'
+
+private val WHITESPACE_REGEX = Regex("""\s+""")
 
 private val BULLET_PREFIX_REGEX = Regex(
     """^[\s•◦▪‣·*\u2022\u25CF\u25A0\u25E6\u2219\u2023\u2043\u2219–—-]+"""
@@ -287,14 +295,14 @@ private val SECTION_LABEL_VARIANTS: Map<SectionKey, Set<String>> = mapOf(
     }
 )
 
-private val SECTION_LABEL_PATTERNS: Map<SectionKey, Regex> = SECTION_LABEL_VARIANTS.mapValues { (_, labels) ->
+private val SECTION_LABEL_STRIP_PATTERNS: Map<SectionKey, Regex> = SECTION_LABEL_VARIANTS.mapValues { (_, labels) ->
     val alternation = labels
         .map { Regex.escape(it.trim()) }
         .sortedByDescending { it.length }
         .joinToString(separator = "|")
     Regex(
-        """^\s*(?:$alternation)(?:\s*(?:[:：\-–—﹘﹣‒−،]\s*)(.*)|\s*)$""",
-        setOf(RegexOption.IGNORE_CASE)
+        """^\s*(?:$alternation)\s*(?:[:：\-–—﹘﹣‒−،]\s*)?(.*)$""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE)
     )
 }
 
@@ -354,3 +362,18 @@ private val SECTION_KEYWORDS: Map<SectionKey, Set<String>> = mapOf(
         ) + SECTION_LABEL_VARIANTS.getValue(SectionKey.OBSTACLES)
     ).map { canonicalize(it) }.toSet()
 )
+
+private fun normalizeSectionValue(raw: String): String {
+    if (raw.isEmpty()) return PLACEHOLDER_TEXT
+
+    val collapsed = raw.replace(WHITESPACE_REGEX, " ")
+    val trimmed = collapsed.trim { ch ->
+        ch.isWhitespace() || (ch in TRIM_CHAR_SET && ch != PLACEHOLDER_CHAR)
+    }
+
+    if (trimmed.isNotEmpty()) {
+        return trimmed
+    }
+
+    return PLACEHOLDER_TEXT
+}
