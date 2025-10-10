@@ -41,8 +41,6 @@ import com.example.meydantestapp.report.ReportPdfBuilder
 import com.example.meydantestapp.repository.DailyReportRepository
 import com.example.meydantestapp.utils.Constants
 import com.example.meydantestapp.utils.ImageUtils
-import com.example.meydantestapp.utils.ProjectLocationRenderState
-import com.example.meydantestapp.utils.computeLocationRenderState
 import com.google.firebase.firestore.FirebaseFirestore
 import com.otaliastudios.zoom.ZoomLayout
 import kotlinx.coroutines.CoroutineScope
@@ -238,12 +236,14 @@ class ViewDailyReportActivity : AppCompatActivity() {
 
     private fun updateReportInfoSection(report: DailyReport?) {
         resolvedReportNumber = report?.reportNumber
-        val locationState = computeLocationRenderState(report?.addressText, report?.googleMapsUrl)
-        renderProjectLocation(locationState)
+        val addressText = report?.addressText.normalizedOrNull()
+        val mapsUrl = report?.googleMapsUrl
+        renderProjectLocation(addressText, mapsUrl)
     }
 
-    private fun renderProjectLocation(state: ProjectLocationRenderState) {
-        if (state.addressText == null) {
+    private fun renderProjectLocation(addressText: String?, googleMapsUrl: String?) {
+        val trimmedAddress = addressText?.trim()?.takeIf { it.isNotEmpty() }
+        if (trimmedAddress == null) {
             projectLocationLabel.visibility = View.GONE
             projectLocationValue.visibility = View.GONE
             projectLocationValue.text = ""
@@ -257,15 +257,15 @@ class ViewDailyReportActivity : AppCompatActivity() {
 
         projectLocationLabel.visibility = View.VISIBLE
         projectLocationValue.visibility = View.VISIBLE
-        projectLocationValue.text = state.addressText
+        projectLocationValue.text = trimmedAddress
 
-        if (state.isLink) {
+        val mapsUrl = googleMapsUrl?.trim()?.takeIf { it.isNotEmpty() }
+        if (mapsUrl != null) {
             projectLocationValue.setTextColor(ContextCompat.getColor(this, R.color.hyperlink_blue))
             projectLocationValue.paintFlags = projectLocationValue.paintFlags or Paint.UNDERLINE_TEXT_FLAG
             projectLocationValue.isClickable = true
             projectLocationValue.isFocusable = true
-            val link = state.googleMapsUrl!!
-            projectLocationValue.setOnClickListener { openProjectLocationLink(link) }
+            projectLocationValue.setOnClickListener { openProjectLocationLink(mapsUrl) }
         } else {
             projectLocationValue.setTextColor(defaultProjectLocationColor)
             projectLocationValue.paintFlags = projectLocationValue.paintFlags and Paint.UNDERLINE_TEXT_FLAG.inv()
@@ -391,15 +391,13 @@ class ViewDailyReportActivity : AppCompatActivity() {
                 val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
                 val dateText = report.date?.let { df.format(java.util.Date(it)) }
 
-                val locationState = computeLocationRenderState(report.addressText, report.googleMapsUrl)
-
                 val builderInput = ReportPdfBuilder.DailyReport(
                     projectName = report.projectName,
                     ownerName = report.ownerName,
                     contractorName = report.contractorName,
                     consultantName = report.consultantName,
-                    projectAddressText = locationState.addressText,
-                    projectGoogleMapsUrl = locationState.googleMapsUrl,
+                    projectAddressText = report.addressText.normalizedOrNull(),
+                    projectGoogleMapsUrl = report.googleMapsUrl,
                     reportNumber = report.reportNumber,
                     dateText = dateText,
                     temperatureC = report.temperature,

@@ -1,7 +1,5 @@
 package com.example.meydantestapp.utils
 
-import android.net.Uri
-
 /**
  * Utilities for handling project location metadata.
  */
@@ -27,10 +25,6 @@ object ProjectLocationUtils {
         ?.trim()
         ?.takeIf { it.isNotEmpty() }
 
-    fun normalizeGoogleMapsUrl(value: String?): String? = value
-        ?.trim()
-        ?.takeIf { it.isNotEmpty() }
-
     fun normalizePlusCode(value: String?): String? = value
         ?.trim()
         ?.takeIf { it.isNotEmpty() }
@@ -44,12 +38,6 @@ object ProjectLocationUtils {
         is String -> value.toDoubleOrNull()
         else -> null
     }?.takeUnless { it.isNaN() || it.isInfinite() }
-
-    fun buildGoogleMapsSearchUrl(addressText: String?): String? {
-        val normalized = normalizeAddressText(addressText) ?: return null
-        val encoded = Uri.encode(normalized)
-        return "https://www.google.com/maps/search/?api=1&query=$encoded"
-    }
 
     private fun maybeBuildMapsUrl(latitude: Double?, longitude: Double?): String? {
         val lat = if (latitude.isFiniteSafe()) latitude else null

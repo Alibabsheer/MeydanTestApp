@@ -35,14 +35,11 @@ import com.example.meydantestapp.models.PhotoTemplate
 import com.example.meydantestapp.models.PhotoTemplates
 import com.example.meydantestapp.models.TemplateId
 import com.example.meydantestapp.ui.photolayout.TemplatePickerBottomSheet
-import com.example.meydantestapp.utils.ProjectLocationSnapshot
-import com.example.meydantestapp.utils.ProjectLocationSnapshotFactory
-import com.example.meydantestapp.utils.computeLocationRenderState
-import com.example.meydantestapp.utils.toProjectSafe
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.example.meydantestapp.utils.toProjectSafe
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -163,19 +160,17 @@ class CreateDailyReportActivity : AppCompatActivity() {
                 ?: projectName
             projectName = resolvedName ?: projectName
 
-            val snapshot = map.takeIf { it.isNotEmpty() }?.let { data ->
-                val candidate = ProjectLocationSnapshotFactory.fromProjectDataForReport(data)
-                if (candidate.addressText != null || candidate.googleMapsUrl != null) candidate else null
-            } ?: selectedProject?.let { project ->
-                ProjectLocationSnapshotFactory.snapshotForReport(
-                    project.addressText,
-                    project.googleMapsUrl,
-                    project.latitude,
-                    project.longitude
-                )
-            } ?: ProjectLocationSnapshot(null, null)
+            val fallbackProject = selectedProject
+            val resolvedAddress = sequenceOf(
+                map["addressText"] as? String,
+                map["projectLocation"] as? String,
+                map["location"] as? String,
+                fallbackProject?.addressText
+            ).firstOrNull { !it.isNullOrBlank() }?.trim()
+            val resolvedMapsUrl = (map["googleMapsUrl"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+                ?: fallbackProject?.googleMapsUrl?.takeIf { !it.isNullOrBlank() }
 
-            renderProjectLocation(snapshot.addressText, snapshot.googleMapsUrl)
+            renderProjectLocation(resolvedAddress, resolvedMapsUrl)
         }
 
         // ربط الحقول لتجميع العمالة لحظيًا
@@ -389,9 +384,9 @@ class CreateDailyReportActivity : AppCompatActivity() {
     private fun renderProjectLocation(addressText: String?, googleMapsUrl: String?) {
         val labelView = binding.projectLocationLabel
         val valueView = binding.projectLocationValue
-        val state = computeLocationRenderState(addressText, googleMapsUrl)
+        val trimmedAddress = addressText?.trim()?.takeIf { it.isNotEmpty() }
 
-        if (state.addressText == null) {
+        if (trimmedAddress == null) {
             labelView.visibility = View.GONE
             valueView.visibility = View.GONE
             valueView.text = ""
@@ -405,15 +400,15 @@ class CreateDailyReportActivity : AppCompatActivity() {
 
         labelView.visibility = View.VISIBLE
         valueView.visibility = View.VISIBLE
-        valueView.text = state.addressText
+        valueView.text = trimmedAddress
 
-        if (state.isLink) {
+        val mapsUrl = googleMapsUrl?.trim()?.takeIf { it.isNotEmpty() }
+        if (mapsUrl != null) {
             valueView.setTextColor(ContextCompat.getColor(this, R.color.hyperlink_blue))
             valueView.paintFlags = valueView.paintFlags or Paint.UNDERLINE_TEXT_FLAG
             valueView.isClickable = true
             valueView.isFocusable = true
-            val link = state.googleMapsUrl!!
-            valueView.setOnClickListener { openProjectLocationLink(link) }
+            valueView.setOnClickListener { openProjectLocationLink(mapsUrl) }
         } else {
             valueView.setTextColor(defaultProjectLocationTextColor)
             valueView.paintFlags = valueView.paintFlags and Paint.UNDERLINE_TEXT_FLAG.inv()
@@ -523,16 +518,7 @@ class CreateDailyReportActivity : AppCompatActivity() {
                         ?: (projectMap["name"] as? String)
                 }
 
-                val locationSnapshot = selectedProject?.let { project ->
-                    ProjectLocationSnapshotFactory.snapshotForReport(
-                        project.addressText,
-                        project.googleMapsUrl,
-                        project.latitude,
-                        project.longitude
-                    )
-                } ?: ProjectLocationSnapshot(null, null)
-
-                renderProjectLocation(locationSnapshot.addressText, locationSnapshot.googleMapsUrl)
+                renderProjectLocation(selectedProject?.addressText, selectedProject?.googleMapsUrl)
 
                 binding.reportDateInput.isEnabled = true
             }
