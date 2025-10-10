@@ -167,8 +167,8 @@ private fun extractLabeledSection(line: String): Pair<SectionKey, String>? {
     val separatorIndex = findSeparatorIndex(line)
     if (separatorIndex <= 0 || separatorIndex >= line.length - 1) return null
 
-    val labelPart = line.substring(0, separatorIndex).trim(TRIM_CHARS)
-    val valuePart = line.substring(separatorIndex + 1).trim(TRIM_CHARS)
+    val labelPart = line.substring(0, separatorIndex).trim(*TRIM_CHARS)
+    val valuePart = line.substring(separatorIndex + 1).trim(*TRIM_CHARS)
     if (labelPart.isEmpty() || valuePart.isEmpty()) return null
 
     val canonical = canonicalize(labelPart)
@@ -200,7 +200,9 @@ private val TRIM_CHARS = charArrayOf(' ', '\t', '-', '–', '—', ':', '：', '
 
 private val SEPARATOR_CHARS = charArrayOf(':', '：', '-', '–', '—', '﹘', '﹣', '‒', '−', '،')
 
-private val BULLET_PREFIX_REGEX = Regex("^[\\s•◦▪‣·*\u2022\u25CF\u25A0\u25E6\u2219\u2023\u2043\u2219\-–—]+")
+private val BULLET_PREFIX_REGEX = Regex(
+    """^[\s•◦▪‣·*\u2022\u25CF\u25A0\u25E6\u2219\u2023\u2043\u2219–—-]+"""
+)
 
 private val SECTION_KEYWORDS: Map<SectionKey, Set<String>> = mapOf(
     SectionKey.ACTIVITIES to setOf(
