@@ -25,7 +25,7 @@ fun sanitizeAndMapViberText(raw: String?): DailyReportTextSections {
     val rawLines = normalized.split('\n')
 
     val accumulators = SectionKey.values().associateWith { SectionAccumulator() }
-    val unlabeled = ArrayDeque<String>()
+    val expectContentAfterLabel = mutableSetOf<SectionKey>()
     var activeSection: SectionKey? = null
 
     rawLines.forEach { rawLine ->
@@ -41,38 +41,49 @@ fun sanitizeAndMapViberText(raw: String?): DailyReportTextSections {
             val sanitizedValue = sanitizeLines(valueRaw)
             if (sanitizedValue.isNotEmpty()) {
                 accumulator.appendValue(sanitizedValue)
+                expectContentAfterLabel.remove(section)
+            }
+            if (sanitizedValue.isEmpty()) {
+                expectContentAfterLabel.add(section)
             }
             activeSection = section
             return@forEach
         }
 
         val sanitizedLine = sanitizeLine(collapsed)
-        val section = activeSection?.let { accumulators[it] }
-        if (section != null) {
-            section.appendLine(sanitizedLine)
-        } else {
-            sanitizedLine.content?.let { unlabeled += it }
+        if (sanitizedLine.content == null) {
+            activeSection?.let { accumulators.getValue(it).appendLine(sanitizedLine) }
+            return@forEach
         }
-    }
 
-    val assigned = mutableMapOf<SectionKey, String>()
-    SectionKey.values().forEach { section ->
-        val accumulator = accumulators.getValue(section)
-        val hasRealContent = accumulator.hasRealContent()
-        val hasPlaceholder = accumulator.hasExplicitPlaceholder()
-        val value = accumulator.finalizeValue()
-        if (!hasRealContent && !hasPlaceholder) {
-            val fallback = unlabeled.removeFirstOrNull()
-            assigned[section] = fallback?.let { normalizeFallbackValue(section, it) } ?: value
-        } else {
-            assigned[section] = value
+        val currentSection = activeSection
+        if (currentSection != null) {
+            val accumulator = accumulators.getValue(currentSection)
+            val expecting = expectContentAfterLabel.contains(currentSection)
+            val allow = expecting || accumulator.hasRealContent() || sanitizedLine.hadBullet
+            if (allow) {
+                accumulator.appendLine(sanitizedLine)
+                if (expecting) {
+                    expectContentAfterLabel.remove(currentSection)
+                }
+                return@forEach
+            }
+            activeSection = null
+        }
+
+        val fallbackSection = findFallbackSection(accumulators)
+        if (fallbackSection != null) {
+            val fallbackAccumulator = accumulators.getValue(fallbackSection)
+            fallbackAccumulator.appendLine(sanitizedLine)
+            expectContentAfterLabel.remove(fallbackSection)
+            activeSection = if (sanitizedLine.hadBullet) fallbackSection else null
         }
     }
 
     return DailyReportTextSections(
-        activities = assigned.getValue(SectionKey.ACTIVITIES),
-        machines = assigned.getValue(SectionKey.MACHINES),
-        obstacles = assigned.getValue(SectionKey.OBSTACLES)
+        activities = accumulators.getValue(SectionKey.ACTIVITIES).finalizeValue(),
+        machines = accumulators.getValue(SectionKey.MACHINES).finalizeValue(),
+        obstacles = accumulators.getValue(SectionKey.OBSTACLES).finalizeValue()
     )
 }
 
@@ -248,24 +259,27 @@ private fun normalizeCharacters(value: String): String {
 }
 
 private fun prepareForLabelDetection(line: String): String {
-    return stripBulletPrefix(line).trimStart()
+    return stripBulletPrefix(line).text.trimStart()
 }
 
 private fun sanitizeLine(line: String): LineSanitization {
-    if (line.isEmpty()) return LineSanitization(null, false)
+    if (line.isEmpty()) return LineSanitization(null, false, false)
     val collapsed = WHITESPACE_REGEX.replace(line, " ")
     val withoutPrefix = stripBulletPrefix(collapsed)
-    val trimmed = withoutPrefix.trim()
+    val trimmed = withoutPrefix.text.trim()
     if (trimmed.isEmpty()) {
-        return LineSanitization(null, false)
+        return LineSanitization(null, false, withoutPrefix.removed)
     }
     val isPlaceholder = isPlaceholderText(trimmed)
-    return LineSanitization(trimmed, isPlaceholder)
+    return LineSanitization(trimmed, isPlaceholder, withoutPrefix.removed)
 }
 
-private fun stripBulletPrefix(text: String): String {
+private data class BulletStripResult(val text: String, val removed: Boolean)
+
+private fun stripBulletPrefix(text: String): BulletStripResult {
     var index = 0
     val length = text.length
+    var removed = false
     while (index < length) {
         val ch = text[index]
         if (ch == ' ' || ch == '\t') {
@@ -274,11 +288,16 @@ private fun stripBulletPrefix(text: String): String {
         }
         if (ch in BULLET_PREFIX_CHARS) {
             index++
+            removed = true
             continue
         }
         break
     }
-    return if (index == 0) text else text.substring(index)
+    return if (index == 0) {
+        BulletStripResult(text, removed)
+    } else {
+        BulletStripResult(text.substring(index), removed)
+    }
 }
 
 private fun isPlaceholderText(value: String): Boolean {
@@ -314,7 +333,8 @@ private fun stripSectionLabel(section: SectionKey, value: String): String {
 
 private data class LineSanitization(
     val content: String?,
-    val isPlaceholder: Boolean
+    val isPlaceholder: Boolean,
+    val hadBullet: Boolean
 )
 
 private class SectionAccumulator {
@@ -331,6 +351,8 @@ private class SectionAccumulator {
     fun hasRealContent(): Boolean = realContent
 
     fun hasExplicitPlaceholder(): Boolean = placeholder != null
+
+    fun shouldAcceptFallback(): Boolean = !realContent && placeholder == null
 
     fun appendValue(value: String) {
         if (value.isEmpty()) return
@@ -540,4 +562,14 @@ private fun normalizeFallbackValue(section: SectionKey, raw: String): String {
     if (stripped.isEmpty()) return PLACEHOLDER_TEXT
     if (isPlaceholderText(stripped)) return stripped
     return stripped
+}
+
+private fun findFallbackSection(accumulators: Map<SectionKey, SectionAccumulator>): SectionKey? {
+    SectionKey.values().forEach { section ->
+        val accumulator = accumulators.getValue(section)
+        if (accumulator.shouldAcceptFallback()) {
+            return section
+        }
+    }
+    return null
 }
