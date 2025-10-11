@@ -1,6 +1,6 @@
 package com.example.meydantestapp.utils
 
-import java.util.Locale
+private enum class SectionKey { ACTIVITIES, MACHINES, OBSTACLES }
 
 data class DailyReportTextSections(
     val activities: String,
@@ -22,68 +22,111 @@ fun sanitizeAndMapViberText(raw: String?): DailyReportTextSections {
     if (raw.isNullOrBlank()) return DailyReportTextSections.EMPTY
 
     val normalized = normalizeCharacters(raw)
-    val rawLines = normalized.split('\n')
+    val collectors = SectionKey.values().associateWith { SectionCollector() }
+    val fallbackOrder = SectionKey.values().toMutableList()
+    val expectingContent = mutableSetOf<SectionKey>()
+    var currentSection: SectionKey? = null
+    var currentSource = SectionSource.NONE
 
-    val accumulators = SectionKey.values().associateWith { SectionAccumulator() }
-    val expectContentAfterLabel = mutableSetOf<SectionKey>()
-    var activeSection: SectionKey? = null
-
-    rawLines.forEach { rawLine ->
+    normalized.split("\n").forEach { rawLine ->
         val collapsed = WHITESPACE_REGEX.replace(rawLine, " ")
-        val detectionCandidate = prepareForLabelDetection(collapsed)
-        val labeled = extractLabeledSection(detectionCandidate)
-        if (labeled != null) {
-            val (section, valueRaw) = labeled
-            val accumulator = accumulators.getValue(section)
-            if (!accumulator.hasRealContent()) {
-                accumulator.reset()
+        val bulletResult = stripBulletPrefix(collapsed)
+
+        if (currentSource == SectionSource.BULLET && !bulletResult.hadBullet) {
+            currentSection = null
+            currentSource = SectionSource.NONE
+        }
+
+        val detectionTarget = bulletResult.text.trimStart()
+        val labelMatch = detectSectionLabel(detectionTarget)
+        if (labelMatch != null) {
+            val collector = collectors.getValue(labelMatch.section)
+            removeFromFallback(fallbackOrder, labelMatch.section)
+
+            val inlineValue = labelMatch.inlineValue
+            val sanitizedInline = inlineValue?.let { sanitizeLine(it) }
+            if (!inlineValue.isNullOrBlank()) {
+                sanitizedInline?.let { collector.appendLine(it) }
             }
-            val sanitizedValue = sanitizeLines(valueRaw)
-            if (sanitizedValue.isNotEmpty()) {
-                accumulator.appendValue(sanitizedValue)
-                expectContentAfterLabel.remove(section)
+
+            val inlineIsPlaceholder = sanitizedInline?.isPlaceholder == true
+            val inlineHadBullet = sanitizedInline?.hadBullet == true
+            val expectsMore = when {
+                sanitizedInline == null -> true
+                sanitizedInline.content == null -> true
+                inlineHadBullet -> true
+                inlineIsPlaceholder -> false
+                else -> false
             }
-            if (sanitizedValue.isEmpty()) {
-                expectContentAfterLabel.add(section)
+
+            if (expectsMore) {
+                expectingContent.add(labelMatch.section)
+            } else {
+                expectingContent.remove(labelMatch.section)
             }
-            activeSection = section
+
+            val nextSource = when {
+                inlineHadBullet -> SectionSource.BULLET
+                expectsMore -> SectionSource.HEADER
+                else -> SectionSource.NONE
+            }
+
+            currentSection = if (nextSource == SectionSource.NONE) null else labelMatch.section
+            currentSource = nextSource
             return@forEach
         }
 
-        val sanitizedLine = sanitizeLine(collapsed)
+        val sanitizedLine = sanitizeFromStripped(bulletResult)
         if (sanitizedLine.content == null) {
-            activeSection?.let { accumulators.getValue(it).appendLine(sanitizedLine) }
+            currentSection?.let { collectors.getValue(it).appendBlank() }
+            if (currentSource == SectionSource.BULLET) {
+                currentSection = null
+                currentSource = SectionSource.NONE
+            }
             return@forEach
         }
 
-        val currentSection = activeSection
-        if (currentSection != null) {
-            val accumulator = accumulators.getValue(currentSection)
-            val expecting = expectContentAfterLabel.contains(currentSection)
-            val allow = expecting || accumulator.hasRealContent() || sanitizedLine.hadBullet
-            if (allow) {
-                accumulator.appendLine(sanitizedLine)
-                if (expecting) {
-                    expectContentAfterLabel.remove(currentSection)
-                }
-                return@forEach
+        var activeSection = currentSection
+        if (activeSection != null) {
+            val collector = collectors.getValue(activeSection)
+            val allowCurrent = when (currentSource) {
+                SectionSource.HEADER -> expectingContent.contains(activeSection) || collector.hasRealContent()
+                SectionSource.BULLET -> true
+                else -> collector.hasRealContent()
             }
-            activeSection = null
+            if (!allowCurrent) {
+                activeSection = null
+                currentSection = null
+                currentSource = SectionSource.NONE
+            }
         }
 
-        val fallbackSection = findFallbackSection(accumulators)
-        if (fallbackSection != null) {
-            val fallbackAccumulator = accumulators.getValue(fallbackSection)
-            fallbackAccumulator.appendLine(sanitizedLine)
-            expectContentAfterLabel.remove(fallbackSection)
-            activeSection = if (sanitizedLine.hadBullet) fallbackSection else null
+        val targetSection = activeSection ?: nextFallbackSection(fallbackOrder, collectors)
+        if (targetSection == null) {
+            return@forEach
+        }
+
+        val collector = collectors.getValue(targetSection)
+        collector.appendLine(sanitizedLine)
+        if (sanitizedLine.content != null && !sanitizedLine.isPlaceholder) {
+            expectingContent.remove(targetSection)
+        }
+
+        if (currentSection == null) {
+            if (sanitizedLine.hadBullet) {
+                currentSection = targetSection
+                currentSource = SectionSource.BULLET
+            } else {
+                currentSection = null
+                currentSource = SectionSource.NONE
+            }
         }
     }
 
     return DailyReportTextSections(
-        activities = accumulators.getValue(SectionKey.ACTIVITIES).finalizeValue(),
-        machines = accumulators.getValue(SectionKey.MACHINES).finalizeValue(),
-        obstacles = accumulators.getValue(SectionKey.OBSTACLES).finalizeValue()
+        activities = collectors.getValue(SectionKey.ACTIVITIES).finalizeValue(),
+        machines = collectors.getValue(SectionKey.MACHINES).finalizeValue(),
+        obstacles = collectors.getValue(SectionKey.OBSTACLES).finalizeValue()
     )
 }
 
@@ -128,7 +171,7 @@ private fun StringBuilder.appendJoined(values: List<String>?) {
     if (values.isNullOrEmpty()) return
     val normalized = sanitizeList(values)
     if (normalized.isNotEmpty()) {
-        if (isNotEmpty()) append('\n')
+        if (isNotEmpty()) append("\n")
         append(normalized)
     }
 }
@@ -148,7 +191,7 @@ private fun sanitizeList(values: List<String>?): String {
 private fun sanitizeLines(value: String): String {
     if (value.isEmpty()) return ""
     val normalized = normalizeCharacters(value)
-    val rawLines = normalized.split('\n')
+    val rawLines = normalized.split("\n")
     if (rawLines.isEmpty()) return ""
 
     val sanitized = mutableListOf<String>()
@@ -183,62 +226,147 @@ private fun sanitizeLines(value: String): String {
     return sanitized.joinToString(separator = "\n")
 }
 
-private fun extractLabeledSection(line: String): Pair<SectionKey, String>? {
-    SECTION_LABEL_STRIP_PATTERNS.forEach { (section, pattern) ->
+private fun sanitizeLine(line: String): LineSanitization {
+    if (line.isEmpty()) return LineSanitization(null, false, false)
+    val collapsed = WHITESPACE_REGEX.replace(line, " ")
+    val bulletResult = stripBulletPrefix(collapsed)
+    return sanitizeFromStripped(bulletResult)
+}
+
+private fun sanitizeFromStripped(result: BulletStripResult): LineSanitization {
+    val trimmed = result.text.trim(*TRIM_CHARS)
+    if (trimmed.isEmpty()) {
+        return LineSanitization(null, false, result.hadBullet)
+    }
+    val isPlaceholder = isPlaceholderText(trimmed)
+    return LineSanitization(trimmed, isPlaceholder, result.hadBullet)
+}
+
+private fun detectSectionLabel(line: String): LabelMatch? {
+    SectionKey.values().forEach { section ->
+        val pattern = SECTION_LABEL_PATTERNS.getValue(section)
         val match = pattern.matchEntire(line)
         if (match != null) {
-            val value = match.groupValues.getOrNull(1).orEmpty()
-            return section to value
+            val inlineValue = match.groupValues.getOrNull(1)
+            return LabelMatch(section, inlineValue)
         }
     }
-
-    val separatorIndex = findSeparatorIndex(line)
-    if (separatorIndex <= 0 || separatorIndex >= line.length - 1) return null
-
-    val labelPart = line.substring(0, separatorIndex).trim(*TRIM_CHARS)
-    val valuePart = line.substring(separatorIndex + 1)
-    if (labelPart.isEmpty() || valuePart.isEmpty()) return null
-
-    val canonical = canonicalize(labelPart)
-    val section = SECTION_KEYWORDS.entries.firstOrNull { (_, keywords) -> canonical in keywords }?.key
-        ?: return null
-
-    return section to valuePart
+    return null
 }
 
-private fun canonicalize(input: String): String {
-    return normalizeCharacters(input)
-        .lowercase(Locale.ROOT)
-        .replace(ZERO_WIDTH_AND_TATWEEL_REGEX, "")
-        .replace(Regex("[\\s\\p{Punct}\\u00A0\\u202F]+"), "")
-}
-
-private fun findSeparatorIndex(text: String): Int {
-    text.forEachIndexed { index, ch ->
-        if (ch in SEPARATOR_CHARS) {
-            return index
+private fun nextFallbackSection(
+    fallbackOrder: MutableList<SectionKey>,
+    collectors: Map<SectionKey, SectionCollector>
+): SectionKey? {
+    val iterator = fallbackOrder.iterator()
+    while (iterator.hasNext()) {
+        val section = iterator.next()
+        val collector = collectors.getValue(section)
+        if (collector.canAcceptFallback()) {
+            iterator.remove()
+            return section
         }
+        iterator.remove()
     }
-    return -1
+    return collectors.entries.firstOrNull { it.value.canAcceptFallback() }?.key
 }
 
-private enum class SectionKey { ACTIVITIES, MACHINES, OBSTACLES }
+private fun removeFromFallback(fallbackOrder: MutableList<SectionKey>, section: SectionKey) {
+    val index = fallbackOrder.indexOf(section)
+    if (index >= 0) {
+        fallbackOrder.removeAt(index)
+    }
+}
 
-private val TRIM_CHARS = charArrayOf(' ', '\t', '-', '–', '—', ':', '：', '،', '؛')
+private enum class SectionSource { NONE, HEADER, BULLET }
 
-private val SEPARATOR_CHARS = charArrayOf(':', '：', '-', '–', '—', '﹘', '﹣', '‒', '−', '،', '؛')
+private data class LabelMatch(val section: SectionKey, val inlineValue: String?)
 
-private const val PLACEHOLDER_TEXT = "—"
+private data class BulletStripResult(val text: String, val hadBullet: Boolean)
 
-private const val AR_PLACEHOLDER_TEXT = "لا يوجد"
-
-private val WHITESPACE_REGEX = Regex("""\s+""")
-
-private val BULLET_PREFIX_CHARS = setOf(
-    '•', '◦', '▪', '‣', '·', '*', '\u2022', '\u25CF', '\u25A0', '\u25E6', '\u2219', '\u2023', '\u2043', '-', '–', '—', '﹘', '﹣', '‒', '−'
+private data class LineSanitization(
+    val content: String?,
+    val isPlaceholder: Boolean,
+    val hadBullet: Boolean
 )
 
-private val ZERO_WIDTH_AND_TATWEEL_REGEX = Regex("""[\u200C\u200D\u200E\u200F\u0640]""")
+private class SectionCollector {
+    private val lines = mutableListOf<String>()
+    private var hasRealContentFlag = false
+    private var placeholder: String? = null
+    private var lastWasBlank = false
+
+    fun canAcceptFallback(): Boolean = !hasRealContentFlag && placeholder == null
+
+    fun hasRealContent(): Boolean = hasRealContentFlag
+
+    fun appendLine(line: LineSanitization) {
+        when {
+            line.content == null -> appendBlank()
+            line.isPlaceholder && !hasRealContentFlag -> {
+                if (placeholder == null) {
+                    placeholder = line.content
+                }
+                lastWasBlank = false
+            }
+            else -> appendContent(line.content ?: return)
+        }
+    }
+
+    fun appendBlank() {
+        if (!hasRealContentFlag) return
+        if (!lastWasBlank) {
+            lines.add("")
+            lastWasBlank = true
+        }
+    }
+
+    fun finalizeValue(): String {
+        if (hasRealContentFlag) {
+            while (lines.firstOrNull()?.isEmpty() == true) {
+                lines.removeAt(0)
+            }
+            while (lines.lastOrNull()?.isEmpty() == true) {
+                lines.removeAt(lines.lastIndex)
+            }
+            if (lines.isEmpty()) {
+                return placeholder ?: PLACEHOLDER_TEXT
+            }
+            return lines.joinToString(separator = "\n")
+        }
+        return placeholder ?: PLACEHOLDER_TEXT
+    }
+
+    private fun appendContent(value: String) {
+        if (!hasRealContentFlag) {
+            hasRealContentFlag = true
+            placeholder = null
+            lines.clear()
+        }
+        if (value.isEmpty()) {
+            appendBlank()
+            return
+        }
+        lines.add(value)
+        lastWasBlank = false
+    }
+}
+
+private fun stripBulletPrefix(text: String): BulletStripResult {
+    val match = BULLET_PREFIX_REGEX.find(text)
+    if (match == null || match.range.first != 0) {
+        return BulletStripResult(text, false)
+    }
+    val prefix = match.value
+    val hadBullet = prefix.any { !it.isWhitespace() }
+    val stripped = text.substring(match.range.last + 1)
+    return BulletStripResult(stripped, hadBullet)
+}
+
+private fun isPlaceholderText(value: String): Boolean {
+    val trimmed = value.trim(*TRIM_CHARS)
+    return trimmed == PLACEHOLDER_TEXT || trimmed == AR_PLACEHOLDER_TEXT
+}
 
 private fun normalizeCharacters(value: String): String {
     if (value.isEmpty()) return ""
@@ -258,318 +386,80 @@ private fun normalizeCharacters(value: String): String {
     return builder.toString()
 }
 
-private fun prepareForLabelDetection(line: String): String {
-    return stripBulletPrefix(line).text.trimStart()
-}
+private val TRIM_CHARS = charArrayOf(' ', '\t', '-', '–', '—', ':', '：', '،', '؛')
 
-private fun sanitizeLine(line: String): LineSanitization {
-    if (line.isEmpty()) return LineSanitization(null, false, false)
-    val collapsed = WHITESPACE_REGEX.replace(line, " ")
-    val withoutPrefix = stripBulletPrefix(collapsed)
-    val trimmed = withoutPrefix.text.trim()
-    if (trimmed.isEmpty()) {
-        return LineSanitization(null, false, withoutPrefix.removed)
-    }
-    val isPlaceholder = isPlaceholderText(trimmed)
-    return LineSanitization(trimmed, isPlaceholder, withoutPrefix.removed)
-}
+private const val PLACEHOLDER_TEXT = "—"
 
-private data class BulletStripResult(val text: String, val removed: Boolean)
+private const val AR_PLACEHOLDER_TEXT = "لا يوجد"
 
-private fun stripBulletPrefix(text: String): BulletStripResult {
-    var index = 0
-    val length = text.length
-    var removed = false
-    while (index < length) {
-        val ch = text[index]
-        if (ch == ' ' || ch == '\t') {
-            index++
-            continue
-        }
-        if (ch in BULLET_PREFIX_CHARS) {
-            index++
-            removed = true
-            continue
-        }
-        break
-    }
-    return if (index == 0) {
-        BulletStripResult(text, removed)
-    } else {
-        BulletStripResult(text.substring(index), removed)
-    }
-}
+private val WHITESPACE_REGEX = Regex("""\s+""")
 
-private fun isPlaceholderText(value: String): Boolean {
-    val trimmed = value.trim()
-    return trimmed == PLACEHOLDER_TEXT || trimmed == AR_PLACEHOLDER_TEXT
-}
-
-private fun stripSectionLabel(section: SectionKey, value: String): String {
-    if (value.isEmpty()) return value
-    val lines = value.split('\n')
-    if (lines.isEmpty()) return value
-    val pattern = SECTION_LABEL_STRIP_PATTERNS[section] ?: return value
-    val first = lines.first()
-    val match = pattern.matchEntire(first)
-    if (match != null) {
-        val remainderValue = sanitizeLines(match.groupValues.getOrNull(1).orEmpty())
-        val remainderLines = lines.drop(1).toMutableList()
-        while (remainderLines.firstOrNull()?.isEmpty() == true) {
-            remainderLines.removeAt(0)
-        }
-        val combined = mutableListOf<String>()
-        if (remainderValue.isNotEmpty()) {
-            val shouldSkipPlaceholder = isPlaceholderText(remainderValue) && remainderLines.any { it.isNotEmpty() }
-            if (!shouldSkipPlaceholder) {
-                combined.add(remainderValue)
-            }
-        }
-        combined.addAll(remainderLines)
-        return combined.joinToString(separator = "\n").trim('\n')
-    }
-    return value
-}
-
-private data class LineSanitization(
-    val content: String?,
-    val isPlaceholder: Boolean,
-    val hadBullet: Boolean
+private val BULLET_PREFIX_REGEX = Regex(
+    """^[\s•◦▪‣·*\u2022\u25CF\u25A0\u25E6\u2219\u2023\u2043–—-]+"""
 )
-
-private class SectionAccumulator {
-    private val lines = mutableListOf<String>()
-    private var placeholder: String? = null
-    private var realContent: Boolean = false
-
-    fun reset() {
-        lines.clear()
-        placeholder = null
-        realContent = false
-    }
-
-    fun hasRealContent(): Boolean = realContent
-
-    fun hasExplicitPlaceholder(): Boolean = placeholder != null
-
-    fun shouldAcceptFallback(): Boolean = !realContent && placeholder == null
-
-    fun appendValue(value: String) {
-        if (value.isEmpty()) return
-        value.split('\n').forEach { line ->
-            when {
-                line.isEmpty() -> appendBlank()
-                isPlaceholderText(line) && !realContent -> setPlaceholderIfAbsent(line)
-                else -> appendContent(line)
-            }
-        }
-    }
-
-    fun appendLine(line: LineSanitization) {
-        when {
-            line.content == null -> appendBlank()
-            line.isPlaceholder && !realContent -> setPlaceholderIfAbsent(line.content)
-            else -> appendContent(line.content ?: return)
-        }
-    }
-
-    fun finalizeValue(): String {
-        if (realContent) {
-            while (lines.lastOrNull()?.isEmpty() == true) {
-                lines.removeAt(lines.lastIndex)
-            }
-            return lines.joinToString(separator = "\n")
-        }
-        return placeholder ?: PLACEHOLDER_TEXT
-    }
-
-    private fun appendContent(value: String) {
-        if (!realContent) {
-            lines.clear()
-            placeholder = null
-            realContent = true
-        }
-        lines.add(value)
-    }
-
-    private fun appendBlank() {
-        if (!realContent) return
-        if (lines.isEmpty() || lines.last().isEmpty()) return
-        lines.add("")
-    }
-
-    private fun setPlaceholderIfAbsent(value: String) {
-        if (placeholder == null) {
-            placeholder = value
-        }
-    }
-}
 
 private val SECTION_LABEL_VARIANTS: Map<SectionKey, Set<String>> = mapOf(
-    SectionKey.ACTIVITIES to buildSet {
-        addAll(
-            listOf(
-                "Activities",
-                "Activity",
-                "Project Activities",
-                "Project Activity"
-            )
-        )
-        addAll(
-            listOf(
-                "الأنشطة",
-                "أنشطة",
-                "نشاطات",
-                "نشاطات المشروع",
-                "أنشطة المشروع",
-                "الأعمال",
-                "الاعمال",
-                "أعمال",
-                "اعمال",
-                "اعمال المشروع",
-                "أعمال المشروع"
-            )
-        )
-    },
-    SectionKey.MACHINES to buildSet {
-        addAll(
-            listOf(
-                "Machines",
-                "Machinery",
-                "Equipment",
-                "Machines & Equipment",
-                "Equipment & Machines",
-                "Machines and Equipment",
-                "Equipment and Machines"
-            )
-        )
-        addAll(
-            listOf(
-                "الآليات والمعدات",
-                "معدات وآليات",
-                "المعدات والآليات",
-                "الآلات والمعدات",
-                "الآليات",
-                "آليات",
-                "الآلات",
-                "الات",
-                "المعدات",
-                "معدات"
-            )
-        )
-    },
-    SectionKey.OBSTACLES to buildSet {
-        addAll(
-            listOf(
-                "Obstacles",
-                "Obstacles & Challenges",
-                "Obstacles and Challenges",
-                "Challenges"
-            )
-        )
-        addAll(
-            listOf(
-                "العوائق والتحديات",
-                "العوائق",
-                "المعوقات",
-                "المعيقات",
-                "التحديات",
-                "الصعوبات"
-            )
-        )
-    }
+    SectionKey.ACTIVITIES to setOf(
+        "Activities",
+        "Activity",
+        "Project Activities",
+        "Project Activity",
+        "الأنشطة",
+        "أنشطة",
+        "نشاط",
+        "نشاطات",
+        "نشاطات المشروع",
+        "أنشطة المشروع",
+        "الأعمال",
+        "الاعمال",
+        "أعمال",
+        "اعمال",
+        "اعمال المشروع",
+        "أعمال المشروع"
+    ),
+    SectionKey.MACHINES to setOf(
+        "Machines",
+        "Machine",
+        "Machinery",
+        "Equipment",
+        "Machines & Equipment",
+        "Machines and Equipment",
+        "Equipment & Machines",
+        "Equipment and Machines",
+        "الآليات والمعدات",
+        "المعدات والآليات",
+        "الآلات والمعدات",
+        "معدات",
+        "الآليات",
+        "آليات",
+        "الآلات",
+        "الات",
+        "المعدات"
+    ),
+    SectionKey.OBSTACLES to setOf(
+        "Obstacles",
+        "Obstacle",
+        "Obstacles & Challenges",
+        "Obstacles and Challenges",
+        "Challenges",
+        "Challenge",
+        "العوائق والتحديات",
+        "العوائق",
+        "المعوقات",
+        "المعيقات",
+        "التحديات",
+        "الصعوبات"
+    )
 )
 
-private val SECTION_LABEL_STRIP_PATTERNS: Map<SectionKey, Regex> = SECTION_LABEL_VARIANTS.mapValues { (_, labels) ->
+private val SECTION_LABEL_PATTERNS: Map<SectionKey, Regex> = SECTION_LABEL_VARIANTS.mapValues { (_, labels) ->
     val alternation = labels
         .map { Regex.escape(it.trim()) }
         .sortedByDescending { it.length }
         .joinToString(separator = "|")
     Regex(
-        """^\s*(?:$alternation)\s*(?:[:：\-–—﹘﹣‒−،؛]\s*)?(.*)$""",
-        setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE)
+        """^(?:$alternation)(?:\s*[：:؛\-–—]\s*)?(.*)$""",
+        setOf(RegexOption.IGNORE_CASE)
     )
 }
 
-private val SECTION_KEYWORDS: Map<SectionKey, Set<String>> = mapOf(
-    SectionKey.ACTIVITIES to (
-        setOf(
-            "activities",
-            "activity",
-            "projectactivities",
-            "projectactivity",
-            "نشاطات",
-            "نشاطاتالمشروع",
-            "انشطة",
-            "الانشطة",
-            "الأعمال",
-            "الاعمال",
-            "اعمال",
-            "اعمالالمشروع",
-            "الأنشطة",
-            "أنشطة",
-            "أنشطةالمشروع"
-        ) + SECTION_LABEL_VARIANTS.getValue(SectionKey.ACTIVITIES)
-    ).map { canonicalize(it) }.toSet(),
-    SectionKey.MACHINES to (
-        setOf(
-            "machines",
-            "machinery",
-            "equipment",
-            "machinesequipment",
-            "machinesandequipment",
-            "equipmentandmachines",
-            "الالات",
-            "الات",
-            "الآلات",
-            "آلات",
-            "المعدات",
-            "معدات",
-            "الالاتوالمعدات",
-            "الاتوالمعدات",
-            "الآلاتوالمعدات"
-        ) + SECTION_LABEL_VARIANTS.getValue(SectionKey.MACHINES)
-    ).map { canonicalize(it) }.toSet(),
-    SectionKey.OBSTACLES to (
-        setOf(
-            "obstacles",
-            "issues",
-            "challenges",
-            "problems",
-            "العوائق",
-            "عوائق",
-            "المعوقات",
-            "معوقات",
-            "التحديات",
-            "تحديات",
-            "الصعوبات",
-            "صعوبات"
-        ) + SECTION_LABEL_VARIANTS.getValue(SectionKey.OBSTACLES)
-    ).map { canonicalize(it) }.toSet()
-)
-
-private fun normalizeSectionValue(raw: String): String {
-    val sanitized = sanitizeLines(raw)
-    if (sanitized.isEmpty()) return PLACEHOLDER_TEXT
-    if (isPlaceholderText(sanitized)) return sanitized
-    return sanitized
-}
-
-private fun normalizeFallbackValue(section: SectionKey, raw: String): String {
-    val sanitized = sanitizeLines(raw)
-    if (sanitized.isEmpty()) return PLACEHOLDER_TEXT
-    val stripped = stripSectionLabel(section, sanitized)
-    if (stripped.isEmpty()) return PLACEHOLDER_TEXT
-    if (isPlaceholderText(stripped)) return stripped
-    return stripped
-}
-
-private fun findFallbackSection(accumulators: Map<SectionKey, SectionAccumulator>): SectionKey? {
-    SectionKey.values().forEach { section ->
-        val accumulator = accumulators.getValue(section)
-        if (accumulator.shouldAcceptFallback()) {
-            return section
-        }
-    }
-    return null
-}
