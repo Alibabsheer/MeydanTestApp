@@ -98,4 +98,159 @@ class DailyReportTextSectionsTest {
         assertEquals("نقص مواد", sections.obstacles)
         assertTrue(sections.activities.isNotEmpty())
     }
+
+    @Test
+    fun `sanitizeAndMapViberText attaches arabic header bullet lines`() {
+        val input = """
+            الأنشطة
+            - تجهيز الموقع
+            • متابعة الأعمال
+            الآليات والمعدات: —
+            العوائق والتحديات: لا يوجد
+        """.trimIndent()
+
+        val sections = sanitizeAndMapViberText(input)
+
+        assertEquals("تجهيز الموقع\nمتابعة الأعمال", sections.activities)
+        assertEquals("—", sections.machines)
+        assertEquals("لا يوجد", sections.obstacles)
+    }
+
+    @Test
+    fun `sanitizeAndMapViberText strips inline english label`() {
+        val input = """
+            Activities: Inspect formwork
+            Machines: —
+            Obstacles: —
+        """.trimIndent()
+
+        val sections = sanitizeAndMapViberText(input)
+
+        assertEquals("Inspect formwork", sections.activities)
+        assertEquals("—", sections.machines)
+        assertEquals("—", sections.obstacles)
+    }
+
+    @Test
+    fun `sanitizeAndMapViberText removes mixed bullet prefixes`() {
+        val input = """
+            - Task one
+              • Task two
+            — مهمة ثالثة
+            Machines: —
+            Obstacles: —
+        """.trimIndent()
+
+        val sections = sanitizeAndMapViberText(input)
+
+        assertEquals("Task one\nTask two\nمهمة ثالثة", sections.activities)
+        assertEquals("—", sections.machines)
+        assertEquals("—", sections.obstacles)
+    }
+
+    @Test
+    fun `sanitizeAndMapViberText preserves explicit placeholders even with extras`() {
+        val input = """
+            Activities: —
+            Machines: لا يوجد
+            Obstacles: —
+            ملاحظة إضافية بدون تصنيف
+        """.trimIndent()
+
+        val sections = sanitizeAndMapViberText(input)
+
+        assertEquals("—", sections.activities)
+        assertEquals("لا يوجد", sections.machines)
+        assertEquals("—", sections.obstacles)
+    }
+
+    @Test
+    fun `sanitizeAndMapViberText applies placeholder when header has no content`() {
+        val input = """
+            Activities: Completed tasks
+            Machines:
+            Obstacles:
+        """.trimIndent()
+
+        val sections = sanitizeAndMapViberText(input)
+
+        assertEquals("Completed tasks", sections.activities)
+        assertEquals("—", sections.machines)
+        assertEquals("—", sections.obstacles)
+    }
+
+    @Test
+    fun `sanitizeAndMapViberText keeps mid sentence challenges text`() {
+        val input = """
+            تمت معالجة مختلف التحديات اليوم داخل الموقع
+            معدات: حفارة
+            عوائق: —
+        """.trimIndent()
+
+        val sections = sanitizeAndMapViberText(input)
+
+        assertEquals("تمت معالجة مختلف التحديات اليوم داخل الموقع", sections.activities)
+        assertEquals("حفارة", sections.machines)
+        assertEquals("—", sections.obstacles)
+    }
+
+    @Test
+    fun `sanitizeAndMapViberText removes zero width noise`() {
+        val input = """
+            الأنشطة:‏ تجهيزـ الموقع
+            الآليات والمعدات:‌ رافعةـ
+            العوائق والتحديات: —
+        """.trimIndent()
+
+        val sections = sanitizeAndMapViberText(input)
+
+        assertEquals("تجهيز الموقع", sections.activities)
+        assertEquals("رافعة", sections.machines)
+        assertEquals("—", sections.obstacles)
+    }
+
+    @Test
+    fun `sanitizeAndMapViberText maps mixed arabic english labels`() {
+        val input = """
+            Activities: Pouring slab
+            الآليات والمعدات: مضخة خرسانة
+            Obstacles and Challenges: Weather delay
+        """.trimIndent()
+
+        val sections = sanitizeAndMapViberText(input)
+
+        assertEquals("Pouring slab", sections.activities)
+        assertEquals("مضخة خرسانة", sections.machines)
+        assertEquals("Weather delay", sections.obstacles)
+    }
+
+    @Test
+    fun `sanitizeAndMapViberText handles empty or malformed input`() {
+        val emptySections = sanitizeAndMapViberText("   ")
+        val nullSections = sanitizeAndMapViberText(null)
+
+        assertEquals("", emptySections.activities)
+        assertEquals("", emptySections.machines)
+        assertEquals("", emptySections.obstacles)
+
+        assertEquals("", nullSections.activities)
+        assertEquals("", nullSections.machines)
+        assertEquals("", nullSections.obstacles)
+    }
+
+    @Test
+    fun `sanitizeAndMapViberText keeps long paragraphs intact`() {
+        val longText = buildString { repeat(1000) { append('a') } }
+        val input = """
+            Activities: $longText
+            Machines: —
+            Obstacles: —
+        """.trimIndent()
+
+        val sections = sanitizeAndMapViberText(input)
+
+        assertEquals(longText, sections.activities)
+        assertEquals("—", sections.machines)
+        assertEquals("—", sections.obstacles)
+    }
 }

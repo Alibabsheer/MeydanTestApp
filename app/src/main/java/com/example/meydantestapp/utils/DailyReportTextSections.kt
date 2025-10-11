@@ -21,63 +21,58 @@ data class DailyReportTextSections(
 fun sanitizeAndMapViberText(raw: String?): DailyReportTextSections {
     if (raw.isNullOrBlank()) return DailyReportTextSections.EMPTY
 
-    val normalized = raw
-        .replace("\r\n", "\n")
-        .replace('\r', '\n')
-        .map { ch ->
-            when {
-                ch == '\n' -> '\n'
-                ch == '\t' -> ' '
-                ch.code < 32 || ch.code in 127..159 -> ' '
-                ch == '\u00A0' || ch == '\u202F' -> ' '
-                ch == '\u200F' || ch == '\u200E' -> ' '
-                else -> ch
-            }
-        }
-        .joinToString(separator = "")
+    val normalized = normalizeCharacters(raw)
+    val rawLines = normalized.split('\n')
 
-    val lines = normalized
-        .split('\n')
-        .map { line ->
-            line
-                .replace(BULLET_PREFIX_REGEX, "")
-                .replace(WHITESPACE_REGEX, " ")
-                .trim()
-        }
-        .filter { it.isNotEmpty() }
-
-    if (lines.isEmpty()) return DailyReportTextSections.EMPTY
-
-    val assigned = mutableMapOf<SectionKey, String>()
+    val accumulators = SectionKey.values().associateWith { SectionAccumulator() }
     val unlabeled = ArrayDeque<String>()
+    var activeSection: SectionKey? = null
 
-    lines.forEach { line ->
-        val labeled = extractLabeledSection(line)
+    rawLines.forEach { rawLine ->
+        val collapsed = WHITESPACE_REGEX.replace(rawLine, " ")
+        val detectionCandidate = prepareForLabelDetection(collapsed)
+        val labeled = extractLabeledSection(detectionCandidate)
         if (labeled != null) {
-            val (section, value) = labeled
-            if (value.isNotEmpty() && assigned[section].isNullOrEmpty()) {
-                assigned[section] = value
+            val (section, valueRaw) = labeled
+            val accumulator = accumulators.getValue(section)
+            if (!accumulator.hasRealContent()) {
+                accumulator.reset()
             }
+            val sanitizedValue = sanitizeLines(valueRaw)
+            if (sanitizedValue.isNotEmpty()) {
+                accumulator.appendValue(sanitizedValue)
+            }
+            activeSection = section
+            return@forEach
+        }
+
+        val sanitizedLine = sanitizeLine(collapsed)
+        val section = activeSection?.let { accumulators[it] }
+        if (section != null) {
+            section.appendLine(sanitizedLine)
         } else {
-            unlabeled += line
+            sanitizedLine.content?.let { unlabeled += it }
         }
     }
 
+    val assigned = mutableMapOf<SectionKey, String>()
     SectionKey.values().forEach { section ->
-        if (assigned[section].isNullOrEmpty()) {
+        val accumulator = accumulators.getValue(section)
+        val hasRealContent = accumulator.hasRealContent()
+        val hasPlaceholder = accumulator.hasExplicitPlaceholder()
+        val value = accumulator.finalizeValue()
+        if (!hasRealContent && !hasPlaceholder) {
             val fallback = unlabeled.removeFirstOrNull()
-            if (!fallback.isNullOrEmpty()) {
-                assigned[section] = normalizeSectionValue(fallback)
-            } else {
-                assigned[section] = normalizeSectionValue("")
-            }
+            assigned[section] = fallback?.let { normalizeFallbackValue(section, it) } ?: value
+        } else {
+            assigned[section] = value
         }
     }
 
     return DailyReportTextSections(
-        activities = assigned[SectionKey.ACTIVITIES] ?: normalizeSectionValue(""),
-        machines = assigned[SectionKey.MACHINES] ?: normalizeSectionValue(""),
-        obstacles = assigned[SectionKey.OBSTACLES] ?: normalizeSectionValue("")
+        activities = assigned.getValue(SectionKey.ACTIVITIES),
+        machines = assigned.getValue(SectionKey.MACHINES),
+        obstacles = assigned.getValue(SectionKey.OBSTACLES)
     )
 }
 
@@ -140,34 +135,48 @@ private fun sanitizeList(values: List<String>?): String {
 }
 
 private fun sanitizeLines(value: String): String {
-    val cleaned = value
-        .replace("\r\n", "\n")
-        .replace('\r', '\n')
-        .map { ch ->
-            when {
-                ch == '\n' -> '\n'
-                ch == '\t' -> ' '
-                ch.code < 32 || ch.code in 127..159 -> ' '
-                ch == '\u00A0' || ch == '\u202F' -> ' '
-                ch == '\u200F' || ch == '\u200E' -> ' '
-                ch == '\u0640' -> ' '
-                else -> ch
+    if (value.isEmpty()) return ""
+    val normalized = normalizeCharacters(value)
+    val rawLines = normalized.split('\n')
+    if (rawLines.isEmpty()) return ""
+
+    val sanitized = mutableListOf<String>()
+    var previousBlank = false
+    rawLines.forEach { rawLine ->
+        val sanitizedLine = sanitizeLine(rawLine)
+        when {
+            sanitizedLine.content == null -> {
+                if (sanitized.isNotEmpty() && !previousBlank) {
+                    sanitized += ""
+                    previousBlank = true
+                }
+            }
+            else -> {
+                sanitized += sanitizedLine.content
+                previousBlank = false
             }
         }
-        .joinToString(separator = "")
+    }
 
-    return cleaned
-        .split('\n')
-        .map { it.replace(Regex("\\s+"), " ").trim() }
-        .filter { it.isNotEmpty() }
-        .joinToString(separator = "\n")
+    while (sanitized.firstOrNull()?.isEmpty() == true) {
+        sanitized.removeAt(0)
+    }
+    while (sanitized.lastOrNull()?.isEmpty() == true) {
+        sanitized.removeAt(sanitized.lastIndex)
+    }
+
+    if (sanitized.isEmpty()) {
+        return ""
+    }
+
+    return sanitized.joinToString(separator = "\n")
 }
 
 private fun extractLabeledSection(line: String): Pair<SectionKey, String>? {
     SECTION_LABEL_STRIP_PATTERNS.forEach { (section, pattern) ->
         val match = pattern.matchEntire(line)
         if (match != null) {
-            val value = normalizeSectionValue(match.groupValues.getOrNull(1).orEmpty())
+            val value = match.groupValues.getOrNull(1).orEmpty()
             return section to value
         }
     }
@@ -176,7 +185,7 @@ private fun extractLabeledSection(line: String): Pair<SectionKey, String>? {
     if (separatorIndex <= 0 || separatorIndex >= line.length - 1) return null
 
     val labelPart = line.substring(0, separatorIndex).trim(*TRIM_CHARS)
-    val valuePart = normalizeSectionValue(line.substring(separatorIndex + 1))
+    val valuePart = line.substring(separatorIndex + 1)
     if (labelPart.isEmpty() || valuePart.isEmpty()) return null
 
     val canonical = canonicalize(labelPart)
@@ -187,10 +196,10 @@ private fun extractLabeledSection(line: String): Pair<SectionKey, String>? {
 }
 
 private fun canonicalize(input: String): String {
-    return input
+    return normalizeCharacters(input)
         .lowercase(Locale.ROOT)
-        .replace(Regex("[\\s\\p{Punct}\\u00A0\\u202F\\u200F\\u200E]+"), "")
-        .replace("\u0640", "")
+        .replace(ZERO_WIDTH_AND_TATWEEL_REGEX, "")
+        .replace(Regex("[\\s\\p{Punct}\\u00A0\\u202F]+"), "")
 }
 
 private fun findSeparatorIndex(text: String): Int {
@@ -204,21 +213,175 @@ private fun findSeparatorIndex(text: String): Int {
 
 private enum class SectionKey { ACTIVITIES, MACHINES, OBSTACLES }
 
-private val TRIM_CHARS = charArrayOf(' ', '\t', '-', '–', '—', ':', '：', '،')
+private val TRIM_CHARS = charArrayOf(' ', '\t', '-', '–', '—', ':', '：', '،', '؛')
 
-private val TRIM_CHAR_SET = TRIM_CHARS.toSet()
-
-private val SEPARATOR_CHARS = charArrayOf(':', '：', '-', '–', '—', '﹘', '﹣', '‒', '−', '،')
+private val SEPARATOR_CHARS = charArrayOf(':', '：', '-', '–', '—', '﹘', '﹣', '‒', '−', '،', '؛')
 
 private const val PLACEHOLDER_TEXT = "—"
 
-private const val PLACEHOLDER_CHAR = '—'
+private const val AR_PLACEHOLDER_TEXT = "لا يوجد"
 
 private val WHITESPACE_REGEX = Regex("""\s+""")
 
-private val BULLET_PREFIX_REGEX = Regex(
-    """^[\s•◦▪‣·*\u2022\u25CF\u25A0\u25E6\u2219\u2023\u2043\u2219–—-]+"""
+private val BULLET_PREFIX_CHARS = setOf(
+    '•', '◦', '▪', '‣', '·', '*', '\u2022', '\u25CF', '\u25A0', '\u25E6', '\u2219', '\u2023', '\u2043', '-', '–', '—', '﹘', '﹣', '‒', '−'
 )
+
+private val ZERO_WIDTH_AND_TATWEEL_REGEX = Regex("""[\u200C\u200D\u200E\u200F\u0640]""")
+
+private fun normalizeCharacters(value: String): String {
+    if (value.isEmpty()) return ""
+    val prepared = value.replace("\r\n", "\n").replace('\r', '\n')
+    val builder = StringBuilder(prepared.length)
+    prepared.forEach { ch ->
+        when {
+            ch == '\n' -> builder.append('\n')
+            ch == '\t' -> builder.append(' ')
+            ch == '\u00A0' || ch == '\u202F' -> builder.append(' ')
+            ch == '\u200C' || ch == '\u200D' || ch == '\u200E' || ch == '\u200F' -> {}
+            ch == '\u0640' -> {}
+            ch.code < 32 || ch.code in 127..159 -> builder.append(' ')
+            else -> builder.append(ch)
+        }
+    }
+    return builder.toString()
+}
+
+private fun prepareForLabelDetection(line: String): String {
+    return stripBulletPrefix(line).trimStart()
+}
+
+private fun sanitizeLine(line: String): LineSanitization {
+    if (line.isEmpty()) return LineSanitization(null, false)
+    val collapsed = WHITESPACE_REGEX.replace(line, " ")
+    val withoutPrefix = stripBulletPrefix(collapsed)
+    val trimmed = withoutPrefix.trim()
+    if (trimmed.isEmpty()) {
+        return LineSanitization(null, false)
+    }
+    val isPlaceholder = isPlaceholderText(trimmed)
+    return LineSanitization(trimmed, isPlaceholder)
+}
+
+private fun stripBulletPrefix(text: String): String {
+    var index = 0
+    val length = text.length
+    while (index < length) {
+        val ch = text[index]
+        if (ch == ' ' || ch == '\t') {
+            index++
+            continue
+        }
+        if (ch in BULLET_PREFIX_CHARS) {
+            index++
+            continue
+        }
+        break
+    }
+    return if (index == 0) text else text.substring(index)
+}
+
+private fun isPlaceholderText(value: String): Boolean {
+    val trimmed = value.trim()
+    return trimmed == PLACEHOLDER_TEXT || trimmed == AR_PLACEHOLDER_TEXT
+}
+
+private fun stripSectionLabel(section: SectionKey, value: String): String {
+    if (value.isEmpty()) return value
+    val lines = value.split('\n')
+    if (lines.isEmpty()) return value
+    val pattern = SECTION_LABEL_STRIP_PATTERNS[section] ?: return value
+    val first = lines.first()
+    val match = pattern.matchEntire(first)
+    if (match != null) {
+        val remainderValue = sanitizeLines(match.groupValues.getOrNull(1).orEmpty())
+        val remainderLines = lines.drop(1).toMutableList()
+        while (remainderLines.firstOrNull()?.isEmpty() == true) {
+            remainderLines.removeAt(0)
+        }
+        val combined = mutableListOf<String>()
+        if (remainderValue.isNotEmpty()) {
+            val shouldSkipPlaceholder = isPlaceholderText(remainderValue) && remainderLines.any { it.isNotEmpty() }
+            if (!shouldSkipPlaceholder) {
+                combined.add(remainderValue)
+            }
+        }
+        combined.addAll(remainderLines)
+        return combined.joinToString(separator = "\n").trim('\n')
+    }
+    return value
+}
+
+private data class LineSanitization(
+    val content: String?,
+    val isPlaceholder: Boolean
+)
+
+private class SectionAccumulator {
+    private val lines = mutableListOf<String>()
+    private var placeholder: String? = null
+    private var realContent: Boolean = false
+
+    fun reset() {
+        lines.clear()
+        placeholder = null
+        realContent = false
+    }
+
+    fun hasRealContent(): Boolean = realContent
+
+    fun hasExplicitPlaceholder(): Boolean = placeholder != null
+
+    fun appendValue(value: String) {
+        if (value.isEmpty()) return
+        value.split('\n').forEach { line ->
+            when {
+                line.isEmpty() -> appendBlank()
+                isPlaceholderText(line) && !realContent -> setPlaceholderIfAbsent(line)
+                else -> appendContent(line)
+            }
+        }
+    }
+
+    fun appendLine(line: LineSanitization) {
+        when {
+            line.content == null -> appendBlank()
+            line.isPlaceholder && !realContent -> setPlaceholderIfAbsent(line.content)
+            else -> appendContent(line.content ?: return)
+        }
+    }
+
+    fun finalizeValue(): String {
+        if (realContent) {
+            while (lines.lastOrNull()?.isEmpty() == true) {
+                lines.removeAt(lines.lastIndex)
+            }
+            return lines.joinToString(separator = "\n")
+        }
+        return placeholder ?: PLACEHOLDER_TEXT
+    }
+
+    private fun appendContent(value: String) {
+        if (!realContent) {
+            lines.clear()
+            placeholder = null
+            realContent = true
+        }
+        lines.add(value)
+    }
+
+    private fun appendBlank() {
+        if (!realContent) return
+        if (lines.isEmpty() || lines.last().isEmpty()) return
+        lines.add("")
+    }
+
+    private fun setPlaceholderIfAbsent(value: String) {
+        if (placeholder == null) {
+            placeholder = value
+        }
+    }
+}
 
 private val SECTION_LABEL_VARIANTS: Map<SectionKey, Set<String>> = mapOf(
     SectionKey.ACTIVITIES to buildSet {
@@ -301,7 +464,7 @@ private val SECTION_LABEL_STRIP_PATTERNS: Map<SectionKey, Regex> = SECTION_LABEL
         .sortedByDescending { it.length }
         .joinToString(separator = "|")
     Regex(
-        """^\s*(?:$alternation)\s*(?:[:：\-–—﹘﹣‒−،]\s*)?(.*)$""",
+        """^\s*(?:$alternation)\s*(?:[:：\-–—﹘﹣‒−،؛]\s*)?(.*)$""",
         setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE)
     )
 }
@@ -364,16 +527,17 @@ private val SECTION_KEYWORDS: Map<SectionKey, Set<String>> = mapOf(
 )
 
 private fun normalizeSectionValue(raw: String): String {
-    if (raw.isEmpty()) return PLACEHOLDER_TEXT
+    val sanitized = sanitizeLines(raw)
+    if (sanitized.isEmpty()) return PLACEHOLDER_TEXT
+    if (isPlaceholderText(sanitized)) return sanitized
+    return sanitized
+}
 
-    val collapsed = raw.replace(WHITESPACE_REGEX, " ")
-    val trimmed = collapsed.trim { ch ->
-        ch.isWhitespace() || (ch in TRIM_CHAR_SET && ch != PLACEHOLDER_CHAR)
-    }
-
-    if (trimmed.isNotEmpty()) {
-        return trimmed
-    }
-
-    return PLACEHOLDER_TEXT
+private fun normalizeFallbackValue(section: SectionKey, raw: String): String {
+    val sanitized = sanitizeLines(raw)
+    if (sanitized.isEmpty()) return PLACEHOLDER_TEXT
+    val stripped = stripSectionLabel(section, sanitized)
+    if (stripped.isEmpty()) return PLACEHOLDER_TEXT
+    if (isPlaceholderText(stripped)) return stripped
+    return stripped
 }
