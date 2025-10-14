@@ -28,32 +28,41 @@
         android:textDirection="anyRtl"
         android:textAlignment="viewStart">
 
-        <!-- منطقة العرض المكبّرة -->
+        <!-- عنوان موقع المشروع وقيمته -->
         <TextView
             android:id="@+id/projectLocationLabel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/label_project_location"
+            android:layout_marginTop="@dimen/heading_spacing_before_h2"
+            android:layout_marginBottom="@dimen/heading_spacing_after_h2"
+            android:textAppearance="@style/TextAppearance.Meydan.Heading.H2"
+            android:text="@string/heading_project_location"
             android:textColor="?android:textColorPrimary"
-            android:textSize="16sp"
-            android:textStyle="bold"
             android:visibility="gone" />
 
         <TextView
             android:id="@+id/projectLocationValue"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginBottom="@dimen/heading_spacing_after_h2"
             android:textColor="?android:textColorPrimary"
             android:textSize="15sp"
             android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/reportInfoHeading"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/heading_spacing_before"
+            android:layout_marginBottom="@dimen/heading_spacing_after"
+            android:textAppearance="@style/TextAppearance.Meydan.Heading.H1"
+            android:text="@string/heading_report_info"
+            android:textColor="?android:textColorPrimary" />
 
         <LinearLayout
             android:id="@+id/reportSectionsTable"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
             android:background="@drawable/bg_daily_report_table"
             android:orientation="vertical"
             android:paddingStart="8dp"
@@ -69,19 +78,18 @@
                 android:layoutDirection="rtl"
                 android:orientation="horizontal"
                 android:paddingStart="8dp"
-                android:paddingTop="8dp"
+                android:paddingTop="@dimen/heading_spacing_before_h2"
                 android:paddingEnd="8dp"
-                android:paddingBottom="8dp">
+                android:paddingBottom="@dimen/heading_spacing_after_h2">
 
                 <TextView
+                    android:id="@+id/activitiesHeading"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="0.35"
-                    android:text="نشاطات المشروع"
-                    android:textColor="?android:textColorPrimary"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    android:textAlignment="viewStart" />
+                    android:textAppearance="@style/TextAppearance.Meydan.Heading.H2"
+                    android:text="@string/heading_activities"
+                    android:textColor="?android:textColorPrimary" />
 
                 <TextView
                     android:id="@+id/activitiesValue"
@@ -113,19 +121,18 @@
                 android:layoutDirection="rtl"
                 android:orientation="horizontal"
                 android:paddingStart="8dp"
-                android:paddingTop="8dp"
+                android:paddingTop="@dimen/heading_spacing_before_h2"
                 android:paddingEnd="8dp"
-                android:paddingBottom="8dp">
+                android:paddingBottom="@dimen/heading_spacing_after_h2">
 
                 <TextView
+                    android:id="@+id/equipmentHeading"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="0.35"
-                    android:text="الآلات والمعدات"
-                    android:textColor="?android:textColorPrimary"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    android:textAlignment="viewStart" />
+                    android:textAppearance="@style/TextAppearance.Meydan.Heading.H2"
+                    android:text="@string/heading_equipment"
+                    android:textColor="?android:textColorPrimary" />
 
                 <TextView
                     android:id="@+id/machinesValue"
@@ -157,19 +164,18 @@
                 android:layoutDirection="rtl"
                 android:orientation="horizontal"
                 android:paddingStart="8dp"
-                android:paddingTop="8dp"
+                android:paddingTop="@dimen/heading_spacing_before_h2"
                 android:paddingEnd="8dp"
-                android:paddingBottom="8dp">
+                android:paddingBottom="@dimen/heading_spacing_after_h2">
 
                 <TextView
+                    android:id="@+id/obstaclesHeading"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="0.35"
-                    android:text="العوائق والتحديات"
-                    android:textColor="?android:textColorPrimary"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    android:textAlignment="viewStart" />
+                    android:textAppearance="@style/TextAppearance.Meydan.Heading.H2"
+                    android:text="@string/heading_obstacles"
+                    android:textColor="?android:textColorPrimary" />
 
                 <TextView
                     android:id="@+id/obstaclesValue"
