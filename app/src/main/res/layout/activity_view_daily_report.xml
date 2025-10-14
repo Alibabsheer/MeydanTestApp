@@ -34,11 +34,11 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
+            android:gravity="start"
             android:text="@string/report_section_project_location"
-            android:textColor="?android:textColorPrimary"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:visibility="gone" />
+            android:textAlignment="viewStart"
+            android:visibility="gone"
+            style="@style/TextAppearance.Heading.H2" />
 
         <TextView
             android:id="@+id/projectLocationValue"
@@ -78,11 +78,10 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="0.35"
+                    android:gravity="start"
                     android:text="@string/report_section_activities"
-                    android:textColor="?android:textColorPrimary"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    android:textAlignment="viewStart" />
+                    android:textAlignment="viewStart"
+                    style="@style/TextAppearance.Heading.H2" />
 
                 <TextView
                     android:id="@+id/activitiesValue"
@@ -123,11 +122,10 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="0.35"
+                    android:gravity="start"
                     android:text="@string/report_section_equipment"
-                    android:textColor="?android:textColorPrimary"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    android:textAlignment="viewStart" />
+                    android:textAlignment="viewStart"
+                    style="@style/TextAppearance.Heading.H2" />
 
                 <TextView
                     android:id="@+id/machinesValue"
@@ -168,11 +166,10 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="0.35"
+                    android:gravity="start"
                     android:text="@string/report_section_obstacles"
-                    android:textColor="?android:textColorPrimary"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    android:textAlignment="viewStart" />
+                    android:textAlignment="viewStart"
+                    style="@style/TextAppearance.Heading.H2" />
 
                 <TextView
                     android:id="@+id/obstaclesValue"
