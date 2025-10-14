@@ -2,4 +2,6 @@
 <resources>
     <dimen name="image_preview_size">120dp</dimen>
     <dimen name="image_preview_margin">8dp</dimen>
+    <dimen name="text_heading_h1_size">22sp</dimen>
+    <dimen name="text_heading_h2_size">18sp</dimen>
 </resources>
