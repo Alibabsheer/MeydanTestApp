@@ -123,6 +123,15 @@ class ViewDailyReportActivity : AppCompatActivity() {
         obstaclesValue = findViewById(R.id.obstaclesValue)
         progressBar = findViewById(R.id.progressBar)
         zoomLayout = findViewById(R.id.zoomContainer)
+        val reportInfoHeading: TextView = findViewById(R.id.reportInfoHeading)
+        val activitiesHeading: TextView = findViewById(R.id.activitiesHeading)
+        val equipmentHeading: TextView = findViewById(R.id.equipmentHeading)
+        val obstaclesHeading: TextView = findViewById(R.id.obstaclesHeading)
+        projectLocationLabel.setText(R.string.heading_project_location)
+        reportInfoHeading.setText(R.string.heading_report_info)
+        activitiesHeading.setText(R.string.heading_activities)
+        equipmentHeading.setText(R.string.heading_equipment)
+        obstaclesHeading.setText(R.string.heading_obstacles)
         defaultProjectLocationColor = projectLocationValue.currentTextColor
         // ===== Zoom setup =====
         zoomLayout.setMinZoom(DEFAULT_MIN_ZOOM)

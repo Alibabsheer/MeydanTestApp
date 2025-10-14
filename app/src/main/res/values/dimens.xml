@@ -2,4 +2,10 @@
 <resources>
     <dimen name="image_preview_size">120dp</dimen>
     <dimen name="image_preview_margin">8dp</dimen>
+
+    <!-- Standardized heading spacing -->
+    <dimen name="heading_spacing_before">24dp</dimen>
+    <dimen name="heading_spacing_after">12dp</dimen>
+    <dimen name="heading_spacing_before_h2">12dp</dimen>
+    <dimen name="heading_spacing_after_h2">6dp</dimen>
 </resources>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base text appearance for Meydan headings to ensure RTL alignment and consistent color -->
+    <style name="TextAppearance.Meydan.Heading.Base" parent="@style/TextAppearance.AppCompat.Body1">
+        <item name="android:textColor">?android:textColorPrimary</item>
+        <item name="android:textAlignment">viewStart</item>
+        <item name="android:textDirection">anyRtl</item>
+        <item name="android:gravity">start</item>
+        <item name="android:includeFontPadding">false</item>
+    </style>
+
+    <style name="TextAppearance.Meydan.Heading.H1" parent="TextAppearance.Meydan.Heading.Base">
+        <item name="android:textSize">22sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:lineHeight">28sp</item>
+        <item name="android:maxLines">2</item>
+        <item name="android:breakStrategy">balanced</item>
+    </style>
+
+    <style name="TextAppearance.Meydan.Heading.H2" parent="TextAppearance.Meydan.Heading.Base">
+        <item name="android:textSize">18sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:lineHeight">24sp</item>
+        <item name="android:maxLines">2</item>
+        <item name="android:breakStrategy">balanced</item>
+    </style>
+
+    <style name="TextAppearance.Meydan.Heading.Caption" parent="TextAppearance.Meydan.Heading.Base">
+        <item name="android:textSize">13sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:lineHeight">18sp</item>
+    </style>
+</resources>
