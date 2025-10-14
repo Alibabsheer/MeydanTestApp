@@ -277,12 +277,6 @@ class ReportPdfBuilder(
             typeface = Typeface.create(typeface, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
         }
-        val headerPaint = arabicPaint {
-            color = maroon
-            textSize = sp(11f)
-            typeface = Typeface.create(typeface, Typeface.BOLD)
-            textAlign = Paint.Align.RIGHT
-        }
         val bodyPaint = arabicPaint {
             color = black
             textSize = sp(9.5f)
@@ -335,7 +329,8 @@ class ReportPdfBuilder(
         lateinit var page: PdfDocument.Page
         lateinit var canvas: Canvas
         var y = 0
-        var currentSectionTitle: String? = null
+        data class SectionHeading(val text: String, val level: Int)
+        var currentSectionHeading: SectionHeading? = null
 
         fun bottomLimit() = pageHeight - marginPx - footerBlockHeight
 
@@ -389,23 +384,74 @@ class ReportPdfBuilder(
             }
         }
 
-        fun drawSectionHeader(text: String) {
-            currentSectionTitle = text
-            val h = (headerPaint.fontMetrics.bottom - headerPaint.fontMetrics.top).roundToInt()
-            if (ensureSpace(h + dp(4))) {
-                // إذا انتقلنا لصفحة جديدة، نضمن تكرار العنوان الحالي قبل رسم المحتوى التالي.
-                currentSectionTitle = text
+        data class HeadingStyle(
+            val sizeSp: Float,
+            val spacingBeforePt: Float,
+            val spacingAfterPt: Float
+        )
+
+        val headingStyles = mapOf(
+            1 to HeadingStyle(sizeSp = 19f, spacingBeforePt = 9f, spacingAfterPt = 7f),
+            2 to HeadingStyle(sizeSp = 15f, spacingBeforePt = 8f, spacingAfterPt = 6f)
+        )
+
+        val headingPaintCache = mutableMapOf<Int, TextPaint>()
+
+        fun drawHeading(text: String, level: Int) {
+            val style = headingStyles[level] ?: headingStyles.getValue(2)
+            val paint = headingPaintCache.getOrPut(level) {
+                arabicPaint {
+                    color = maroon
+                    textAlign = Paint.Align.RIGHT
+                }
             }
-            val wrappedHeader = PdfBidiUtils.wrapMixed(text, rtlBase = true).toString()
-            canvas.drawText(wrappedHeader, contentRight.toFloat(), y + headerPaint.textSize, headerPaint)
-            y += h + dp(2)
+
+            val sizePx = sp(style.sizeSp)
+            if (paint.textSize != sizePx) {
+                paint.textSize = sizePx
+            }
+            val boldTypeface = Typeface.create(paint.typeface, Typeface.BOLD)
+            if (paint.typeface != boldTypeface) {
+                paint.typeface = boldTypeface
+            }
+
+            val wrappedHeader = PdfBidiUtils.wrapMixed(text, rtlBase = true)
+            val layout = createLayout(
+                text = wrappedHeader,
+                paint = paint,
+                width = contentWidth,
+                rtl = true,
+                align = Layout.Alignment.ALIGN_NORMAL,
+                spacingMult = 1f,
+                spacingAdd = 0f
+            )
+
+            val spacingBefore = pxFromPt(style.spacingBeforePt).coerceAtLeast(0)
+            val spacingAfter = pxFromPt(style.spacingAfterPt).coerceAtLeast(0)
+            val requiredSpace = spacingBefore + layout.height + spacingAfter
+
+            while (ensureSpace(requiredSpace)) {
+                // عند الانتقال لصفحة جديدة سنعيد رسم العنوان بعد بدء الصفحة.
+            }
+
+            y += spacingBefore
+            canvas.save()
+            canvas.translate(contentLeft.toFloat(), y.toFloat())
+            layout.draw(canvas)
+            canvas.restore()
+            y += layout.height + spacingAfter
+        }
+
+        fun drawSectionHeader(text: String, level: Int = 2) {
+            currentSectionHeading = SectionHeading(text, level)
+            drawHeading(text, level)
         }
 
         fun endSectionDivider() {
             val ly = y + dp(2)
             canvas.drawLine(contentLeft.toFloat(), ly.toFloat(), contentRight.toFloat(), ly.toFloat(), dividerPaint)
             y += dp(6)
-            currentSectionTitle = null
+            currentSectionHeading = null
         }
 
         fun layoutFits(layout: StaticLayout, maxWidth: Int): Boolean {
@@ -523,9 +569,9 @@ class ReportPdfBuilder(
             val requiredHeight = rowHeight + fieldLineSpacing
             var attempts = 0
             while (ensureSpace(requiredHeight)) {
-                val title = currentSectionTitle
-                if (title != null && attempts < 3) {
-                    drawSectionHeader(title)
+                val heading = currentSectionHeading
+                if (heading != null && attempts < 3) {
+                    drawSectionHeader(heading.text, heading.level)
                     attempts++
                 } else {
                     break
@@ -664,9 +710,9 @@ class ReportPdfBuilder(
                 val requiredHeight = rowHeight + max(1, rowSpacing / 2)
                 var attempts = 0
                 while (ensureSpace(requiredHeight)) {
-                    val title = currentSectionTitle
-                    if (title != null && attempts < 3) {
-                        drawSectionHeader(title)
+                    val heading = currentSectionHeading
+                    if (heading != null && attempts < 3) {
+                        drawSectionHeader(heading.text, heading.level)
                         attempts++
                     } else {
                         break
@@ -737,7 +783,7 @@ class ReportPdfBuilder(
         }
 
         fun drawActivitiesSummary(values: DailyReportTextSections) {
-            drawSectionHeader("نشاطات المشروع / الآلات والمعدات / العوائق")
+            drawSectionHeader("نشاطات المشروع / الآلات والمعدات / العوائق", level = 1)
             val rows = listOf(
                 ReportInfoEntry(
                     label = "نشاطات المشروع",
@@ -757,7 +803,7 @@ class ReportPdfBuilder(
 
         fun drawBulletedSection(title: String, items: List<String>?) {
             val list = items?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
-            drawSectionHeader(title)
+            drawSectionHeader(title, level = 1)
             if (list.isEmpty()) { endSectionDivider(); return }
 
             val bulletIndent = dp(14)
@@ -802,7 +848,12 @@ class ReportPdfBuilder(
                 )
 
                 while (ensureSpace(layout.height + itemSpacing)) {
-                    drawSectionHeader(title)
+                    val heading = currentSectionHeading
+                    if (heading != null) {
+                        drawSectionHeader(heading.text, heading.level)
+                    } else {
+                        drawSectionHeader(title, level = 1)
+                    }
                 }
 
                 val firstLineTop = layout.getLineTop(0)
@@ -828,7 +879,7 @@ class ReportPdfBuilder(
                 "عمالة غير ماهرة" to unskilled,
                 "الإجمالي" to total
             )
-            drawSectionHeader("العمالة")
+            drawSectionHeader("العمالة", level = 1)
             var rendered = false
             items.forEach { (label, value) ->
                 val cleaned = value?.trim()?.takeIf { it.isNotEmpty() } ?: return@forEach
@@ -847,7 +898,7 @@ class ReportPdfBuilder(
             val all = urls.filter { isHttpUrl(it) }
             if (all.isEmpty()) return
 
-            drawSectionHeader("صور التقرير اليومي")
+            drawSectionHeader("صور التقرير اليومي", level = 1)
 
             var index = 0
             while (index < all.size) {
@@ -866,7 +917,7 @@ class ReportPdfBuilder(
                 val weights = rowsSpec.map { (rowsSpec.maxOrNull() ?: 2).toFloat() / it }.toFloatArray()
 
                 val availableHeight = bottomLimit() - y
-                if (availableHeight < dp(120)) { finishPage(); startPageWithHeader(); drawSectionHeader("صور التقرير اليومي") }
+                if (availableHeight < dp(120)) { finishPage(); startPageWithHeader(); drawSectionHeader("صور التقرير اليومي", level = 1) }
 
                 val vGap = dp(8)
                 val hGap = dp(8)
@@ -924,7 +975,7 @@ class ReportPdfBuilder(
                     rowTop += rowHeight + vGap
                 }
 
-                if (index < all.size) { finishPage(); startPageWithHeader(); drawSectionHeader("صور التقرير اليومي") } else { y = rowTop }
+                if (index < all.size) { finishPage(); startPageWithHeader(); drawSectionHeader("صور التقرير اليومي", level = 1) } else { y = rowTop }
             }
         }
 
@@ -932,7 +983,7 @@ class ReportPdfBuilder(
         fun drawSitePagesSection(urls: List<String>) {
             urls.forEach { url ->
                 startPageWithHeader()
-                drawSectionHeader("صور التقرير اليومي")
+                drawSectionHeader("صور التقرير اليومي", level = 1)
 
                 // مساحة الصور من الموضع الحالي حتى ما قبل التذييل
                 val area = Rect(contentLeft, y, contentRight, bottomLimit())
@@ -973,7 +1024,7 @@ class ReportPdfBuilder(
             obstaclesText = enrichedData.obstaclesText
         )
 
-        drawSectionHeader("معلومات التقرير")
+        drawSectionHeader("معلومات التقرير", level = 1)
         drawReportInfoTable(buildReportInfoEntries(enrichedData))
         drawActivitiesSummary(sectionValues)
         drawLabor(data.skilledLabor, data.unskilledLabor, data.totalLabor)
