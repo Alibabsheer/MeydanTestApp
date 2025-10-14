@@ -31,11 +31,11 @@
         <!-- منطقة العرض المكبّرة -->
         <TextView
             android:id="@+id/projectLocationLabel"
-            style="@style/TextAppearance.Heading.H1"
+            style="@style/TextAppearance.Heading.H2"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="@string/label_project_location"
+            android:text="@string/report_section_project_location"
             android:visibility="gone" />
 
         <TextView
@@ -75,7 +75,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="0.35"
                     style="@style/TextAppearance.Heading.H2"
-                    android:text="@string/daily_report_section_activities"
+                    android:text="@string/report_section_activities"
                     android:textAlignment="viewStart" />
 
                 <TextView
@@ -115,7 +115,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="0.35"
                     style="@style/TextAppearance.Heading.H2"
-                    android:text="@string/daily_report_section_equipment"
+                    android:text="@string/report_section_equipment"
                     android:textAlignment="viewStart" />
 
                 <TextView
@@ -155,7 +155,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="0.35"
                     style="@style/TextAppearance.Heading.H2"
-                    android:text="@string/daily_report_section_obstacles"
+                    android:text="@string/report_section_obstacles"
                     android:textAlignment="viewStart" />
 
                 <TextView
