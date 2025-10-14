@@ -31,13 +31,11 @@
         <!-- منطقة العرض المكبّرة -->
         <TextView
             android:id="@+id/projectLocationLabel"
+            style="@style/TextAppearance.Heading.H1"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="@string/label_project_location"
-            android:textColor="?android:textColorPrimary"
-            android:textSize="16sp"
-            android:textStyle="bold"
             android:visibility="gone" />
 
         <TextView
@@ -45,8 +43,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:textColor="?android:textColorPrimary"
-            android:textSize="15sp"
+            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
             android:visibility="gone" />
 
         <LinearLayout
@@ -77,10 +74,8 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="0.35"
-                    android:text="نشاطات المشروع"
-                    android:textColor="?android:textColorPrimary"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
+                    style="@style/TextAppearance.Heading.H2"
+                    android:text="@string/daily_report_section_activities"
                     android:textAlignment="viewStart" />
 
                 <TextView
@@ -92,10 +87,8 @@
                     android:ellipsize="none"
                     android:gravity="start"
                     android:hyphenationFrequency="normal"
-                    android:textColor="?android:textColorPrimary"
+                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
                     android:textIsSelectable="false"
-                    android:textSize="15sp"
-                    android:textStyle="normal"
                     android:maxLines="10"
                     android:scrollHorizontally="false"
                     android:textAlignment="viewStart"
@@ -121,10 +114,8 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="0.35"
-                    android:text="الآلات والمعدات"
-                    android:textColor="?android:textColorPrimary"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
+                    style="@style/TextAppearance.Heading.H2"
+                    android:text="@string/daily_report_section_equipment"
                     android:textAlignment="viewStart" />
 
                 <TextView
@@ -136,10 +127,8 @@
                     android:ellipsize="none"
                     android:gravity="start"
                     android:hyphenationFrequency="normal"
-                    android:textColor="?android:textColorPrimary"
+                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
                     android:textIsSelectable="false"
-                    android:textSize="15sp"
-                    android:textStyle="normal"
                     android:maxLines="10"
                     android:scrollHorizontally="false"
                     android:textAlignment="viewStart"
@@ -165,10 +154,8 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="0.35"
-                    android:text="العوائق والتحديات"
-                    android:textColor="?android:textColorPrimary"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
+                    style="@style/TextAppearance.Heading.H2"
+                    android:text="@string/daily_report_section_obstacles"
                     android:textAlignment="viewStart" />
 
                 <TextView
@@ -180,10 +167,8 @@
                     android:ellipsize="none"
                     android:gravity="start"
                     android:hyphenationFrequency="normal"
-                    android:textColor="?android:textColorPrimary"
+                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
                     android:textIsSelectable="false"
-                    android:textSize="15sp"
-                    android:textStyle="normal"
                     android:maxLines="10"
                     android:scrollHorizontally="false"
                     android:textAlignment="viewStart"
@@ -218,7 +203,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:layout_marginBottom="6dp"
-            android:text="مشاركة التقرير PDF"
+            android:text="@string/action_share_daily_report_pdf"
             android:textAllCaps="false"
             android:textStyle="bold"
             android:textColor="@color/white"
@@ -227,7 +212,7 @@
             android:textDirection="anyRtl"
             android:textAlignment="center"
             android:enabled="false"
-            android:contentDescription="مشاركة ملف التقرير بصيغة PDF" />
+            android:contentDescription="@string/content_desc_share_pdf" />
 
         <!-- زر الرجوع -->
         <Button
@@ -235,7 +220,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:text="رجوع إلى الصفحة السابقة"
+            android:text="@string/action_back_to_previous"
             android:textAllCaps="false"
             android:textStyle="bold"
             android:textColor="@color/white"
@@ -243,7 +228,7 @@
             android:layoutDirection="rtl"
             android:textDirection="anyRtl"
             android:textAlignment="center"
-            android:contentDescription="الرجوع إلى الشاشة السابقة" />
+            android:contentDescription="@string/content_desc_back" />
     </LinearLayout>
 
     <!-- مؤشر التحميل في المنتصف (يُعرض/يُخفى برمجيًا) -->

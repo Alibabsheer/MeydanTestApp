@@ -35,6 +35,13 @@
     <string name="label_weather_status">حالة الطقس</string>
     <string name="label_project_location">موقع المشروع</string>
     <string name="label_report_created_by">تم إنشاء التقرير بواسطة</string>
+    <string name="daily_report_section_activities">نشاطات المشروع</string>
+    <string name="daily_report_section_equipment">الآلات والمعدات</string>
+    <string name="daily_report_section_obstacles">العوائق والتحديات</string>
+    <string name="action_share_daily_report_pdf">مشاركة التقرير PDF</string>
+    <string name="action_back_to_previous">رجوع إلى الصفحة السابقة</string>
+    <string name="content_desc_share_pdf">مشاركة ملف التقرير بصيغة PDF</string>
+    <string name="content_desc_back">الرجوع إلى الشاشة السابقة</string>
 
     <string-array name="work_type_options">
         <item>اختر نوع العمل</item>

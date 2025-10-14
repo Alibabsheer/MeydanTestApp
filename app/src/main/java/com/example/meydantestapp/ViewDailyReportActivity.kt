@@ -121,6 +121,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
         activitiesValue = findViewById(R.id.activitiesValue)
         machinesValue = findViewById(R.id.machinesValue)
         obstaclesValue = findViewById(R.id.obstaclesValue)
+        projectLocationLabel.setText(R.string.label_project_location)
         progressBar = findViewById(R.id.progressBar)
         zoomLayout = findViewById(R.id.zoomContainer)
         defaultProjectLocationColor = projectLocationValue.currentTextColor
