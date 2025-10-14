@@ -34,7 +34,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="@string/label_project_location"
+            android:text="@string/report_section_project_location"
             android:textColor="?android:textColorPrimary"
             android:textSize="16sp"
             android:textStyle="bold"
@@ -74,10 +74,11 @@
                 android:paddingBottom="8dp">
 
                 <TextView
+                    android:id="@+id/activitiesLabel"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="0.35"
-                    android:text="نشاطات المشروع"
+                    android:text="@string/report_section_activities"
                     android:textColor="?android:textColorPrimary"
                     android:textSize="15sp"
                     android:textStyle="bold"
@@ -118,10 +119,11 @@
                 android:paddingBottom="8dp">
 
                 <TextView
+                    android:id="@+id/machinesLabel"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="0.35"
-                    android:text="الآلات والمعدات"
+                    android:text="@string/report_section_equipment"
                     android:textColor="?android:textColorPrimary"
                     android:textSize="15sp"
                     android:textStyle="bold"
@@ -162,10 +164,11 @@
                 android:paddingBottom="8dp">
 
                 <TextView
+                    android:id="@+id/obstaclesLabel"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="0.35"
-                    android:text="العوائق والتحديات"
+                    android:text="@string/report_section_obstacles"
                     android:textColor="?android:textColorPrimary"
                     android:textSize="15sp"
                     android:textStyle="bold"

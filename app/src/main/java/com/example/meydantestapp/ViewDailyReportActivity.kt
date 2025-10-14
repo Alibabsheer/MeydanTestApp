@@ -37,6 +37,7 @@ import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
+import com.example.meydantestapp.common.ReportHeadings
 import com.example.meydantestapp.report.ReportPdfBuilder
 import com.example.meydantestapp.repository.DailyReportRepository
 import com.example.meydantestapp.utils.Constants
@@ -65,8 +66,11 @@ class ViewDailyReportActivity : AppCompatActivity() {
     private lateinit var sharePdfButton: Button
     private lateinit var projectLocationLabel: TextView
     private lateinit var projectLocationValue: TextView
+    private lateinit var activitiesLabel: TextView
     private lateinit var activitiesValue: TextView
+    private lateinit var machinesLabel: TextView
     private lateinit var machinesValue: TextView
+    private lateinit var obstaclesLabel: TextView
     private lateinit var obstaclesValue: TextView
     private lateinit var sectionsTable: View
     private var progressBar: ProgressBar? = null
@@ -117,8 +121,11 @@ class ViewDailyReportActivity : AppCompatActivity() {
         sharePdfButton = findViewById(R.id.sharePdfButton)
         projectLocationLabel = findViewById(R.id.projectLocationLabel)
         projectLocationValue = findViewById(R.id.projectLocationValue)
+        activitiesLabel = findViewById(R.id.activitiesLabel)
         sectionsTable = findViewById(R.id.reportSectionsTable)
+        machinesLabel = findViewById(R.id.machinesLabel)
         activitiesValue = findViewById(R.id.activitiesValue)
+        obstaclesLabel = findViewById(R.id.obstaclesLabel)
         machinesValue = findViewById(R.id.machinesValue)
         obstaclesValue = findViewById(R.id.obstaclesValue)
         progressBar = findViewById(R.id.progressBar)
@@ -146,6 +153,8 @@ class ViewDailyReportActivity : AppCompatActivity() {
         })
         sharePdfButton.setOnClickListener { onShareClicked() }
         sharePdfButton.isEnabled = false
+
+        applyReportHeadings()
 
         // ===== ViewModel =====
         viewModel = ViewModelProvider(this)[ViewDailyReportViewModel::class.java]
@@ -304,6 +313,13 @@ class ViewDailyReportActivity : AppCompatActivity() {
         applySectionValue(activitiesValue, sections.activities)
         applySectionValue(machinesValue, sections.machines)
         applySectionValue(obstaclesValue, sections.obstacles)
+    }
+
+    private fun applyReportHeadings() {
+        projectLocationLabel.text = ReportHeadings.projectLocation(this)
+        activitiesLabel.text = ReportHeadings.activities(this)
+        machinesLabel.text = ReportHeadings.equipment(this)
+        obstaclesLabel.text = ReportHeadings.obstacles(this)
     }
 
     private fun applySectionValue(view: TextView, value: String) {

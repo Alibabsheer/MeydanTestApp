@@ -36,6 +36,12 @@
     <string name="label_project_location">موقع المشروع</string>
     <string name="label_report_created_by">تم إنشاء التقرير بواسطة</string>
 
+    <string name="report_section_activities">نشاطات المشروع</string>
+    <string name="report_section_equipment">الآلات والمعدات</string>
+    <string name="report_section_obstacles">العوائق والتحديات</string>
+    <string name="report_section_project_location">موقع المشروع</string>
+    <string name="report_section_info">معلومات التقرير</string>
+
     <string-array name="work_type_options">
         <item>اختر نوع العمل</item>
         <item>مقطوعية</item>
