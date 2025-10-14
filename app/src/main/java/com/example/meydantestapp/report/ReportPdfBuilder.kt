@@ -11,6 +11,7 @@ import android.text.TextPaint
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import com.example.meydantestapp.R
+import com.example.meydantestapp.common.ReportHeadings
 import com.example.meydantestapp.utils.DailyReportTextSections
 import com.example.meydantestapp.utils.ImageUtils
 import com.example.meydantestapp.utils.PdfBidiUtils
@@ -737,18 +738,21 @@ class ReportPdfBuilder(
         }
 
         fun drawActivitiesSummary(values: DailyReportTextSections) {
-            drawSectionHeader("نشاطات المشروع / الآلات والمعدات / العوائق")
+            val activitiesHeading = ReportHeadings.activities(context)
+            val equipmentHeading = ReportHeadings.equipment(context)
+            val obstaclesHeading = ReportHeadings.obstacles(context)
+            drawSectionHeader(listOf(activitiesHeading, equipmentHeading, obstaclesHeading).joinToString(" / "))
             val rows = listOf(
                 ReportInfoEntry(
-                    label = "نشاطات المشروع",
+                    label = activitiesHeading,
                     value = values.activities.takeIf { it.isNotBlank() } ?: REPORT_INFO_PLACEHOLDER
                 ),
                 ReportInfoEntry(
-                    label = "الآلات والمعدات",
+                    label = equipmentHeading,
                     value = values.machines.takeIf { it.isNotBlank() } ?: REPORT_INFO_PLACEHOLDER
                 ),
                 ReportInfoEntry(
-                    label = "العوائق والتحديات",
+                    label = obstaclesHeading,
                     value = values.obstacles.takeIf { it.isNotBlank() } ?: REPORT_INFO_PLACEHOLDER
                 )
             )
@@ -973,8 +977,15 @@ class ReportPdfBuilder(
             obstaclesText = enrichedData.obstaclesText
         )
 
-        drawSectionHeader("معلومات التقرير")
-        drawReportInfoTable(buildReportInfoEntries(enrichedData))
+        drawSectionHeader(ReportHeadings.info(context))
+        val infoEntries = buildReportInfoEntries(enrichedData).mapIndexed { index, entry ->
+            if (index == 8) {
+                entry.copy(label = ReportHeadings.projectLocation(context))
+            } else {
+                entry
+            }
+        }
+        drawReportInfoTable(infoEntries)
         drawActivitiesSummary(sectionValues)
         drawLabor(data.skilledLabor, data.unskilledLabor, data.totalLabor)
         drawBulletedSection("الملاحظات", data.notes)
