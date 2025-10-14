@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Heading.Base" parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:textColor">?android:textColorPrimary</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:fontFamily">@font/main_font</item>
+        <item name="android:textAlignment">viewStart</item>
+        <item name="android:gravity">start</item>
+        <item name="android:lineSpacingExtra">@dimen/heading_line_spacing_extra</item>
+    </style>
+
+    <style name="Heading.H1" parent="Heading.Base">
+        <item name="android:textSize">24sp</item>
+        <item name="android:layout_marginTop">@dimen/heading_spacing_before</item>
+        <item name="android:layout_marginBottom">@dimen/heading_spacing_after</item>
+    </style>
+
+    <style name="Heading.H2" parent="Heading.Base">
+        <item name="android:textSize">20sp</item>
+        <item name="android:layout_marginTop">@dimen/heading_spacing_before</item>
+        <item name="android:layout_marginBottom">@dimen/heading_spacing_after</item>
+    </style>
+</resources>

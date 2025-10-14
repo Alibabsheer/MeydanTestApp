@@ -31,13 +31,10 @@
         <!-- منطقة العرض المكبّرة -->
         <TextView
             android:id="@+id/projectLocationLabel"
+            style="@style/Heading.H2"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
             android:text="@string/label_project_location"
-            android:textColor="?android:textColorPrimary"
-            android:textSize="16sp"
-            android:textStyle="bold"
             android:visibility="gone" />
 
         <TextView

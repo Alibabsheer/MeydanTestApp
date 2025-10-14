@@ -326,6 +326,19 @@ class ReportPdfBuilder(
         val contentWidth = contentRight - contentLeft
         val footerBlockHeight = dp(28)
 
+        val resources = context.resources
+        val displayMetrics = resources.displayMetrics
+        fun dimenToDp(resId: Int, fallback: Float): Float {
+            return runCatching { resources.getDimension(resId) / displayMetrics.density }.getOrElse { fallback }
+        }
+        val headingSpacingBeforeDp = dimenToDp(R.dimen.heading_spacing_before, 24f)
+        val headingSpacingAfterDp = dimenToDp(R.dimen.heading_spacing_after, 12f)
+        val headingLineSpacingExtraDp = dimenToDp(R.dimen.heading_line_spacing_extra, 4f)
+        val headingSpacingBeforePx = dpF(headingSpacingBeforeDp).roundToInt()
+        val headingSpacingAfterPx = dpF(headingSpacingAfterDp).roundToInt()
+        val headingMinContentGuardPx = dpF(max(headingSpacingAfterDp, 12f)).roundToInt()
+        val headingLineSpacingAdd = dpF(headingLineSpacingExtraDp)
+
         val fieldHorizontalPadding = fieldHorizontalPaddingPt.let { pxFromPt(it).coerceAtLeast(1) }
         val fieldVerticalPadding = fieldVerticalPaddingPt.let { pxFromPt(it).coerceAtLeast(1) }
         val fieldLineSpacing = fieldLineSpacingPt.let { pxFromPt(it).coerceAtLeast(1) }
@@ -391,14 +404,29 @@ class ReportPdfBuilder(
 
         fun drawSectionHeader(text: String) {
             currentSectionTitle = text
-            val h = (headerPaint.fontMetrics.bottom - headerPaint.fontMetrics.top).roundToInt()
-            if (ensureSpace(h + dp(4))) {
+            val wrappedHeader = PdfBidiUtils.wrapMixed(text, rtlBase = true)
+            val layout = createLayout(
+                text = wrappedHeader,
+                paint = headerPaint,
+                width = contentWidth,
+                rtl = true,
+                align = Layout.Alignment.ALIGN_NORMAL,
+                spacingMult = 1f,
+                spacingAdd = headingLineSpacingAdd
+            )
+            val headerHeight = layout.height
+            val requiredSpace = headingSpacingBeforePx + headerHeight + headingSpacingAfterPx + headingMinContentGuardPx
+            if (ensureSpace(requiredSpace)) {
                 // إذا انتقلنا لصفحة جديدة، نضمن تكرار العنوان الحالي قبل رسم المحتوى التالي.
                 currentSectionTitle = text
             }
-            val wrappedHeader = PdfBidiUtils.wrapMixed(text, rtlBase = true).toString()
-            canvas.drawText(wrappedHeader, contentRight.toFloat(), y + headerPaint.textSize, headerPaint)
-            y += h + dp(2)
+            y += headingSpacingBeforePx
+            canvas.save()
+            canvas.translate(contentLeft.toFloat(), y.toFloat())
+            layout.draw(canvas)
+            canvas.restore()
+            y += headerHeight
+            y += headingSpacingAfterPx
         }
 
         fun endSectionDivider() {
