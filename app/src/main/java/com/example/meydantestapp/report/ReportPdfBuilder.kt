@@ -23,11 +23,15 @@ import java.lang.reflect.Method
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
+import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
 private const val REPORT_INFO_PLACEHOLDER = "—"
+private const val PDF_HEADING_SPACING_BEFORE_PT = 8f
+private const val PDF_HEADING_SPACING_AFTER_PT = 6f
+private const val PDF_MIN_CONTENT_AFTER_PT = 12f
 
 /**
  * ReportPdfBuilder – توليد PDF بقياس A4 (عمودي) بالرسم اليدوي عبر Canvas.
@@ -396,8 +400,8 @@ class ReportPdfBuilder(
         var y = 0
         var currentSectionTitle: String? = null
         var currentSectionHeadingLevel: Int = 2
-        var currentSectionSpacingBefore: Float = 3f
-        var currentSectionSpacingAfter: Float = 2f
+        var currentSectionSpacingBefore: Float = PDF_HEADING_SPACING_BEFORE_PT
+        var currentSectionSpacingAfter: Float = PDF_HEADING_SPACING_AFTER_PT
 
         fun bottomLimit() = pageHeight - marginPx - footerBlockHeight
 
@@ -408,6 +412,54 @@ class ReportPdfBuilder(
             contentLeft = contentLeft,
             contentWidth = contentWidth
         )
+
+        fun spacingBeforeForLevel(level: Int): Float {
+            return if (currentSectionHeadingLevel == level) {
+                currentSectionSpacingBefore
+            } else {
+                PDF_HEADING_SPACING_BEFORE_PT
+            }
+        }
+
+        fun spacingAfterForLevel(level: Int): Float {
+            return if (currentSectionHeadingLevel == level) {
+                currentSectionSpacingAfter
+            } else {
+                PDF_HEADING_SPACING_AFTER_PT
+            }
+        }
+
+        fun ensureSpaceForHeading(level: Int, minContentAfter: Float): Boolean {
+            val remaining = bottomLimit() - y
+            val spacingBeforePt = spacingBeforeForLevel(level)
+            val spacingAfterPt = spacingAfterForLevel(level)
+            val headingHeightPx = if (currentSectionHeadingLevel == level) {
+                val title = currentSectionTitle
+                if (!title.isNullOrEmpty()) {
+                    measureHeadingHeight(title, level, spacingBeforePt, spacingAfterPt)
+                } else {
+                    null
+                }
+            } else {
+                null
+            } ?: run {
+                val paint = headingPaint(level)
+                if (paint != null) {
+                    val metrics = paint.fontMetrics
+                    val textHeight = (metrics.descent - metrics.ascent + metrics.leading).coerceAtLeast(0f)
+                    pxFromPt(spacingBeforePt) + ceil(textHeight.toDouble()).toInt() + pxFromPt(spacingAfterPt)
+                } else {
+                    pxFromPt(spacingBeforePt + spacingAfterPt)
+                }
+            }
+            val minContentAfterPx = pxFromPt(minContentAfter)
+            if (remaining < headingHeightPx + minContentAfterPx) {
+                finishPage()
+                startPageWithHeader()
+                return true
+            }
+            return false
+        }
 
         fun startPageWithHeader() {
             pageIndex += 1
@@ -431,7 +483,12 @@ class ReportPdfBuilder(
             canvas.drawBitmap(drawBmp, left.toFloat(), top.toFloat(), bitmapPaint)
 
             y += headerH + dp(6)
-            drawHeading(reportTitleHeading, level = 1, spacingBefore = 0f, spacingAfter = 4f)
+            drawHeading(
+                reportTitleHeading,
+                level = 1,
+                spacingBefore = 0f,
+                spacingAfter = PDF_HEADING_SPACING_AFTER_PT
+            )
         }
 
         fun finishPage() {
@@ -460,13 +517,23 @@ class ReportPdfBuilder(
         fun drawSectionHeader(
             text: String,
             headingLevel: Int = 2,
-            spacingBeforePt: Float = if (headingLevel == 1) 6f else 3f,
-            spacingAfterPt: Float = if (headingLevel == 1) 4f else 2f
+            spacingBeforePt: Float = PDF_HEADING_SPACING_BEFORE_PT,
+            spacingAfterPt: Float = PDF_HEADING_SPACING_AFTER_PT
         ) {
             currentSectionTitle = text
             currentSectionHeadingLevel = headingLevel
             currentSectionSpacingBefore = spacingBeforePt
             currentSectionSpacingAfter = spacingAfterPt
+
+            if (headingLevel == 2) {
+                if (ensureSpaceForHeading(level = headingLevel, minContentAfter = PDF_MIN_CONTENT_AFTER_PT)) {
+                    currentSectionTitle = text
+                    currentSectionHeadingLevel = headingLevel
+                    currentSectionSpacingBefore = spacingBeforePt
+                    currentSectionSpacingAfter = spacingAfterPt
+                }
+            }
+
             val requiredHeight = measureHeadingHeight(text, headingLevel, spacingBeforePt, spacingAfterPt)
             if (ensureSpace(requiredHeight)) {
                 currentSectionTitle = text
