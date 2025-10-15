@@ -4,4 +4,7 @@
     <dimen name="image_preview_margin">8dp</dimen>
     <dimen name="text_heading_h1_size">22sp</dimen>
     <dimen name="text_heading_h2_size">18sp</dimen>
+    <dimen name="pdf_heading_spacing_before">8pt</dimen>
+    <dimen name="pdf_heading_spacing_after">6pt</dimen>
+    <dimen name="pdf_min_content_after_heading">12pt</dimen>
 </resources>

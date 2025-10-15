@@ -28,6 +28,9 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 private const val REPORT_INFO_PLACEHOLDER = "—"
+private const val PDF_HEADING_SPACING_BEFORE_PT = 8f
+private const val PDF_HEADING_SPACING_AFTER_PT = 6f
+private const val PDF_MIN_CONTENT_AFTER_PT = 12f
 
 /**
  * ReportPdfBuilder – توليد PDF بقياس A4 (عمودي) بالرسم اليدوي عبر Canvas.
@@ -47,6 +50,11 @@ class ReportPdfBuilder(
     private val fieldVerticalPaddingPt: Float = 3.5f,
     private val fieldLineSpacingPt: Float = 6f
 ) {
+
+    private data class HeadingMetrics(
+        val h1LineHeightPt: Float,
+        val h2LineHeightPt: Float
+    )
 
     private val reportInfoHorizontalPaddingPt: Float = 4.5f
     private val reportInfoVerticalPaddingPt: Float = 2.4f
@@ -69,6 +77,7 @@ class ReportPdfBuilder(
     private fun mmToPoints(valueMm: Float): Float = valueMm * pointsPerMillimeter
     private fun pxFromMm(valueMm: Float): Int = dpF(mmToPoints(valueMm)).roundToInt()
     private fun pxFromPt(valuePt: Float): Int = dpF(valuePt).roundToInt()
+    private fun ptFromPx(valuePx: Float): Float = valuePx / pageScale
 
     private data class HeadingContext(
         val canvasProvider: () -> Canvas,
@@ -78,9 +87,30 @@ class ReportPdfBuilder(
         val contentWidth: Int
     )
 
+    private lateinit var headingMetrics: HeadingMetrics
+
     private var headingContext: HeadingContext? = null
     private var headingPaintLevel1: TextPaint? = null
     private var headingPaintLevel2: TextPaint? = null
+
+    private lateinit var pdfDocument: PdfDocument
+    private lateinit var page: PdfDocument.Page
+    private lateinit var canvas: Canvas
+    private lateinit var headerLogo: Bitmap
+    private lateinit var reportTitleHeading: String
+    private lateinit var footerPaintLeft: TextPaint
+    private lateinit var footerPaintRight: TextPaint
+    private lateinit var footerDividerPaint: Paint
+    private lateinit var bitmapPaint: Paint
+
+    private var pageIndex: Int = 0
+    private var marginPx: Int = 0
+    private var contentLeft: Int = 0
+    private var contentRight: Int = 0
+    private var contentWidth: Int = 0
+    private var footerBlockHeight: Int = 0
+    private var bottomMargin: Int = 0
+    private var y: Int = 0
 
     private fun headingPaint(level: Int): TextPaint? = when (level) {
         1 -> headingPaintLevel1
@@ -125,6 +155,73 @@ class ReportPdfBuilder(
         canvas.restore()
 
         context.setY(context.getY() + layout.height + after)
+    }
+
+    private fun bottomLimit(): Int = pageHeight - bottomMargin
+
+    private fun startPageWithHeader() {
+        pageIndex += 1
+        val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageIndex).create()
+        page = pdfDocument.startPage(pageInfo)
+        canvas = page.canvas
+        y = marginPx
+
+        val headerH = dp(90)
+        val dstRect = Rect(0, y, pageWidth, y + headerH)
+        canvas.drawColor(Color.WHITE)
+        val scale = min(
+            dstRect.width().toFloat() / headerLogo.width.toFloat(),
+            dstRect.height().toFloat() / headerLogo.height.toFloat()
+        )
+        val drawW = (headerLogo.width * scale).toInt().coerceAtLeast(1)
+        val drawH = (headerLogo.height * scale).toInt().coerceAtLeast(1)
+        val left = dstRect.left + (dstRect.width() - drawW) / 2
+        val top = dstRect.top + (dstRect.height() - drawH) / 2
+        val drawBmp = Bitmap.createScaledBitmap(headerLogo, drawW, drawH, true)
+        canvas.drawBitmap(drawBmp, left.toFloat(), top.toFloat(), bitmapPaint)
+
+        y += headerH + dp(6)
+        drawHeading(
+            reportTitleHeading,
+            level = 1,
+            spacingBefore = PDF_HEADING_SPACING_BEFORE_PT,
+            spacingAfter = PDF_HEADING_SPACING_AFTER_PT
+        )
+    }
+
+    private fun finishPage() {
+        val lineY = pageHeight - marginPx - footerBlockHeight + dp(4)
+        canvas.drawLine(contentLeft.toFloat(), lineY.toFloat(), contentRight.toFloat(), lineY.toFloat(), footerDividerPaint)
+
+        val baseY = pageHeight - marginPx.toFloat()
+        val pageLabel = PdfBidiUtils.wrapMixed("صفحة $pageIndex", rtlBase = true).toString()
+        val footerLabel = PdfBidiUtils.wrapMixed("تم إنشاء التقرير في تطبيق ميدان", rtlBase = true).toString()
+        canvas.drawText(pageLabel, contentLeft.toFloat(), baseY, footerPaintLeft)
+        canvas.drawText(footerLabel, contentRight.toFloat(), baseY, footerPaintRight)
+
+        pdfDocument.finishPage(page)
+    }
+
+    private fun ensureSpace(required: Int): Boolean {
+        return if (y + required > bottomLimit()) {
+            finishPage()
+            startPageWithHeader()
+            true
+        } else {
+            false
+        }
+    }
+
+    private fun ensureSpaceForHeading(level: Int, minContentAfterPt: Float) {
+        val remainingPt = ptFromPx(((pageHeight - bottomMargin) - y).toFloat())
+        val headingHeight = when (level) {
+            1 -> headingMetrics.h1LineHeightPt
+            else -> headingMetrics.h2LineHeightPt
+        }
+        if (remainingPt < headingHeight + minContentAfterPt) {
+            finishPage()
+            startPageWithHeader()
+        }
     }
 
     /* ---------- نموذج بيانات التقرير ---------- */
@@ -322,6 +419,7 @@ class ReportPdfBuilder(
     /* ---------- إنشاء PDF ---------- */
     fun buildPdf(data: DailyReport, logo: Bitmap?, outFile: File): File {
         val pdf = PdfDocument()
+        pdfDocument = pdf
 
         /* ========== تهيئة ألوان وخطوط ========== */
         val maroon = ContextCompat.getColor(context, R.color.brand_red_light_theme)
@@ -341,17 +439,29 @@ class ReportPdfBuilder(
             typeface = Typeface.create(typeface, Typeface.BOLD)
             textAlign = Paint.Align.RIGHT
         }
+        headingMetrics = HeadingMetrics(
+            h1LineHeightPt = headingPaintLevel1?.let {
+                val metrics = it.fontMetrics
+                val px = (metrics.descent - metrics.ascent + metrics.leading).coerceAtLeast(it.textSize)
+                ptFromPx(px)
+            } ?: 0f,
+            h2LineHeightPt = headingPaintLevel2?.let {
+                val metrics = it.fontMetrics
+                val px = (metrics.descent - metrics.ascent + metrics.leading).coerceAtLeast(it.textSize)
+                ptFromPx(px)
+            } ?: 0f
+        )
         val bodyPaint = arabicPaint {
             color = black
             textSize = sp(9.5f)
             textAlign = Paint.Align.RIGHT
         }
-        val footerPaintLeft = arabicPaint {
+        footerPaintLeft = arabicPaint {
             color = black
             textSize = sp(8f)
             textAlign = Paint.Align.LEFT
         }
-        val footerPaintRight = arabicPaint {
+        footerPaintRight = arabicPaint {
             color = black
             textSize = sp(8f)
             textAlign = Paint.Align.RIGHT
@@ -360,7 +470,7 @@ class ReportPdfBuilder(
             color = Color.LTGRAY
             strokeWidth = dpF(1f)
         }
-        val footerDividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        footerDividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
             strokeWidth = dpF(1.5f)
         }
@@ -370,36 +480,33 @@ class ReportPdfBuilder(
             strokeWidth = dpF(1f)
         }
 
-        val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+        bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
             isFilterBitmap = true
             isDither = true
         }
 
         val defaultLogo = runCatching { BitmapFactory.decodeResource(context.resources, R.drawable.default_logo) }.getOrNull()
-        val headerLogo: Bitmap = logo ?: defaultLogo ?: Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
-        val reportTitleHeading = context.getString(R.string.create_daily_report_title)
+        headerLogo = logo ?: defaultLogo ?: Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+        reportTitleHeading = context.getString(R.string.create_daily_report_title)
 
-        val marginPx = pxFromMm(pageMarginMm)
-        val contentLeft = marginPx
-        val contentRight = pageWidth - marginPx
-        val contentWidth = contentRight - contentLeft
-        val footerBlockHeight = dp(28)
+        marginPx = pxFromMm(pageMarginMm)
+        contentLeft = marginPx
+        contentRight = pageWidth - marginPx
+        contentWidth = contentRight - contentLeft
+        footerBlockHeight = dp(28)
+        bottomMargin = marginPx + footerBlockHeight
 
         val fieldHorizontalPadding = fieldHorizontalPaddingPt.let { pxFromPt(it).coerceAtLeast(1) }
         val fieldVerticalPadding = fieldVerticalPaddingPt.let { pxFromPt(it).coerceAtLeast(1) }
         val fieldLineSpacing = fieldLineSpacingPt.let { pxFromPt(it).coerceAtLeast(1) }
         val fieldLineSpacingAdd = dpF(fieldLineSpacingPt)
 
-        var pageIndex = 0
-        lateinit var page: PdfDocument.Page
-        lateinit var canvas: Canvas
-        var y = 0
+        pageIndex = 0
+        y = 0
         var currentSectionTitle: String? = null
         var currentSectionHeadingLevel: Int = 2
-        var currentSectionSpacingBefore: Float = 3f
-        var currentSectionSpacingAfter: Float = 2f
-
-        fun bottomLimit() = pageHeight - marginPx - footerBlockHeight
+        var currentSectionSpacingBefore: Float = PDF_HEADING_SPACING_BEFORE_PT
+        var currentSectionSpacingAfter: Float = PDF_HEADING_SPACING_AFTER_PT
 
         headingContext = HeadingContext(
             canvasProvider = { canvas },
@@ -408,65 +515,19 @@ class ReportPdfBuilder(
             contentLeft = contentLeft,
             contentWidth = contentWidth
         )
-
-        fun startPageWithHeader() {
-            pageIndex += 1
-            val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageIndex).create()
-            page = pdf.startPage(pageInfo)
-            canvas = page.canvas
-            y = marginPx
-
-            val headerH = dp(90)
-            val dstRect = Rect(0, y, pageWidth, y + headerH)
-            canvas.drawColor(Color.WHITE)
-            val scale = min(
-                dstRect.width().toFloat() / headerLogo.width.toFloat(),
-                dstRect.height().toFloat() / headerLogo.height.toFloat()
-            )
-            val drawW = (headerLogo.width * scale).toInt().coerceAtLeast(1)
-            val drawH = (headerLogo.height * scale).toInt().coerceAtLeast(1)
-            val left = dstRect.left + (dstRect.width() - drawW) / 2
-            val top = dstRect.top + (dstRect.height() - drawH) / 2
-            val drawBmp = Bitmap.createScaledBitmap(headerLogo, drawW, drawH, true)
-            canvas.drawBitmap(drawBmp, left.toFloat(), top.toFloat(), bitmapPaint)
-
-            y += headerH + dp(6)
-            drawHeading(reportTitleHeading, level = 1, spacingBefore = 0f, spacingAfter = 4f)
-        }
-
-        fun finishPage() {
-            val lineY = pageHeight - marginPx - footerBlockHeight + dp(4)
-            canvas.drawLine(contentLeft.toFloat(), lineY.toFloat(), contentRight.toFloat(), lineY.toFloat(), footerDividerPaint)
-
-            val baseY = pageHeight - marginPx.toFloat()
-            val pageLabel = PdfBidiUtils.wrapMixed("صفحة $pageIndex", rtlBase = true).toString()
-            val footerLabel = PdfBidiUtils.wrapMixed("تم إنشاء التقرير في تطبيق ميدان", rtlBase = true).toString()
-            canvas.drawText(pageLabel, contentLeft.toFloat(), baseY, footerPaintLeft)
-            canvas.drawText(footerLabel, contentRight.toFloat(), baseY, footerPaintRight)
-
-            pdf.finishPage(page)
-        }
-
-        fun ensureSpace(required: Int): Boolean {
-            return if (y + required > bottomLimit()) {
-                finishPage()
-                startPageWithHeader()
-                true
-            } else {
-                false
-            }
-        }
-
         fun drawSectionHeader(
             text: String,
             headingLevel: Int = 2,
-            spacingBeforePt: Float = if (headingLevel == 1) 6f else 3f,
-            spacingAfterPt: Float = if (headingLevel == 1) 4f else 2f
+            spacingBeforePt: Float = PDF_HEADING_SPACING_BEFORE_PT,
+            spacingAfterPt: Float = PDF_HEADING_SPACING_AFTER_PT
         ) {
             currentSectionTitle = text
             currentSectionHeadingLevel = headingLevel
             currentSectionSpacingBefore = spacingBeforePt
             currentSectionSpacingAfter = spacingAfterPt
+            if (headingLevel == 2) {
+                ensureSpaceForHeading(level = headingLevel, minContentAfterPt = PDF_MIN_CONTENT_AFTER_PT)
+            }
             val requiredHeight = measureHeadingHeight(text, headingLevel, spacingBeforePt, spacingAfterPt)
             if (ensureSpace(requiredHeight)) {
                 currentSectionTitle = text
