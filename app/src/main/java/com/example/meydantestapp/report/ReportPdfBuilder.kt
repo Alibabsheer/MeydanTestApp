@@ -8,6 +8,7 @@ import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextDirectionHeuristics
 import android.text.TextPaint
+import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import com.example.meydantestapp.R
@@ -765,7 +766,8 @@ class ReportPdfBuilder(
                 } else {
                     trimmedValue
                 }
-                val wrappedLabel = PdfBidiUtils.wrapMixed(entry.label, rtlBase = true)
+                val labelText = context.getString(entry.labelRes)
+                val wrappedLabel = PdfBidiUtils.wrapMixed(labelText, rtlBase = true)
                 val wrappedValue = PdfBidiUtils.wrapMixed(normalizedValue, rtlBase = true)
 
                 val linkUrl = if (!isPlaceholder) {
@@ -1147,13 +1149,7 @@ class ReportPdfBuilder(
         )
 
         drawSectionHeader(ReportHeadings.info(context), headingLevel = 1)
-        val infoEntries = buildReportInfoEntries(enrichedData).mapIndexed { index, entry ->
-            if (index == 8) {
-                entry.copy(label = ReportHeadings.projectLocation(context))
-            } else {
-                entry
-            }
-        }
+        val infoEntries = buildReportInfoEntries(enrichedData)
         drawReportInfoTable(infoEntries)
         drawActivitiesSummary(sectionValues)
         drawLabor(data.skilledLabor, data.unskilledLabor, data.totalLabor)
@@ -1222,7 +1218,7 @@ class ReportPdfBuilder(
 }
 
 internal data class ReportInfoEntry(
-    val label: String,
+    @StringRes val labelRes: Int,
     val value: String,
     val linkUrl: String? = null
 )
@@ -1230,7 +1226,7 @@ internal data class ReportInfoEntry(
 internal fun buildReportInfoEntries(data: ReportPdfBuilder.DailyReport): List<ReportInfoEntry> {
     fun String?.normalized(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
 
-    fun entry(label: String, raw: String?, link: String? = null): ReportInfoEntry {
+    fun entry(@StringRes label: Int, raw: String?, link: String? = null): ReportInfoEntry {
         val normalized = raw.normalized()
         val value = normalized ?: REPORT_INFO_PLACEHOLDER
         val url = if (normalized != null) link?.trim()?.takeIf { it.isNotEmpty() } else null
@@ -1238,15 +1234,15 @@ internal fun buildReportInfoEntries(data: ReportPdfBuilder.DailyReport): List<Re
     }
 
     return listOf(
-        entry("اسم المشروع", data.projectName),
-        entry("مالك المشروع", data.ownerName),
-        entry("مقاول المشروع", data.contractorName),
-        entry("الاستشاري", data.consultantName),
-        entry("رقم التقرير", data.reportNumber),
-        entry("التاريخ", data.dateText),
-        entry("درجة الحرارة", data.temperatureC),
-        entry("حالة الطقس", data.weatherCondition),
-        entry("موقع المشروع", data.projectAddressText, data.projectGoogleMapsUrl),
-        entry("تم إنشاء التقرير بواسطة", data.createdBy)
+        entry(R.string.label_project_name, data.projectName),
+        entry(R.string.label_project_owner, data.ownerName),
+        entry(R.string.label_project_contractor, data.contractorName),
+        entry(R.string.label_project_consultant, data.consultantName),
+        entry(R.string.label_report_number, data.reportNumber),
+        entry(R.string.label_report_date, data.dateText),
+        entry(R.string.label_temperature, data.temperatureC),
+        entry(R.string.label_weather_status, data.weatherCondition),
+        entry(R.string.report_section_project_location, data.projectAddressText, data.projectGoogleMapsUrl),
+        entry(R.string.label_report_created_by, data.createdBy)
     )
 }

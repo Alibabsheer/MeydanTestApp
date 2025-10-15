@@ -2,50 +2,87 @@ package com.example.meydantestapp
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.annotation.StringRes
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.Transformations
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.meydantestapp.repository.DailyReportRepository
+import com.example.meydantestapp.report.ReportInfoEntry
+import com.example.meydantestapp.report.ReportPdfBuilder
+import com.example.meydantestapp.report.buildReportInfoEntries
+import com.example.meydantestapp.utils.DailyReportTextSections
+import com.example.meydantestapp.utils.resolveDailyReportSections
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
+import java.text.DecimalFormat
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.LinkedHashSet
+import java.util.Locale
 
-/**
- * ViewDailyReportViewModel – عرض تقرير يومي بصور كاملة حسب القالب + شعار المؤسسة.
- *
- * الميزات:
- * 1) loadOrganizationLogo(organizationId): يجلب شعار المؤسسة من التخزين مع كاش الذاكرة ومنع السباق.
- * 2) loadReport(organizationId, projectId, reportId): يجلب بيانات التقرير ويحضّر مصادر العرض:
- *    - يفضّل الحقل الجديد sitepages (قائمة روابط صفحات جاهزة) مع sitepagesmeta.
- *    - إن لم توجد، يرجع إلى الحقل القديم photos (توافقًا).
- * 3) displayPages: قائمة روابط الصور التي يجب عرضها (صفحة كاملة لكل عنصر).
- * 4) usingSitePages: مؤشر هل المصدر هو الصفحات المركّبة أم صور قديمة.
- */
+private const val SECTION_PLACEHOLDER = "—"
+
+data class DailyReportHeaderUi(
+    @StringRes val headingRes: Int,
+    val projectName: String?,
+    val infoEntries: List<ReportInfoEntry>,
+    val locationAddress: String?
+)
+
+enum class DailyReportSectionType {
+    ACTIVITIES,
+    EQUIPMENT,
+    OBSTACLES,
+    NOTES
+}
+
+data class DailyReportSectionUi(
+    val type: DailyReportSectionType,
+    val paragraphs: List<String>
+)
+
+data class DailyReportImageUi(
+    val url: String,
+    val description: String? = null
+)
+
+data class ProjectLocationUi(
+    val address: String,
+    val url: String?
+)
+
 class ViewDailyReportViewModel : ViewModel() {
 
-    // =============== تخزين الشعار =============== //
     private val storage by lazy { FirebaseStorage.getInstance() }
 
     private val _logo = MutableLiveData<Bitmap?>()
     val logo: LiveData<Bitmap?> = _logo
 
-    private val _isLoading = MutableLiveData(false)
-    val isLoading: LiveData<Boolean> = _isLoading
-
     private var lastOrgId: String? = null
     private var cachedLogo: Bitmap? = null
-
     private var currentLogoJob: Job? = null
 
-    /**
-     * تحميل شعار المؤسسة حسب المعرّف. يستخدم كاش الذاكرة لنفس orgId،
-     * ويُلغي أي عملية تحميل سابقة لتجنّب حالات السباق.
-     */
+    private val _header = MutableLiveData<DailyReportHeaderUi?>()
+    val header: LiveData<DailyReportHeaderUi?> = _header
+
+    private val _sections = MutableLiveData<List<DailyReportSectionUi>>(emptyList())
+    val sections: LiveData<List<DailyReportSectionUi>> = _sections
+
+    private val _images = MutableLiveData<List<DailyReportImageUi>>(emptyList())
+    val images: LiveData<List<DailyReportImageUi>> = _images
+
+    private val _projectLocation = MutableLiveData<ProjectLocationUi?>(null)
+    val projectLocation: LiveData<ProjectLocationUi?> = _projectLocation
+    val projectLocationUrl: LiveData<String?> = Transformations.map(_projectLocation) { it?.url }
+
+    private val _pdfData = MutableLiveData<ReportPdfBuilder.DailyReport?>(null)
+    val pdfData: LiveData<ReportPdfBuilder.DailyReport?> = _pdfData
+
     fun loadOrganizationLogo(organizationId: String?) {
         val orgId = organizationId?.trim()
         if (orgId.isNullOrEmpty()) {
@@ -53,17 +90,14 @@ class ViewDailyReportViewModel : ViewModel() {
             return
         }
 
-        // إعادة استخدام الكاش لنفس المعرف
         if (orgId == lastOrgId && cachedLogo != null) {
             _logo.postValue(cachedLogo)
             return
         }
 
-        // إطلاق مهمة IO جديدة بعد إلغاء السابقة (إن وُجدت)
         viewModelScope.launch(Dispatchers.IO) {
             currentLogoJob?.cancelAndJoin()
             currentLogoJob = launch {
-                _isLoading.postValue(true)
                 try {
                     val exts = listOf("png", "webp", "jpg", "jpeg")
                     val candidates = buildList {
@@ -85,14 +119,11 @@ class ViewDailyReportViewModel : ViewModel() {
                     _logo.postValue(loaded)
                 } catch (_: Exception) {
                     _logo.postValue(null)
-                } finally {
-                    _isLoading.postValue(false)
                 }
             }
         }
     }
 
-    /** إفراغ كاش الشعار يدويًا (مثلاً عند تبديل الحساب). */
     fun clearLogoCache() {
         cachedLogo = null
         lastOrgId = null
@@ -101,88 +132,147 @@ class ViewDailyReportViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         currentLogoJob?.cancel()
-        currentReportJob?.cancel()
     }
 
-    // ================== عرض التقرير ================== //
-    private val reportsRepo by lazy { DailyReportRepository() }
+    fun setReport(report: DailyReport) {
+        viewModelScope.launch(Dispatchers.Default) {
+            val sections = resolveSections(report)
+            val pdfData = createPdfData(report, sections)
+            val headerUi = DailyReportHeaderUi(
+                headingRes = R.string.report_section_info,
+                projectName = report.projectName.normalizedOrNull(),
+                infoEntries = buildReportInfoEntries(pdfData),
+                locationAddress = pdfData.projectAddressText
+            )
 
-    private val _report = MutableLiveData<Map<String, Any>?>(null)
-    val report: LiveData<Map<String, Any>?> = _report
-
-    private val _sitePages = MutableLiveData<List<String>>(emptyList())
-    val sitePages: LiveData<List<String>> = _sitePages
-
-    private val _photosLegacy = MutableLiveData<List<String>>(emptyList())
-    val photosLegacy: LiveData<List<String>> = _photosLegacy
-
-    private val _pagesMeta = MutableLiveData<List<Map<String, Any>>>(emptyList())
-    val pagesMeta: LiveData<List<Map<String, Any>>> = _pagesMeta
-
-    private val _displayPages = MutableLiveData<List<String>>(emptyList())
-    val displayPages: LiveData<List<String>> = _displayPages
-
-    private val _usingSitePages = MutableLiveData(false)
-    val usingSitePages: LiveData<Boolean> = _usingSitePages
-
-    private val _loadingReport = MutableLiveData(false)
-    val loadingReport: LiveData<Boolean> = _loadingReport
-
-    private val _message = MutableLiveData<String?>(null)
-    val message: LiveData<String?> = _message
-
-    private var currentReportJob: Job? = null
-
-    /**
-     * يجلب تقريرًا مفردًا ويجهّز مصادر العرض.
-     * - يفضّل sitepages + sitepagesmeta
-     * - إن لم توجد، يرجع إلى photos (توافقًا)
-     */
-    fun loadReport(organizationId: String, projectId: String, reportId: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            // امنع تداخل الطلبات على نفس الشاشة
-            currentReportJob?.cancelAndJoin()
-            currentReportJob = launch {
-                _loadingReport.postValue(true)
-                try {
-                    val result = reportsRepo.getDailyReportById(organizationId, projectId, reportId)
-                    val data = result.getOrElse { throw it }
-                    _report.postValue(data)
-
-                    // قراءة الحقول الجديدة أولاً
-                    val pages = coerceStringList(data["sitepages"]) // ترتيبًا
-                    val meta = coerceMetaList(data["sitepagesmeta"]) // وصف لكل صفحة وخاناتها
-
-                    // الحقل القديم photos (توافقًا)
-                    val photos = coerceStringList(data["photos"]) // روابط صور منفردة قديمة
-
-                    _sitePages.postValue(pages)
-                    _pagesMeta.postValue(meta)
-                    _photosLegacy.postValue(photos)
-
-                    if (pages.isNotEmpty()) {
-                        _displayPages.postValue(pages)
-                        _usingSitePages.postValue(true)
-                    } else {
-                        _displayPages.postValue(photos)
-                        _usingSitePages.postValue(false)
-                    }
-                } catch (e: Exception) {
-                    _message.postValue(e.message ?: "تعذر تحميل التقرير")
-                    _report.postValue(null)
-                    _sitePages.postValue(emptyList())
-                    _photosLegacy.postValue(emptyList())
-                    _pagesMeta.postValue(emptyList())
-                    _displayPages.postValue(emptyList())
-                    _usingSitePages.postValue(false)
-                } finally {
-                    _loadingReport.postValue(false)
-                }
+            val locationUi = pdfData.projectAddressText?.normalizedOrNull()?.let { address ->
+                ProjectLocationUi(
+                    address = address,
+                    url = pdfData.projectGoogleMapsUrl?.normalizedOrNull()
+                )
             }
+
+            val sectionItems = buildSectionItems(sections, report.notes)
+            val imageItems = buildImageItems(report)
+
+            _header.postValue(headerUi)
+            _sections.postValue(sectionItems)
+            _images.postValue(imageItems)
+            _projectLocation.postValue(locationUi)
+            _pdfData.postValue(pdfData)
         }
     }
 
-    // ===================== Helpers ===================== //
+    private fun resolveSections(report: DailyReport): DailyReportTextSections {
+        return resolveDailyReportSections(
+            activitiesList = report.dailyActivities,
+            machinesList = report.resourcesUsed,
+            obstaclesList = report.challenges,
+            activitiesText = report.activitiesText,
+            machinesText = report.machinesText,
+            obstaclesText = report.obstaclesText
+        )
+    }
+
+    private fun createPdfData(
+        report: DailyReport,
+        sections: DailyReportTextSections
+    ): ReportPdfBuilder.DailyReport {
+        val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val dateText = report.date?.let { df.format(Date(it)) }
+        return ReportPdfBuilder.DailyReport(
+            organizationName = report.organizationName,
+            projectName = report.projectName,
+            ownerName = report.ownerName,
+            contractorName = report.contractorName,
+            consultantName = report.consultantName,
+            projectAddressText = report.addressText.normalizedOrNull(),
+            projectGoogleMapsUrl = report.googleMapsUrl?.normalizedOrNull(),
+            reportNumber = report.reportNumber,
+            dateText = dateText,
+            temperatureC = report.temperature,
+            weatherCondition = report.weatherStatus,
+            weatherText = formatWeatherLine(report.temperature, report.weatherStatus),
+            createdBy = report.createdByName?.takeIf { it.isNotBlank() } ?: report.createdBy,
+            dailyActivities = report.dailyActivities,
+            skilledLabor = report.skilledLabor?.toString(),
+            unskilledLabor = report.unskilledLabor?.toString(),
+            totalLabor = report.totalLabor?.toString(),
+            resourcesUsed = report.resourcesUsed,
+            challenges = report.challenges,
+            activitiesText = sections.activities,
+            machinesText = sections.machines,
+            obstaclesText = sections.obstacles,
+            notes = report.notes,
+            photoUrls = report.photos,
+            site_photos = null,
+            sitepages = report.sitepages
+        )
+    }
+
+    private fun buildSectionItems(
+        sections: DailyReportTextSections,
+        notes: List<String>?
+    ): List<DailyReportSectionUi> {
+        val items = mutableListOf<DailyReportSectionUi>()
+        items += DailyReportSectionUi(
+            type = DailyReportSectionType.ACTIVITIES,
+            paragraphs = paragraphsFrom(sections.activities)
+        )
+        items += DailyReportSectionUi(
+            type = DailyReportSectionType.EQUIPMENT,
+            paragraphs = paragraphsFrom(sections.machines)
+        )
+        items += DailyReportSectionUi(
+            type = DailyReportSectionType.OBSTACLES,
+            paragraphs = paragraphsFrom(sections.obstacles)
+        )
+
+        val sanitizedNotes = notes
+            ?.flatMap { it.split('\n') }
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            .orEmpty()
+
+        if (sanitizedNotes.isNotEmpty()) {
+            items += DailyReportSectionUi(
+                type = DailyReportSectionType.NOTES,
+                paragraphs = sanitizedNotes
+            )
+        }
+        return items
+    }
+
+    private fun buildImageItems(report: DailyReport): List<DailyReportImageUi> {
+        val seen = LinkedHashSet<String>()
+        fun collect(values: List<String>?): List<String> {
+            val result = mutableListOf<String>()
+            values?.forEach { raw ->
+                val normalized = raw.trim().takeIf { it.isNotEmpty() }
+                val isHttp = normalized != null && (
+                    normalized.startsWith("http://") || normalized.startsWith("https://")
+                )
+                if (isHttp && seen.add(normalized!!)) {
+                    result += normalized
+                }
+            }
+            return result
+        }
+        val primary = collect(report.photos)
+        val secondary = collect(report.sitepages)
+        return (primary + secondary).map { DailyReportImageUi(url = it) }
+    }
+
+    private fun paragraphsFrom(text: String): List<String> {
+        val paragraphs = text
+            .split('\n')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+        if (paragraphs.isEmpty()) {
+            return listOf(SECTION_PLACEHOLDER)
+        }
+        return paragraphs
+    }
 
     private fun decodeDownsampled(bytes: ByteArray, maxDim: Int): Bitmap? = try {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -199,24 +289,35 @@ class ViewDailyReportViewModel : ViewModel() {
         null
     }
 
-    private fun coerceStringList(any: Any?): List<String> {
-        val src = any as? List<*> ?: return emptyList()
-        return src.mapNotNull { it?.toString()?.trim() }.filter { it.isNotEmpty() }
-    }
-
-    private fun coerceMetaList(any: Any?): List<Map<String, Any>> {
-        val src = any as? List<*> ?: return emptyList()
-        val out = mutableListOf<Map<String, Any>>()
-        for (el in src) {
-            val m = el as? Map<*, *> ?: continue
-            val clean = mutableMapOf<String, Any>()
-            for ((k, v) in m) if (k is String && v != null) clean[k] = v
-            if (clean.isNotEmpty()) out += clean
-        }
-        return out
-    }
-
     companion object {
-        private const val MAX_LOGO_BYTES = 5_000_000L // 5MB
+        private const val MAX_LOGO_BYTES: Long = 512 * 1024
     }
+}
+
+internal fun String?.normalizedOrNull(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
+
+private fun formatWeatherLine(tempRaw: String?, statusRaw: String?): String? {
+    val t = normalizeCelsius(tempRaw)
+    val s = statusRaw?.trim()?.takeIf { it.isNotEmpty() }
+    return when {
+        t != null && s != null -> "درجة الحرارة : $t    حالة الطقس : $s"
+        t != null -> "درجة الحرارة : $t"
+        s != null -> "حالة الطقس : $s"
+        else -> null
+    }
+}
+
+private fun normalizeCelsius(input: String?): String? {
+    val src = input?.trim()?.replace('\u00A0'.toString(), " ")?.replace(",", ".") ?: return null
+    if (src.isEmpty()) return null
+    val regex = Regex("[+-]?\\d+(?:\\.\\d+)?")
+    val match = regex.find(src)
+    val number = match?.value ?: return null
+    val asDouble = number.toDoubleOrNull() ?: return null
+    val fmt = if (asDouble % 1.0 == 0.0) {
+        DecimalFormat("#").format(asDouble)
+    } else {
+        DecimalFormat("#.#").format(asDouble)
+    }
+    return "$fmt °C"
 }
