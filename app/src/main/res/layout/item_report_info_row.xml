@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layoutDirection="locale"
-    android:gravity="center_vertical"
     android:minHeight="48dp"
-    android:orientation="horizontal"
+    android:paddingStart="@dimen/report_item_spacing_half"
+    android:paddingEnd="@dimen/report_item_spacing_half"
     android:paddingTop="@dimen/report_item_spacing_half"
     android:paddingBottom="@dimen/report_item_spacing_half">
 
@@ -13,22 +14,34 @@
         android:id="@+id/infoLabel"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:paddingEnd="@dimen/report_item_spacing_half"
+        android:layout_marginEnd="@dimen/report_item_spacing_half"
         android:textAppearance="@style/TextAppearance.Heading.H2"
         android:textColor="?android:textColorPrimary"
-        android:textDirection="firstStrong" />
+        android:textAlignment="viewStart"
+        android:textDirection="firstStrong"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintBottom_toBottomOf="@id/infoValue"
+        app:layout_constraintEnd_toStartOf="@id/infoValue"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/infoValue" />
 
     <TextView
         android:id="@+id/infoValue"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
         android:breakStrategy="balanced"
-        android:gravity="start"
         android:lineSpacingExtra="@dimen/report_body_line_spacing_extra"
+        android:maxLines="8"
         android:textColor="?android:textColorPrimary"
+        android:textAlignment="viewStart"
         android:textDirection="firstStrong"
-        android:textSize="15sp" />
+        android:textIsSelectable="false"
+        android:textSize="15sp"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toEndOf="@id/infoLabel"
+        app:layout_constraintTop_toTopOf="parent" />
 
-</LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>

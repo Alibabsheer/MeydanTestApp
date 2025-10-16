@@ -4,9 +4,9 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.annotation.StringRes
-import com.example.meydantestapp.DailyReport
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.meydantestapp.DailyReport
 import com.example.meydantestapp.utils.resolveDailyReportSections
 import com.example.meydantestapp.view.ReportItem
 import com.google.firebase.storage.FirebaseStorage
@@ -75,6 +75,15 @@ class ViewDailyReportViewModel : ViewModel() {
             ReportItem.InfoRow(row.labelRes, value, link)
         }
 
+        val workforceEntries = buildWorkforceEntries(
+            skilled = report.skilledLabor,
+            unskilled = report.unskilledLabor,
+            total = report.totalLabor
+        )
+        if (workforceEntries.isNotEmpty()) {
+            items += ReportItem.Workforce(workforceEntries)
+        }
+
         val sections = resolveDailyReportSections(
             activitiesList = report.dailyActivities,
             machinesList = report.resourcesUsed,
@@ -91,12 +100,24 @@ class ViewDailyReportViewModel : ViewModel() {
         items += ReportItem.SectionTitle(level = 2, titleRes = R.string.report_section_obstacles)
         items += ReportItem.BodyText(sections.obstacles.ifBlank { placeholder })
 
+        val sitePages = buildSitePages(report)
+        if (sitePages.isNotEmpty()) {
+            items += ReportItem.SectionTitle(level = 2, titleRes = R.string.report_section_site_pages)
+            items += sitePages
+        }
+
         val photos = report.photos.orEmpty()
             .mapNotNull { raw ->
                 val normalized = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                runCatching { Uri.parse(normalized) }.getOrNull()
+                val uri = runCatching { Uri.parse(normalized) }.getOrNull() ?: return@mapNotNull null
+                val scheme = uri.scheme?.lowercase(Locale.ROOT)
+                if (scheme != "http" && scheme != "https") return@mapNotNull null
+                uri
             }
-        items += photos.map { uri -> ReportItem.Photo(uri) }
+        if (photos.isNotEmpty()) {
+            items += ReportItem.SectionTitle(level = 2, titleRes = R.string.report_section_photos)
+            items += photos.map { uri -> ReportItem.Photo(uri) }
+        }
 
         _nativeItems.value = items
     }
@@ -195,6 +216,56 @@ class ViewDailyReportViewModel : ViewModel() {
         val value = match.value.toDoubleOrNull() ?: return null
         val format = if (value % 1.0 == 0.0) DecimalFormat("#") else DecimalFormat("#.#")
         return "${format.format(value)} °C"
+    }
+
+    private fun buildWorkforceEntries(
+        skilled: Int?,
+        unskilled: Int?,
+        total: Int?
+    ): List<String> {
+        fun Int?.normalized(): String? = this?.let { value ->
+            value.toString().trim().takeIf { it.isNotEmpty() }
+        }
+
+        return buildList {
+            skilled.normalized()?.let { add(ReportItem.Workforce.buildEntry(ReportItem.Workforce.KEY_SKILLED, it)) }
+            unskilled.normalized()?.let { add(ReportItem.Workforce.buildEntry(ReportItem.Workforce.KEY_UNSKILLED, it)) }
+            total.normalized()?.let { add(ReportItem.Workforce.buildEntry(ReportItem.Workforce.KEY_TOTAL, it)) }
+        }
+    }
+
+    private fun buildSitePages(report: DailyReport): List<ReportItem.SitePage> {
+        val urls = report.sitepages.orEmpty()
+        if (urls.isEmpty()) return emptyList()
+
+        val captionsByIndex = report.sitepagesmeta.orEmpty().mapNotNull { raw ->
+            val map = raw as? Map<*, *> ?: return@mapNotNull null
+            val index = (map["pageIndex"] as? Number)?.toInt()
+            val caption = listOf(
+                map["pageCaption"],
+                map["caption"]
+            ).mapNotNull { candidate -> (candidate as? String)?.trim()?.takeIf { it.isNotEmpty() } }
+                .firstOrNull()
+                ?: (map["slots"] as? List<*>)
+                    ?.mapNotNull { slot ->
+                        val slotMap = slot as? Map<*, *> ?: return@mapNotNull null
+                        (slotMap["caption"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+                    }
+                    ?.firstOrNull()
+            if (index == null || caption.isNullOrEmpty()) {
+                return@mapNotNull null
+            }
+            index to caption
+        }.toMap()
+
+        return urls.mapIndexedNotNull { index, raw ->
+            val normalized = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapIndexedNotNull null
+            val uri = runCatching { Uri.parse(normalized) }.getOrNull() ?: return@mapIndexedNotNull null
+            val scheme = uri.scheme?.lowercase(Locale.ROOT)
+            if (scheme != "http" && scheme != "https") return@mapIndexedNotNull null
+            val caption = captionsByIndex[index]
+            ReportItem.SitePage(uri = uri, caption = caption)
+        }
     }
 
     private data class InfoRowData(

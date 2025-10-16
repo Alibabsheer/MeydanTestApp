@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layoutDirection="locale"
+    android:orientation="vertical"
+    android:paddingTop="@dimen/report_item_spacing"
+    android:paddingBottom="@dimen/report_item_spacing"
+    android:paddingStart="@dimen/report_item_spacing_half"
+    android:paddingEnd="@dimen/report_item_spacing_half">
+
+    <TextView
+        android:id="@+id/workforceTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="@dimen/report_item_spacing_half"
+        android:textAppearance="@style/TextAppearance.Heading.H2"
+        android:textColor="?android:textColorPrimary"
+        android:textAlignment="viewStart"
+        android:textDirection="firstStrong" />
+
+    <TextView
+        android:id="@+id/workforceEntries"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:breakStrategy="balanced"
+        android:lineSpacingExtra="@dimen/report_body_line_spacing_extra"
+        android:textColor="?android:textColorPrimary"
+        android:textDirection="firstStrong"
+        android:textAlignment="viewStart"
+        android:textSize="15sp" />
+
+</LinearLayout>

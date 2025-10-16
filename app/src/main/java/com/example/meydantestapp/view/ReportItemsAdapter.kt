@@ -12,6 +12,8 @@ import com.example.meydantestapp.view.holder.HeaderLogoVH
 import com.example.meydantestapp.view.holder.InfoRowVH
 import com.example.meydantestapp.view.holder.PhotoVH
 import com.example.meydantestapp.view.holder.SectionTitleVH
+import com.example.meydantestapp.view.holder.SitePageVH
+import com.example.meydantestapp.view.holder.WorkforceVH
 
 class ReportItemsAdapter(
     private val logoProvider: () -> Bitmap?,
@@ -25,6 +27,8 @@ class ReportItemsAdapter(
             is ReportItem.SectionTitle -> VIEW_TYPE_SECTION_TITLE
             is ReportItem.BodyText -> VIEW_TYPE_BODY_TEXT
             is ReportItem.Photo -> VIEW_TYPE_PHOTO
+            is ReportItem.Workforce -> VIEW_TYPE_WORKFORCE
+            is ReportItem.SitePage -> VIEW_TYPE_SITE_PAGE
         }
     }
 
@@ -35,6 +39,8 @@ class ReportItemsAdapter(
             VIEW_TYPE_INFO_ROW -> InfoRowVH(inflater.inflate(R.layout.item_report_info_row, parent, false))
             VIEW_TYPE_SECTION_TITLE -> SectionTitleVH(inflater.inflate(R.layout.item_report_section_title, parent, false))
             VIEW_TYPE_BODY_TEXT -> BodyTextVH(inflater.inflate(R.layout.item_report_body_text, parent, false))
+            VIEW_TYPE_WORKFORCE -> WorkforceVH(inflater.inflate(R.layout.item_report_workforce, parent, false))
+            VIEW_TYPE_SITE_PAGE -> SitePageVH(inflater.inflate(R.layout.item_report_site_page, parent, false))
             else -> PhotoVH(inflater.inflate(R.layout.item_report_photo, parent, false))
         }
     }
@@ -46,13 +52,16 @@ class ReportItemsAdapter(
             is ReportItem.SectionTitle -> (holder as SectionTitleVH).bind(item)
             is ReportItem.BodyText -> (holder as BodyTextVH).bind(item)
             is ReportItem.Photo -> (holder as PhotoVH).bind(item)
+            is ReportItem.Workforce -> (holder as WorkforceVH).bind(item)
+            is ReportItem.SitePage -> (holder as SitePageVH).bind(item)
         }
     }
 
     override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
         super.onViewRecycled(holder)
-        if (holder is PhotoVH) {
-            holder.clear()
+        when (holder) {
+            is PhotoVH -> holder.clear()
+            is SitePageVH -> holder.clear()
         }
     }
 
@@ -67,5 +76,7 @@ class ReportItemsAdapter(
         private const val VIEW_TYPE_SECTION_TITLE = 2
         private const val VIEW_TYPE_BODY_TEXT = 3
         private const val VIEW_TYPE_PHOTO = 4
+        private const val VIEW_TYPE_WORKFORCE = 5
+        private const val VIEW_TYPE_SITE_PAGE = 6
     }
 }

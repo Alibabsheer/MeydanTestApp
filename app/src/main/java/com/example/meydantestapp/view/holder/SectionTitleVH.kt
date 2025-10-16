@@ -19,6 +19,10 @@ class SectionTitleVH(itemView: View) : RecyclerView.ViewHolder(itemView) {
             R.string.report_section_activities -> ReportHeadings.activities(context)
             R.string.report_section_equipment -> ReportHeadings.equipment(context)
             R.string.report_section_obstacles -> ReportHeadings.obstacles(context)
+            R.string.report_section_workforce -> ReportHeadings.workforce(context)
+            R.string.report_section_notes -> ReportHeadings.notes(context)
+            R.string.report_section_photos -> ReportHeadings.photos(context)
+            R.string.report_section_site_pages -> ReportHeadings.sitePages(context)
             else -> context.getString(item.titleRes)
         }
         titleView.text = text

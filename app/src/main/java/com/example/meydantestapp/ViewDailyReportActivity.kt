@@ -257,7 +257,19 @@ class ViewDailyReportActivity : AppCompatActivity() {
     }
 
     private fun openProjectLocationLink(url: String) {
-        val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return
+        val trimmed = url.trim()
+        if (trimmed.isEmpty()) {
+            Toast.makeText(this, R.string.report_error_invalid_link, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val uri = runCatching { Uri.parse(trimmed) }.getOrNull()
+        val scheme = uri?.scheme?.lowercase(Locale.ROOT)
+        if (uri == null || scheme == null || (scheme != "http" && scheme != "https")) {
+            Toast.makeText(this, R.string.report_error_invalid_link, Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val intent = Intent(Intent.ACTION_VIEW, uri)
         try {
             startActivity(intent)

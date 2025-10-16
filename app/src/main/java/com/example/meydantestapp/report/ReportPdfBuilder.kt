@@ -102,6 +102,8 @@ class ReportPdfBuilder(
     private lateinit var footerPaintRight: TextPaint
     private lateinit var footerDividerPaint: Paint
     private lateinit var bitmapPaint: Paint
+    private lateinit var pageLabelFormat: String
+    private lateinit var footerLabelText: String
 
     private var pageIndex: Int = 0
     private var marginPx: Int = 0
@@ -194,8 +196,9 @@ class ReportPdfBuilder(
         canvas.drawLine(contentLeft.toFloat(), lineY.toFloat(), contentRight.toFloat(), lineY.toFloat(), footerDividerPaint)
 
         val baseY = pageHeight - marginPx.toFloat()
-        val pageLabel = PdfBidiUtils.wrapMixed("صفحة $pageIndex", rtlBase = true).toString()
-        val footerLabel = PdfBidiUtils.wrapMixed("تم إنشاء التقرير في تطبيق ميدان", rtlBase = true).toString()
+        val pageText = context.getString(R.string.report_pdf_page_label_format, pageIndex)
+        val pageLabel = PdfBidiUtils.wrapMixed(pageText, rtlBase = true).toString()
+        val footerLabel = PdfBidiUtils.wrapMixed(footerLabelText, rtlBase = true).toString()
         canvas.drawText(pageLabel, contentLeft.toFloat(), baseY, footerPaintLeft)
         canvas.drawText(footerLabel, contentRight.toFloat(), baseY, footerPaintRight)
 
@@ -488,6 +491,7 @@ class ReportPdfBuilder(
         val defaultLogo = runCatching { BitmapFactory.decodeResource(context.resources, R.drawable.default_logo) }.getOrNull()
         headerLogo = logo ?: defaultLogo ?: Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
         reportTitleHeading = context.getString(R.string.create_daily_report_title)
+        footerLabelText = context.getString(R.string.report_pdf_footer_label)
 
         marginPx = pxFromMm(pageMarginMm)
         contentLeft = marginPx
@@ -515,6 +519,15 @@ class ReportPdfBuilder(
             contentLeft = contentLeft,
             contentWidth = contentWidth
         )
+        val workforceHeadingText = ReportHeadings.workforce(context)
+        val notesHeadingText = ReportHeadings.notes(context)
+        val photosHeadingText = ReportHeadings.photos(context)
+        val sitePagesHeadingText = ReportHeadings.sitePages(context)
+        val laborLabelSkilled = context.getString(R.string.report_workforce_label_skilled)
+        val laborLabelUnskilled = context.getString(R.string.report_workforce_label_unskilled)
+        val laborLabelTotal = context.getString(R.string.report_workforce_label_total)
+        val linkFallbackPrefix = context.getString(R.string.report_pdf_link_fallback_prefix)
+        var linkAnnotationsEnabled = PdfLinkAnnotationSupport.supportsAnnotations()
         fun drawSectionHeader(
             text: String,
             headingLevel: Int = 2,
@@ -612,9 +625,8 @@ class ReportPdfBuilder(
             val normalizedValue = sanitized?.let { value ->
                 if (PdfBidiUtils.isArabicLikely(value)) normalizeArabicCommaSpacing(value) else value
             }
-            val displayValue = normalizedValue ?: sanitized ?: REPORT_INFO_PLACEHOLDER
+            val baseValue = normalizedValue ?: sanitized ?: REPORT_INFO_PLACEHOLDER
             val wrappedLabel = PdfBidiUtils.wrapMixed(label, rtlBase = true)
-            val wrappedValue = PdfBidiUtils.wrapMixed(displayValue, rtlBase = true)
 
             val linkUrl = if (sanitized != null) {
                 linkUrlRaw?.trim()?.takeIf { it.isNotEmpty() && isHttpUrl(it) }
@@ -647,11 +659,19 @@ class ReportPdfBuilder(
                 typeface = Typeface.create(typeface, Typeface.BOLD)
             }
             val valuePaintBase = TextPaint(bodyPaint).apply {
-                if (linkUrl != null) {
+                if (linkUrl != null && linkAnnotationsEnabled) {
                     color = hyperlinkBlue
                     isUnderlineText = true
                 }
             }
+
+            val displayValue = if (linkUrl != null && !linkAnnotationsEnabled) {
+                val fallback = "$linkFallbackPrefix $linkUrl".trim()
+                if (baseValue == REPORT_INFO_PLACEHOLDER) fallback else "$baseValue\n$fallback"
+            } else {
+                baseValue
+            }
+            val wrappedValue = PdfBidiUtils.wrapMixed(displayValue, rtlBase = true)
 
             val labelLayout = autoSizeText(wrappedLabel, labelPaint, labelAreaWidth, rtl = true, maxLines = 2).layout
             val valueLayout = autoSizeText(wrappedValue, valuePaintBase, valueAreaWidth, rtl = true, maxLines = 4).layout
@@ -688,7 +708,7 @@ class ReportPdfBuilder(
             valueLayout.draw(canvas)
             canvas.restore()
 
-            if (linkUrl != null && valueLayout.height > 0) {
+            if (linkUrl != null && linkAnnotationsEnabled && valueLayout.height > 0) {
                 val leftF = (valueLeft + horizontalPadding).toFloat()
                 val topF = top.toFloat()
                 val rightLimit = leftF + valueAreaWidth.toFloat()
@@ -696,7 +716,9 @@ class ReportPdfBuilder(
                 val bottomF = topF + valueLayout.height.toFloat()
                 val rect = RectF(leftF, topF, rightF, bottomF)
                 if (rect.intersect(0f, 0f, pageWidth.toFloat(), pageHeight.toFloat())) {
-                    PdfLinkAnnotationSupport.addLink(page, rect, linkUrl)
+                    if (!PdfLinkAnnotationSupport.addLink(page, rect, linkUrl)) {
+                        linkAnnotationsEnabled = false
+                    }
                 }
             }
 
@@ -766,7 +788,6 @@ class ReportPdfBuilder(
                     trimmedValue
                 }
                 val wrappedLabel = PdfBidiUtils.wrapMixed(entry.label, rtlBase = true)
-                val wrappedValue = PdfBidiUtils.wrapMixed(normalizedValue, rtlBase = true)
 
                 val linkUrl = if (!isPlaceholder) {
                     entry.linkUrl?.trim()?.takeIf { it.isNotEmpty() && isHttpUrl(it) }
@@ -775,11 +796,24 @@ class ReportPdfBuilder(
                 }
 
                 val valuePaint = TextPaint(valuePaintBase).apply {
-                    if (linkUrl != null) {
+                    if (linkUrl != null && linkAnnotationsEnabled) {
                         color = hyperlinkBlue
                         isUnderlineText = true
                     }
                 }
+
+                val displayValue = if (linkUrl != null && !linkAnnotationsEnabled) {
+                    val fallback = "$linkFallbackPrefix $linkUrl".trim()
+                    if (normalizedValue.isNotEmpty()) {
+                        "$normalizedValue\n$fallback"
+                    } else {
+                        fallback
+                    }
+                } else {
+                    normalizedValue
+                }
+
+                val wrappedValue = PdfBidiUtils.wrapMixed(displayValue, rtlBase = true)
 
                 val labelLayout = autoSizeText(
                     wrappedLabel,
@@ -861,7 +895,7 @@ class ReportPdfBuilder(
                 valueLayout.draw(canvas)
                 canvas.restore()
 
-                if (linkUrl != null && valueLayout.height > 0) {
+                if (linkUrl != null && linkAnnotationsEnabled && valueLayout.height > 0) {
                     val leftLink = (valueLeft + horizontalPadding).toFloat()
                     val rightLimit = leftLink + valueAreaWidth.toFloat()
                     val rightLink = min(leftLink + valueLayout.width.toFloat(), rightLimit)
@@ -872,7 +906,9 @@ class ReportPdfBuilder(
                         (textTop + valueLayout.height).toFloat()
                     )
                     if (rect.intersect(0f, 0f, pageWidth.toFloat(), pageHeight.toFloat())) {
-                        PdfLinkAnnotationSupport.addLink(page, rect, linkUrl)
+                        if (!PdfLinkAnnotationSupport.addLink(page, rect, linkUrl)) {
+                            linkAnnotationsEnabled = false
+                        }
                     }
                 }
 
@@ -979,11 +1015,11 @@ class ReportPdfBuilder(
 
         fun drawLabor(skilled: String?, unskilled: String?, total: String?) {
             val items = listOf(
-                "عمالة ماهرة" to skilled,
-                "عمالة غير ماهرة" to unskilled,
-                "الإجمالي" to total
+                laborLabelSkilled to skilled,
+                laborLabelUnskilled to unskilled,
+                laborLabelTotal to total
             )
-            drawSectionHeader("العمالة")
+            drawSectionHeader(workforceHeadingText)
             var rendered = false
             items.forEach { (label, value) ->
                 val cleaned = value?.trim()?.takeIf { it.isNotEmpty() } ?: return@forEach
@@ -1002,7 +1038,7 @@ class ReportPdfBuilder(
             val all = urls.filter { isHttpUrl(it) }
             if (all.isEmpty()) return
 
-            drawSectionHeader("صور التقرير اليومي")
+            drawSectionHeader(photosHeadingText)
 
             var index = 0
             while (index < all.size) {
@@ -1025,7 +1061,7 @@ class ReportPdfBuilder(
                     finishPage()
                     startPageWithHeader()
                     drawSectionHeader(
-                        "صور التقرير اليومي",
+                        photosHeadingText,
                         currentSectionHeadingLevel,
                         currentSectionSpacingBefore,
                         currentSectionSpacingAfter
@@ -1092,7 +1128,7 @@ class ReportPdfBuilder(
                     finishPage()
                     startPageWithHeader()
                     drawSectionHeader(
-                        "صور التقرير اليومي",
+                        photosHeadingText,
                         currentSectionHeadingLevel,
                         currentSectionSpacingBefore,
                         currentSectionSpacingAfter
@@ -1105,7 +1141,7 @@ class ReportPdfBuilder(
         fun drawSitePagesSection(urls: List<String>) {
             urls.forEach { url ->
                 startPageWithHeader()
-                drawSectionHeader("صور التقرير اليومي")
+                drawSectionHeader(sitePagesHeadingText)
 
                 // مساحة الصور من الموضع الحالي حتى ما قبل التذييل
                 val area = Rect(contentLeft, y, contentRight, bottomLimit())
@@ -1147,7 +1183,7 @@ class ReportPdfBuilder(
         )
 
         drawSectionHeader(ReportHeadings.info(context), headingLevel = 1)
-        val infoEntries = buildReportInfoEntries(enrichedData).mapIndexed { index, entry ->
+        val infoEntries = buildReportInfoEntries(context, enrichedData).mapIndexed { index, entry ->
             if (index == 8) {
                 entry.copy(label = ReportHeadings.projectLocation(context))
             } else {
@@ -1157,7 +1193,7 @@ class ReportPdfBuilder(
         drawReportInfoTable(infoEntries)
         drawActivitiesSummary(sectionValues)
         drawLabor(data.skilledLabor, data.unskilledLabor, data.totalLabor)
-        drawBulletedSection("الملاحظات", data.notes)
+        drawBulletedSection(notesHeadingText, data.notes)
 
         finishPage()
 
@@ -1192,13 +1228,21 @@ class ReportPdfBuilder(
         private var annotationConstructor: Constructor<*>? = null
         private var addAnnotationMethod: Method? = null
 
-        fun addLink(page: PdfDocument.Page, rect: RectF, url: String) {
-            if (rect.width() <= 0f || rect.height() <= 0f) return
-            val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return
-            if (!ensureReflection()) return
-            runCatching {
-                val annotation = annotationConstructor?.newInstance(rect, uri) ?: return
+        fun supportsAnnotations(): Boolean = ensureReflection()
+
+        fun addLink(page: PdfDocument.Page, rect: RectF, url: String): Boolean {
+            if (rect.width() <= 0f || rect.height() <= 0f) return false
+            val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return false
+            if (!ensureReflection()) return false
+            return runCatching {
+                val annotation = annotationConstructor?.newInstance(rect, uri) ?: return false
                 addAnnotationMethod?.invoke(page, annotation)
+                true
+            }.getOrElse {
+                reflectionAvailable = false
+                annotationConstructor = null
+                addAnnotationMethod = null
+                false
             }
         }
 
@@ -1227,10 +1271,11 @@ internal data class ReportInfoEntry(
     val linkUrl: String? = null
 )
 
-internal fun buildReportInfoEntries(data: ReportPdfBuilder.DailyReport): List<ReportInfoEntry> {
+internal fun buildReportInfoEntries(context: Context, data: ReportPdfBuilder.DailyReport): List<ReportInfoEntry> {
     fun String?.normalized(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
 
-    fun entry(label: String, raw: String?, link: String? = null): ReportInfoEntry {
+    fun entry(labelRes: Int, raw: String?, link: String? = null): ReportInfoEntry {
+        val label = context.getString(labelRes)
         val normalized = raw.normalized()
         val value = normalized ?: REPORT_INFO_PLACEHOLDER
         val url = if (normalized != null) link?.trim()?.takeIf { it.isNotEmpty() } else null
@@ -1238,15 +1283,15 @@ internal fun buildReportInfoEntries(data: ReportPdfBuilder.DailyReport): List<Re
     }
 
     return listOf(
-        entry("اسم المشروع", data.projectName),
-        entry("مالك المشروع", data.ownerName),
-        entry("مقاول المشروع", data.contractorName),
-        entry("الاستشاري", data.consultantName),
-        entry("رقم التقرير", data.reportNumber),
-        entry("التاريخ", data.dateText),
-        entry("درجة الحرارة", data.temperatureC),
-        entry("حالة الطقس", data.weatherCondition),
-        entry("موقع المشروع", data.projectAddressText, data.projectGoogleMapsUrl),
-        entry("تم إنشاء التقرير بواسطة", data.createdBy)
+        entry(R.string.label_project_name, data.projectName),
+        entry(R.string.label_project_owner, data.ownerName),
+        entry(R.string.label_project_contractor, data.contractorName),
+        entry(R.string.label_project_consultant, data.consultantName),
+        entry(R.string.label_report_number, data.reportNumber),
+        entry(R.string.label_report_date, data.dateText),
+        entry(R.string.label_temperature, data.temperatureC),
+        entry(R.string.label_weather_status, data.weatherCondition),
+        entry(R.string.label_project_location, data.projectAddressText, data.projectGoogleMapsUrl),
+        entry(R.string.label_report_created_by, data.createdBy)
     )
 }
