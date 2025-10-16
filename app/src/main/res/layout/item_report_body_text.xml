@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/bodyText"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="@dimen/report_item_spacing"
+    android:layoutDirection="locale"
+    android:breakStrategy="balanced"
+    android:gravity="start"
+    android:lineSpacingExtra="@dimen/report_body_line_spacing_extra"
+    android:textColor="?android:textColorPrimary"
+    android:textDirection="firstStrong"
+    android:textSize="15sp" />

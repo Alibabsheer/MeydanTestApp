@@ -7,4 +7,12 @@
     <dimen name="pdf_heading_spacing_before">8pt</dimen>
     <dimen name="pdf_heading_spacing_after">6pt</dimen>
     <dimen name="pdf_min_content_after_heading">12pt</dimen>
+    <dimen name="report_screen_padding_horizontal">16dp</dimen>
+    <dimen name="report_screen_padding_vertical">12dp</dimen>
+    <dimen name="report_list_bottom_padding">16dp</dimen>
+    <dimen name="report_action_button_spacing">8dp</dimen>
+    <dimen name="report_item_spacing">12dp</dimen>
+    <dimen name="report_item_spacing_half">6dp</dimen>
+    <dimen name="report_section_spacing">20dp</dimen>
+    <dimen name="report_body_line_spacing_extra">2dp</dimen>
 </resources>

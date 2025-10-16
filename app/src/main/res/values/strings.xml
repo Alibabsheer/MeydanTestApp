@@ -47,4 +47,14 @@
         <item>مقطوعية</item>
         <item>جدول كميات</item>
     </string-array>
+    <string name="report_action_share_pdf">مشاركة التقرير PDF</string>
+    <string name="report_action_back">رجوع إلى الصفحة السابقة</string>
+    <string name="report_error_missing_data">تعذر فتح التقرير: بيانات مفقودة.</string>
+    <string name="report_error_share_pdf">تعذر إنشاء ملف PDF للتقرير.</string>
+    <string name="report_error_open_location">لا يمكن فتح رابط الموقع.</string>
+    <string name="report_content_desc_logo">شعار المؤسسة</string>
+    <string name="report_content_desc_photo">صورة من التقرير اليومي</string>
+    <string name="report_weather_line_format">درجة الحرارة : %1$s    حالة الطقس : %2$s</string>
+    <string name="report_weather_temp_format">درجة الحرارة : %1$s</string>
+    <string name="report_weather_status_format">حالة الطقس : %1$s</string>
 </resources>
