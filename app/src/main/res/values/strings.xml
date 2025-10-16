@@ -20,7 +20,6 @@
     <string name="splash_welcome">مرحبًا بكم في ميدان</string>
 
     <string name="theme_toggle">تبديل الوضع الليلي</string>
-    <!-- المفتاح أُزيل من هنا وسيُحقن عبر Gradle -->
     <string name="import_instruction">يرجى استيراد بيانات %1$s</string>
     <string name="org_info_text">اسم المؤسسة: %1$s\nكود الانضمام: %2$s</string>
     <string name="create_daily_report_title">إنشاء تقرير يومي</string>
@@ -47,4 +46,20 @@
         <item>مقطوعية</item>
         <item>جدول كميات</item>
     </string-array>
+
+    <string name="daily_report_error_missing_report">تعذر فتح التقرير: بيانات مفقودة.</string>
+    <string name="daily_report_action_share_pdf">مشاركة التقرير PDF</string>
+    <string name="daily_report_action_back">رجوع إلى الصفحة السابقة</string>
+    <string name="daily_report_error_share_failed">تعذر إنشاء ملف PDF للتقرير.</string>
+    <string name="daily_report_error_open_location">لا يمكن فتح رابط الموقع.</string>
+    <string name="daily_report_share_pdf_title">مشاركة التقرير PDF</string>
+    <string name="daily_report_weather_format_full">درجة الحرارة : %1$s    حالة الطقس : %2$s</string>
+    <string name="daily_report_weather_format_temperature_only">درجة الحرارة : %1$s</string>
+    <string name="daily_report_weather_format_status_only">حالة الطقس : %1$s</string>
+    <string name="label_skilled_labor">العمالة الماهرة</string>
+    <string name="label_unskilled_labor">العمالة غير الماهرة</string>
+    <string name="label_total_labor">إجمالي العمالة</string>
+    <string name="daily_report_section_notes">ملاحظات إضافية</string>
+    <string name="daily_report_logo_content_description">شعار المؤسسة</string>
+    <string name="daily_report_photo_content_description">صورة من التقرير</string>
 </resources>

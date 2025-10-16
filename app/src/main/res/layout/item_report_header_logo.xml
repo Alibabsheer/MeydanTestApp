@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layoutDirection="locale"
+    android:paddingBottom="@dimen/report_section_spacing">
+
+    <ImageView
+        android:id="@+id/headerLogo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:adjustViewBounds="true"
+        android:maxHeight="@dimen/report_logo_max_height"
+        android:contentDescription="@string/daily_report_logo_content_description"
+        android:scaleType="fitCenter" />
+</FrameLayout>

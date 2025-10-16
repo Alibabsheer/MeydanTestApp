@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/bodyText"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layoutDirection="locale"
+    android:layout_marginBottom="@dimen/report_item_spacing"
+    android:textColor="?android:textColorPrimary"
+    android:lineSpacingMultiplier="1.15"
+    android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+    android:textAlignment="viewStart"
+    android:textDirection="locale" />

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:layoutDirection="locale"
+    android:layout_marginBottom="@dimen/report_item_spacing"
+    android:paddingTop="@dimen/report_item_vertical_padding"
+    android:paddingBottom="@dimen/report_item_vertical_padding">
+
+    <TextView
+        android:id="@+id/infoLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="?android:textColorPrimary"
+        android:textStyle="bold"
+        android:textAlignment="viewStart"
+        android:textDirection="locale"
+        android:textAppearance="@style/TextAppearance.Material3.LabelLarge" />
+
+    <TextView
+        android:id="@+id/infoValue"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/report_item_value_spacing"
+        android:textColor="?android:textColorPrimary"
+        android:textAlignment="viewStart"
+        android:textDirection="locale"
+        android:lineSpacingMultiplier="1.1"
+        android:autoLink="none"
+        android:clickable="false"
+        android:textAppearance="@style/TextAppearance.Material3.BodyLarge" />
+</LinearLayout>
