@@ -15,4 +15,5 @@
     <dimen name="report_item_spacing_half">6dp</dimen>
     <dimen name="report_section_spacing">20dp</dimen>
     <dimen name="report_body_line_spacing_extra">2dp</dimen>
+    <dimen name="report_caption_spacing">8dp</dimen>
 </resources>

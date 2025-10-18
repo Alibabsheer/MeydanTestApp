@@ -23,11 +23,15 @@ class InfoRowVH(itemView: View) : RecyclerView.ViewHolder(itemView) {
             valueView.paintFlags = valueView.paintFlags or Paint.UNDERLINE_TEXT_FLAG
             valueView.setTextColor(ContextCompat.getColor(itemView.context, R.color.hyperlink_blue))
             valueView.isClickable = true
+            valueView.isFocusable = true
+            valueView.isFocusableInTouchMode = true
             valueView.setOnClickListener { onLinkClicked(link) }
         } else {
             valueView.paintFlags = valueView.paintFlags and Paint.UNDERLINE_TEXT_FLAG.inv()
             valueView.setTextColor(defaultColor)
             valueView.isClickable = false
+            valueView.isFocusable = false
+            valueView.isFocusableInTouchMode = false
             valueView.setOnClickListener(null)
         }
     }

@@ -8,6 +8,7 @@ import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextDirectionHeuristics
 import android.text.TextPaint
+import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import com.example.meydantestapp.R
@@ -756,6 +757,7 @@ class ReportPdfBuilder(
             val columnDividerX = labelLeft
 
             var firstRowOnPage = true
+            val annotationsSupported = PdfLinkAnnotationSupport.annotationsSupported()
 
             entries.forEachIndexed { index, entry ->
                 val trimmedValue = entry.value.trim()
@@ -765,17 +767,26 @@ class ReportPdfBuilder(
                 } else {
                     trimmedValue
                 }
-                val wrappedLabel = PdfBidiUtils.wrapMixed(entry.label, rtlBase = true)
-                val wrappedValue = PdfBidiUtils.wrapMixed(normalizedValue, rtlBase = true)
-
                 val linkUrl = if (!isPlaceholder) {
                     entry.linkUrl?.trim()?.takeIf { it.isNotEmpty() && isHttpUrl(it) }
                 } else {
                     null
                 }
+                val displayValue = if (linkUrl != null && !annotationsSupported) {
+                    if (normalizedValue.isEmpty()) {
+                        linkUrl
+                    } else {
+                        "$normalizedValue\n$linkUrl"
+                    }
+                } else {
+                    normalizedValue
+                }
+
+                val wrappedLabel = PdfBidiUtils.wrapMixed(entry.label, rtlBase = true)
+                val wrappedValue = PdfBidiUtils.wrapMixed(displayValue, rtlBase = true)
 
                 val valuePaint = TextPaint(valuePaintBase).apply {
-                    if (linkUrl != null) {
+                    if (linkUrl != null && annotationsSupported) {
                         color = hyperlinkBlue
                         isUnderlineText = true
                     }
@@ -861,7 +872,7 @@ class ReportPdfBuilder(
                 valueLayout.draw(canvas)
                 canvas.restore()
 
-                if (linkUrl != null && valueLayout.height > 0) {
+                if (linkUrl != null && annotationsSupported && valueLayout.height > 0) {
                     val leftLink = (valueLeft + horizontalPadding).toFloat()
                     val rightLimit = leftLink + valueAreaWidth.toFloat()
                     val rightLink = min(leftLink + valueLayout.width.toFloat(), rightLimit)
@@ -1147,7 +1158,7 @@ class ReportPdfBuilder(
         )
 
         drawSectionHeader(ReportHeadings.info(context), headingLevel = 1)
-        val infoEntries = buildReportInfoEntries(enrichedData).mapIndexed { index, entry ->
+        val infoEntries = buildReportInfoEntries(context, enrichedData).mapIndexed { index, entry ->
             if (index == 8) {
                 entry.copy(label = ReportHeadings.projectLocation(context))
             } else {
@@ -1192,15 +1203,23 @@ class ReportPdfBuilder(
         private var annotationConstructor: Constructor<*>? = null
         private var addAnnotationMethod: Method? = null
 
-        fun addLink(page: PdfDocument.Page, rect: RectF, url: String) {
-            if (rect.width() <= 0f || rect.height() <= 0f) return
-            val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return
-            if (!ensureReflection()) return
-            runCatching {
-                val annotation = annotationConstructor?.newInstance(rect, uri) ?: return
-                addAnnotationMethod?.invoke(page, annotation)
+        fun addLink(page: PdfDocument.Page, rect: RectF, url: String): Boolean {
+            if (rect.width() <= 0f || rect.height() <= 0f) return false
+            val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return false
+            if (!ensureReflection()) return false
+            val ctor = annotationConstructor ?: return false
+            val method = addAnnotationMethod ?: return false
+            return runCatching {
+                val annotation = ctor.newInstance(rect, uri)
+                method.invoke(page, annotation)
+                true
+            }.getOrElse {
+                reflectionAvailable = false
+                false
             }
         }
+
+        fun annotationsSupported(): Boolean = ensureReflection()
 
         private fun ensureReflection(): Boolean {
             reflectionAvailable?.let { return it }
@@ -1227,26 +1246,41 @@ internal data class ReportInfoEntry(
     val linkUrl: String? = null
 )
 
-internal fun buildReportInfoEntries(data: ReportPdfBuilder.DailyReport): List<ReportInfoEntry> {
+internal fun interface ReportInfoLabelProvider {
+    fun getLabel(@StringRes labelRes: Int): String
+}
+
+internal fun buildReportInfoEntries(
+    data: ReportPdfBuilder.DailyReport,
+    labelProvider: ReportInfoLabelProvider
+): List<ReportInfoEntry> {
     fun String?.normalized(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
 
-    fun entry(label: String, raw: String?, link: String? = null): ReportInfoEntry {
+    fun entry(@StringRes labelRes: Int, raw: String?, link: String? = null): ReportInfoEntry {
         val normalized = raw.normalized()
         val value = normalized ?: REPORT_INFO_PLACEHOLDER
         val url = if (normalized != null) link?.trim()?.takeIf { it.isNotEmpty() } else null
-        return ReportInfoEntry(label, value, url)
+        return ReportInfoEntry(labelProvider.getLabel(labelRes), value, url)
     }
 
     return listOf(
-        entry("اسم المشروع", data.projectName),
-        entry("مالك المشروع", data.ownerName),
-        entry("مقاول المشروع", data.contractorName),
-        entry("الاستشاري", data.consultantName),
-        entry("رقم التقرير", data.reportNumber),
-        entry("التاريخ", data.dateText),
-        entry("درجة الحرارة", data.temperatureC),
-        entry("حالة الطقس", data.weatherCondition),
-        entry("موقع المشروع", data.projectAddressText, data.projectGoogleMapsUrl),
-        entry("تم إنشاء التقرير بواسطة", data.createdBy)
+        entry(R.string.label_project_name, data.projectName),
+        entry(R.string.label_project_owner, data.ownerName),
+        entry(R.string.label_project_contractor, data.contractorName),
+        entry(R.string.label_project_consultant, data.consultantName),
+        entry(R.string.label_report_number, data.reportNumber),
+        entry(R.string.label_report_date, data.dateText),
+        entry(R.string.label_temperature, data.temperatureC),
+        entry(R.string.label_weather_status, data.weatherCondition),
+        entry(R.string.label_project_location, data.projectAddressText, data.projectGoogleMapsUrl),
+        entry(R.string.label_report_created_by, data.createdBy)
     )
 }
+
+internal fun buildReportInfoEntries(
+    context: Context,
+    data: ReportPdfBuilder.DailyReport
+): List<ReportInfoEntry> = buildReportInfoEntries(
+    data,
+    ReportInfoLabelProvider { resId -> context.getString(resId) }
+)

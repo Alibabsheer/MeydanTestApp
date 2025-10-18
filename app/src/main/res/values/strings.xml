@@ -35,12 +35,17 @@
     <string name="label_weather_status">حالة الطقس</string>
     <string name="label_project_location">موقع المشروع</string>
     <string name="label_report_created_by">تم إنشاء التقرير بواسطة</string>
+    <string name="report_placeholder_value">—</string>
 
     <string name="report_section_activities">نشاطات المشروع</string>
     <string name="report_section_equipment">الآلات والمعدات</string>
     <string name="report_section_obstacles">العوائق والتحديات</string>
     <string name="report_section_project_location">موقع المشروع</string>
     <string name="report_section_info">معلومات التقرير</string>
+    <string name="report_section_workforce">قوة العمل</string>
+    <string name="report_section_photos">صور الموقع</string>
+    <string name="report_section_site_pages">صفحات التقرير</string>
+    <string name="report_section_notes">الملاحظات</string>
 
     <string-array name="work_type_options">
         <item>اختر نوع العمل</item>
@@ -54,7 +59,13 @@
     <string name="report_error_open_location">لا يمكن فتح رابط الموقع.</string>
     <string name="report_content_desc_logo">شعار المؤسسة</string>
     <string name="report_content_desc_photo">صورة من التقرير اليومي</string>
+    <string name="report_content_desc_site_page">صفحة موقع من التقرير اليومي</string>
     <string name="report_weather_line_format">درجة الحرارة : %1$s    حالة الطقس : %2$s</string>
     <string name="report_weather_temp_format">درجة الحرارة : %1$s</string>
     <string name="report_weather_status_format">حالة الطقس : %1$s</string>
+    <string name="report_temperature_celsius_format">%1$s °م</string>
+    <string name="report_workforce_skilled_format">العمالة الماهرة: %1$d</string>
+    <string name="report_workforce_unskilled_format">العمالة غير الماهرة: %1$d</string>
+    <string name="report_workforce_total_format">إجمالي العمالة: %1$d</string>
+    <string name="report_bullet_format">• %1$s</string>
 </resources>

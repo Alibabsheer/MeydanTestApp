@@ -1,12 +1,14 @@
 package com.example.meydantestapp
 
+import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
-import androidx.annotation.StringRes
-import com.example.meydantestapp.DailyReport
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.meydantestapp.DailyReport
+import com.example.meydantestapp.R
+import com.example.meydantestapp.models.PhotoEntry
 import com.example.meydantestapp.utils.resolveDailyReportSections
 import com.example.meydantestapp.view.ReportItem
 import com.google.firebase.storage.FirebaseStorage
@@ -22,8 +24,9 @@ import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-class ViewDailyReportViewModel : ViewModel() {
+class ViewDailyReportViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val resources = application.resources
     private val storage by lazy { FirebaseStorage.getInstance() }
 
     private val _logoBitmap = MutableStateFlow<Bitmap?>(null)
@@ -37,7 +40,6 @@ class ViewDailyReportViewModel : ViewModel() {
     private var currentLogoJob: Job? = null
 
     fun buildNativeItems(report: DailyReport?) {
-        val placeholder = REPORT_PLACEHOLDER
         val items = mutableListOf<ReportItem>()
         items += ReportItem.HeaderLogo
 
@@ -45,6 +47,8 @@ class ViewDailyReportViewModel : ViewModel() {
             _nativeItems.value = items
             return
         }
+
+        val placeholder = resources.getString(R.string.report_placeholder_value)
 
         val infoRows = listOf(
             infoRow(R.string.label_project_name, report.projectName),
@@ -62,17 +66,16 @@ class ViewDailyReportViewModel : ViewModel() {
             ),
             infoRow(
                 labelRes = R.string.label_report_created_by,
-                value = report.createdByName?.takeIf { it.isNotBlank() }
-                    ?: report.createdBy
+                value = report.createdByName?.takeIf { it.isNotBlank() } ?: report.createdBy
             )
         )
 
         items += ReportItem.SectionTitle(level = 1, titleRes = R.string.report_section_info)
-        items += infoRows.map { row ->
-            val hasValue = row.value.isNotBlank()
+        infoRows.forEach { row ->
+            val hasValue = row.value.isNotEmpty()
             val value = if (hasValue) row.value else placeholder
             val link = row.link.takeIf { hasValue }
-            ReportItem.InfoRow(row.labelRes, value, link)
+            items += ReportItem.InfoRow(row.labelRes, value, link)
         }
 
         val sections = resolveDailyReportSections(
@@ -84,19 +87,35 @@ class ViewDailyReportViewModel : ViewModel() {
             obstaclesText = report.obstaclesText
         )
 
-        items += ReportItem.SectionTitle(level = 2, titleRes = R.string.report_section_activities)
-        items += ReportItem.BodyText(sections.activities.ifBlank { placeholder })
-        items += ReportItem.SectionTitle(level = 2, titleRes = R.string.report_section_equipment)
-        items += ReportItem.BodyText(sections.machines.ifBlank { placeholder })
-        items += ReportItem.SectionTitle(level = 2, titleRes = R.string.report_section_obstacles)
-        items += ReportItem.BodyText(sections.obstacles.ifBlank { placeholder })
+        addBodySection(items, R.string.report_section_activities, sections.activities, placeholder)
+        addBodySection(items, R.string.report_section_equipment, sections.machines, placeholder)
+        addBodySection(items, R.string.report_section_obstacles, sections.obstacles, placeholder)
 
-        val photos = report.photos.orEmpty()
-            .mapNotNull { raw ->
-                val normalized = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                runCatching { Uri.parse(normalized) }.getOrNull()
+        val workforceEntries = buildWorkforceEntries(report)
+        if (workforceEntries.isNotEmpty()) {
+            items += ReportItem.Workforce(workforceEntries)
+        }
+
+        val notesTexts = report.notes.orEmpty()
+            .mapNotNull { note -> note.trim().takeIf { it.isNotEmpty() } }
+        if (notesTexts.isNotEmpty()) {
+            items += ReportItem.SectionTitle(level = 1, titleRes = R.string.report_section_notes)
+            notesTexts.forEach { text ->
+                items += ReportItem.BodyText(text)
             }
-        items += photos.map { uri -> ReportItem.Photo(uri) }
+        }
+
+        val sitePages = buildSitePageItems(report)
+        if (sitePages.isNotEmpty()) {
+            items += ReportItem.SectionTitle(level = 1, titleRes = R.string.report_section_site_pages)
+            items.addAll(sitePages)
+        }
+
+        val photoItems = buildPhotoItems(report.photos)
+        if (photoItems.isNotEmpty()) {
+            items += ReportItem.SectionTitle(level = 1, titleRes = R.string.report_section_photos)
+            items.addAll(photoItems)
+        }
 
         _nativeItems.value = items
     }
@@ -173,10 +192,82 @@ class ViewDailyReportViewModel : ViewModel() {
         null
     }
 
-    private fun infoRow(@StringRes labelRes: Int, value: String?, link: String? = null): InfoRowData {
+    private fun infoRow(
+        labelRes: Int,
+        value: String?,
+        link: String? = null
+    ): InfoRowData {
         val normalizedValue = value?.trim().orEmpty()
         val normalizedLink = link?.trim()?.takeIf { it.isNotEmpty() }
         return InfoRowData(labelRes, normalizedValue, normalizedLink)
+    }
+
+    private fun addBodySection(
+        items: MutableList<ReportItem>,
+        titleRes: Int,
+        rawText: String?,
+        placeholder: String
+    ) {
+        val text = rawText?.trim().takeUnless { it.isNullOrEmpty() } ?: placeholder
+        items += ReportItem.SectionTitle(level = 1, titleRes = titleRes)
+        items += ReportItem.BodyText(text)
+    }
+
+    private fun buildWorkforceEntries(report: DailyReport): List<String> {
+        val entries = mutableListOf<String>()
+        report.skilledLabor?.let {
+            entries += resources.getString(R.string.report_workforce_skilled_format, it)
+        }
+        report.unskilledLabor?.let {
+            entries += resources.getString(R.string.report_workforce_unskilled_format, it)
+        }
+        report.totalLabor?.let {
+            entries += resources.getString(R.string.report_workforce_total_format, it)
+        }
+        return entries
+    }
+
+    private fun buildPhotoItems(photoUrls: List<String>?): List<ReportItem.Photo> {
+        if (photoUrls.isNullOrEmpty()) return emptyList()
+        return photoUrls.map { raw ->
+            val uri = raw.trim().takeIf { it.isNotEmpty() }
+                ?.let { runCatching { Uri.parse(it) }.getOrNull() }
+            ReportItem.Photo(uri)
+        }
+    }
+
+    private fun buildSitePageItems(report: DailyReport): List<ReportItem.SitePage> {
+        val urls = report.sitepages.orEmpty()
+        if (urls.isEmpty()) return emptyList()
+
+        val captionsByIndex = extractSitePageCaptions(report.sitepagesmeta)
+        return urls.mapIndexed { index, raw ->
+            val uri = raw.trim().takeIf { it.isNotEmpty() }
+                ?.let { runCatching { Uri.parse(it) }.getOrNull() }
+            val caption = captionsByIndex[index]?.takeIf { it.isNotBlank() }
+            ReportItem.SitePage(uri, caption)
+        }
+    }
+
+    private fun extractSitePageCaptions(meta: List<Map<String, Any?>>?): Map<Int, String> {
+        if (meta.isNullOrEmpty()) return emptyMap()
+        val captions = mutableMapOf<Int, MutableList<String>>()
+        meta.forEach { pageMap ->
+            val pageIndex = (pageMap[KEY_PAGE_INDEX] as? Number)?.toInt() ?: return@forEach
+            val slots = pageMap[KEY_SLOTS] as? List<*> ?: emptyList<Any?>()
+            slots.forEach { rawSlot ->
+                val slotMap = rawSlot as? Map<*, *> ?: return@forEach
+                val caption = (slotMap[PhotoEntry.Keys.CAPTION] as? String)
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                if (caption != null) {
+                    captions.getOrPut(pageIndex) { mutableListOf() }.add(caption)
+                }
+            }
+        }
+        return captions.mapValues { (_, values) ->
+            values.distinct().joinToString(separator = "\n")
+        }
     }
 
     private fun formatReportDate(timestamp: Long?): String? {
@@ -194,17 +285,19 @@ class ViewDailyReportViewModel : ViewModel() {
         val match = regex.find(src) ?: return null
         val value = match.value.toDoubleOrNull() ?: return null
         val format = if (value % 1.0 == 0.0) DecimalFormat("#") else DecimalFormat("#.#")
-        return "${format.format(value)} °C"
+        val formatted = format.format(value)
+        return resources.getString(R.string.report_temperature_celsius_format, formatted)
     }
 
-    private data class InfoRowData(
-        @StringRes val labelRes: Int,
+    data class InfoRowData(
+        val labelRes: Int,
         val value: String,
         val link: String?
     )
 
     companion object {
-        private const val REPORT_PLACEHOLDER = "—"
+        private const val KEY_PAGE_INDEX = "pageIndex"
+        private const val KEY_SLOTS = "slots"
         private const val MAX_LOGO_BYTES = 5_000_000L
     }
 }

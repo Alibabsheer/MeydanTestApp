@@ -55,8 +55,6 @@ class ViewDailyReportActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_view_daily_report)
 
-        window?.decorView?.layoutDirection = View.LAYOUT_DIRECTION_RTL
-
         reportList = findViewById(R.id.reportList)
         shareButton = findViewById(R.id.sharePdfButton)
         backButton = findViewById(R.id.backButton)

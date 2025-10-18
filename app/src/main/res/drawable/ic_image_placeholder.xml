@@ -1,12 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="48dp"
-    android:height="48dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24"
-    android:tint="?attr/colorControlNormal">
-
-    <!-- إطار وصورة مكانية مستوحاة من أيقونة Material "image" -->
+    android:width="120dp"
+    android:height="80dp"
+    android:viewportWidth="120"
+    android:viewportHeight="80">
+    <path
+        android:fillColor="#FFE0E0E0"
+        android:pathData="M0,0h120v80h-120z" />
+    <path
+        android:fillColor="#FFBDBDBD"
+        android:pathData="M18,18h84v44h-84z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M26,26h68v28h-68z" />
+    <path
+        android:fillColor="#FFBDBDBD"
+        android:pathData="M36,52l14,-18l11,14l8,-10l15,14z" />
     <path
         android:fillColor="#FF9E9E9E"
-        android:pathData="M21,19V5c0,-1.1 -0.9,-2 -2,-2H5c-1.1,0 -2,0.9 -2,2v14c0,1.1 0.9,2 2,2h14c1.1,0 2,-0.9 2,-2zM8.5,13.5l2.5,3.01L14.5,12 19,18H5l3.5,-4.5zM7,8c0,-1.1 0.9,-2 2,-2s2,0.9 2,2 -0.9,2 -2,2 -2,-0.9 -2,-2z" />
+        android:pathData="M46,40a6,6 0 1,0 12,0a6,6 0 1,0 -12,0" />
 </vector>
