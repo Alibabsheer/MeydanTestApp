@@ -15,4 +15,9 @@
     <dimen name="report_item_spacing_half">6dp</dimen>
     <dimen name="report_section_spacing">20dp</dimen>
     <dimen name="report_body_line_spacing_extra">2dp</dimen>
+    <dimen name="report_info_row_min_height">48dp</dimen>
+    <dimen name="report_info_row_padding_vertical">6dp</dimen>
+    <dimen name="report_workforce_entries_top_margin">8dp</dimen>
+    <dimen name="report_site_page_caption_margin_top">6dp</dimen>
+    <dimen name="report_image_corner_radius">8dp</dimen>
 </resources>

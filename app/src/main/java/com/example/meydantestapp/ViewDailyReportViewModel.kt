@@ -1,14 +1,14 @@
 package com.example.meydantestapp
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.annotation.StringRes
-import com.example.meydantestapp.DailyReport
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.meydantestapp.utils.resolveDailyReportSections
 import com.example.meydantestapp.view.ReportItem
+import com.example.meydantestapp.utils.resolveDailyReportSections
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.text.DecimalFormat
+import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -36,7 +37,7 @@ class ViewDailyReportViewModel : ViewModel() {
     private var cachedLogo: Bitmap? = null
     private var currentLogoJob: Job? = null
 
-    fun buildNativeItems(report: DailyReport?) {
+    fun buildNativeItems(context: Context, report: DailyReport?) {
         val placeholder = REPORT_PLACEHOLDER
         val items = mutableListOf<ReportItem>()
         items += ReportItem.HeaderLogo
@@ -75,6 +76,11 @@ class ViewDailyReportViewModel : ViewModel() {
             ReportItem.InfoRow(row.labelRes, value, link)
         }
 
+        val workforceEntries = buildWorkforceEntries(context, report)
+        if (workforceEntries.isNotEmpty()) {
+            items += ReportItem.Workforce(workforceEntries)
+        }
+
         val sections = resolveDailyReportSections(
             activitiesList = report.dailyActivities,
             machinesList = report.resourcesUsed,
@@ -91,12 +97,21 @@ class ViewDailyReportViewModel : ViewModel() {
         items += ReportItem.SectionTitle(level = 2, titleRes = R.string.report_section_obstacles)
         items += ReportItem.BodyText(sections.obstacles.ifBlank { placeholder })
 
+        val sitePages = buildSitePages(report)
+        if (sitePages.isNotEmpty()) {
+            items += ReportItem.SectionTitle(level = 2, titleRes = R.string.report_section_site_pages)
+            items += sitePages
+        }
+
         val photos = report.photos.orEmpty()
             .mapNotNull { raw ->
                 val normalized = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
                 runCatching { Uri.parse(normalized) }.getOrNull()
             }
-        items += photos.map { uri -> ReportItem.Photo(uri) }
+        if (photos.isNotEmpty()) {
+            items += ReportItem.SectionTitle(level = 2, titleRes = R.string.report_section_daily_photos)
+            items += photos.map { uri -> ReportItem.Photo(uri) }
+        }
 
         _nativeItems.value = items
     }
@@ -173,6 +188,51 @@ class ViewDailyReportViewModel : ViewModel() {
         null
     }
 
+    private fun buildWorkforceEntries(context: Context, report: DailyReport): List<String> {
+        val entries = mutableListOf<String>()
+        val formatter = NumberFormat.getIntegerInstance(Locale.getDefault())
+
+        fun append(@StringRes labelRes: Int, value: Int?) {
+            if (value == null) return
+            val formattedValue = formatter.format(value)
+            val label = context.getString(labelRes)
+            entries += context.getString(R.string.report_workforce_entry_format, label, formattedValue)
+        }
+
+        append(R.string.report_workforce_skilled_label, report.skilledLabor)
+        append(R.string.report_workforce_unskilled_label, report.unskilledLabor)
+        append(R.string.report_workforce_total_label, report.totalLabor)
+        return entries
+    }
+
+    private fun buildSitePages(report: DailyReport): List<ReportItem.SitePage> {
+        val captions = extractSitePageCaptions(report.sitepagesmeta)
+        return report.sitepages.orEmpty().mapIndexedNotNull { index, raw ->
+            val normalized = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapIndexedNotNull null
+            val uri = runCatching { Uri.parse(normalized) }.getOrNull() ?: return@mapIndexedNotNull null
+            val caption = captions[index]?.takeIf { it.isNotEmpty() }
+            ReportItem.SitePage(uri, caption)
+        }
+    }
+
+    private fun extractSitePageCaptions(meta: List<Map<String, Any?>>?): Map<Int, String> {
+        if (meta.isNullOrEmpty()) return emptyMap()
+        val captionsByPage = mutableMapOf<Int, MutableList<String>>()
+        meta.forEachIndexed { index, entry ->
+            val pageIndex = (entry[KEY_PAGE_INDEX] as? Number)?.toInt() ?: index
+            val slots = entry[KEY_SLOTS] as? List<*> ?: emptyList<Any?>()
+            slots.mapNotNull { slot ->
+                val caption = (slot as? Map<*, *>)?.get(KEY_CAPTION) as? String
+                caption?.trim()?.takeIf { it.isNotEmpty() }
+            }.forEach { caption ->
+                captionsByPage.getOrPut(pageIndex) { mutableListOf() }.add(caption)
+            }
+        }
+        return captionsByPage.mapValues { (_, values) ->
+            values.joinToString(separator = "\n")
+        }
+    }
+
     private fun infoRow(@StringRes labelRes: Int, value: String?, link: String? = null): InfoRowData {
         val normalizedValue = value?.trim().orEmpty()
         val normalizedLink = link?.trim()?.takeIf { it.isNotEmpty() }
@@ -206,5 +266,8 @@ class ViewDailyReportViewModel : ViewModel() {
     companion object {
         private const val REPORT_PLACEHOLDER = "—"
         private const val MAX_LOGO_BYTES = 5_000_000L
+        private const val KEY_PAGE_INDEX = "pageIndex"
+        private const val KEY_SLOTS = "slots"
+        private const val KEY_CAPTION = "caption"
     }
 }

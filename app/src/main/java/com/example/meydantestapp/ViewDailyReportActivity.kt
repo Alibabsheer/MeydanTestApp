@@ -19,7 +19,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.meydantestapp.DailyReport
 import com.example.meydantestapp.report.ReportPdfBuilder
 import com.example.meydantestapp.utils.Constants
 import com.example.meydantestapp.utils.resolveDailyReportSections
@@ -92,7 +91,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
         currentReport = report
         resolvedReportNumber = report.reportNumber
 
-        viewModel.buildNativeItems(report)
+        viewModel.buildNativeItems(applicationContext, report)
         collectViewModel()
 
         val explicitOrgId: String? = intent.getStringExtra(Constants.EXTRA_ORGANIZATION_ID)
@@ -257,7 +256,11 @@ class ViewDailyReportActivity : AppCompatActivity() {
     }
 
     private fun openProjectLocationLink(url: String) {
-        val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return
+        val uri = runCatching { Uri.parse(url) }.getOrNull()
+        if (uri == null) {
+            Toast.makeText(this, R.string.report_error_open_location, Toast.LENGTH_SHORT).show()
+            return
+        }
         val intent = Intent(Intent.ACTION_VIEW, uri)
         try {
             startActivity(intent)
@@ -287,5 +290,4 @@ class ViewDailyReportActivity : AppCompatActivity() {
         val formatter = if (value % 1.0 == 0.0) DecimalFormat("#") else DecimalFormat("#.#")
         return "${formatter.format(value)} °C"
     }
-
 }

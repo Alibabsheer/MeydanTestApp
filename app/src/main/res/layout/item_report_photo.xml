@@ -6,4 +6,6 @@
     android:layout_marginBottom="@dimen/report_item_spacing"
     android:adjustViewBounds="true"
     android:contentDescription="@string/report_content_desc_photo"
-    android:scaleType="centerCrop" />
+    android:scaleType="fitCenter"
+    android:src="@drawable/ic_image_placeholder"
+    android:layoutDirection="locale" />

@@ -1,13 +1,16 @@
 package com.example.meydantestapp.report
 
-import com.example.meydantestapp.report.ReportPdfBuilder
-import com.example.meydantestapp.report.buildReportInfoEntries
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import com.example.meydantestapp.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ReportInfoEntriesTest {
+
+    private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
     fun `buildReportInfoEntries returns ordered rows with values`() {
@@ -26,23 +29,22 @@ class ReportInfoEntriesTest {
             createdBy = "المهندس أحمد"
         )
 
-        val entries = buildReportInfoEntries(data)
+        val entries = buildReportInfoEntries(context, data)
 
-        assertEquals(
-            listOf(
-                "اسم المشروع",
-                "مالك المشروع",
-                "مقاول المشروع",
-                "الاستشاري",
-                "رقم التقرير",
-                "التاريخ",
-                "درجة الحرارة",
-                "حالة الطقس",
-                "موقع المشروع",
-                "تم إنشاء التقرير بواسطة"
-            ),
-            entries.map { it.label }
-        )
+        val expectedLabels = listOf(
+            R.string.label_project_name,
+            R.string.label_project_owner,
+            R.string.label_project_contractor,
+            R.string.label_project_consultant,
+            R.string.label_report_number,
+            R.string.label_report_date,
+            R.string.label_temperature,
+            R.string.label_weather_status,
+            R.string.label_project_location,
+            R.string.label_report_created_by
+        ).map { context.getString(it) }
+
+        assertEquals(expectedLabels, entries.map { it.label })
         assertEquals(
             listOf(
                 "برج الرياض",
@@ -78,7 +80,7 @@ class ReportInfoEntriesTest {
             createdBy = ""
         )
 
-        val entries = buildReportInfoEntries(data)
+        val entries = buildReportInfoEntries(context, data)
 
         assertEquals(10, entries.size)
         assertTrue(entries.all { it.value == "—" })

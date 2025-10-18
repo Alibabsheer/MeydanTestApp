@@ -8,5 +8,7 @@ sealed class ReportItem {
     data class InfoRow(@StringRes val labelRes: Int, val value: String, val linkUrl: String? = null) : ReportItem()
     data class SectionTitle(val level: Int, @StringRes val titleRes: Int) : ReportItem()
     data class BodyText(val text: String) : ReportItem()
+    data class Workforce(val entries: List<String>) : ReportItem()
+    data class SitePage(val uri: Uri, val caption: String? = null) : ReportItem()
     data class Photo(val uri: Uri) : ReportItem()
 }

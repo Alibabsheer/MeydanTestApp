@@ -41,6 +41,14 @@
     <string name="report_section_obstacles">العوائق والتحديات</string>
     <string name="report_section_project_location">موقع المشروع</string>
     <string name="report_section_info">معلومات التقرير</string>
+    <string name="report_section_workforce">العمالة</string>
+    <string name="report_section_site_pages">صفحات الموقع</string>
+    <string name="report_section_daily_photos">صور التقرير اليومي</string>
+    <string name="report_section_notes">الملاحظات</string>
+    <string name="report_workforce_skilled_label">عمالة ماهرة</string>
+    <string name="report_workforce_unskilled_label">عمالة غير ماهرة</string>
+    <string name="report_workforce_total_label">الإجمالي</string>
+    <string name="report_workforce_entry_format">%1$s: %2$s</string>
 
     <string-array name="work_type_options">
         <item>اختر نوع العمل</item>
@@ -57,4 +65,6 @@
     <string name="report_weather_line_format">درجة الحرارة : %1$s    حالة الطقس : %2$s</string>
     <string name="report_weather_temp_format">درجة الحرارة : %1$s</string>
     <string name="report_weather_status_format">حالة الطقس : %1$s</string>
+    <string name="report_pdf_page_number_format">صفحة %1$d</string>
+    <string name="report_pdf_footer_label">تم إنشاء التقرير في تطبيق ميدان</string>
 </resources>
