@@ -6,8 +6,8 @@
     android:layout_marginBottom="@dimen/report_item_spacing"
     android:layoutDirection="locale"
     android:breakStrategy="balanced"
-    android:gravity="start"
     android:lineSpacingExtra="@dimen/report_body_line_spacing_extra"
+    android:textAlignment="viewStart"
+    android:textAppearance="@style/TextAppearance.MaterialComponents.Body1"
     android:textColor="?android:textColorPrimary"
-    android:textDirection="firstStrong"
-    android:textSize="15sp" />
+    android:textDirection="firstStrong" />

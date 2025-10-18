@@ -6,13 +6,12 @@ import android.widget.ImageView
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.recyclerview.widget.RecyclerView
 import com.example.meydantestapp.R
-import com.example.meydantestapp.view.ReportItem
 
 class HeaderLogoVH(itemView: View) : RecyclerView.ViewHolder(itemView) {
 
     private val logoImage: ImageView = itemView.findViewById(R.id.headerLogoImage)
 
-    fun bind(item: ReportItem.HeaderLogo, logo: Bitmap?) {
+    fun bind(logo: Bitmap?) {
         if (logo != null) {
             logoImage.setImageBitmap(logo)
         } else {

@@ -1,6 +1,8 @@
 package com.example.meydantestapp.report
 
+import com.example.meydantestapp.R
 import com.example.meydantestapp.report.ReportPdfBuilder
+import com.example.meydantestapp.report.ReportInfoLabelProvider
 import com.example.meydantestapp.report.buildReportInfoEntries
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -26,7 +28,7 @@ class ReportInfoEntriesTest {
             createdBy = "المهندس أحمد"
         )
 
-        val entries = buildReportInfoEntries(data)
+        val entries = buildReportInfoEntries(data, labelProvider)
 
         assertEquals(
             listOf(
@@ -78,10 +80,26 @@ class ReportInfoEntriesTest {
             createdBy = ""
         )
 
-        val entries = buildReportInfoEntries(data)
+        val entries = buildReportInfoEntries(data, labelProvider)
 
         assertEquals(10, entries.size)
         assertTrue(entries.all { it.value == "—" })
         assertNull(entries[8].linkUrl)
+    }
+
+    private val labelProvider = ReportInfoLabelProvider { resId ->
+        when (resId) {
+            R.string.label_project_name -> "اسم المشروع"
+            R.string.label_project_owner -> "مالك المشروع"
+            R.string.label_project_contractor -> "مقاول المشروع"
+            R.string.label_project_consultant -> "الاستشاري"
+            R.string.label_report_number -> "رقم التقرير"
+            R.string.label_report_date -> "التاريخ"
+            R.string.label_temperature -> "درجة الحرارة"
+            R.string.label_weather_status -> "حالة الطقس"
+            R.string.label_project_location -> "موقع المشروع"
+            R.string.label_report_created_by -> "تم إنشاء التقرير بواسطة"
+            else -> error("Unexpected label resource: $resId")
+        }
     }
 }

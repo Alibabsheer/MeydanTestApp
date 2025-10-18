@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layoutDirection="locale"
+    android:orientation="vertical"
+    android:paddingStart="@dimen/report_item_spacing_half"
+    android:paddingTop="@dimen/report_section_spacing"
+    android:paddingEnd="@dimen/report_item_spacing_half"
+    android:paddingBottom="@dimen/report_item_spacing">
+
+    <ImageView
+        android:id="@+id/sitePageImage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:adjustViewBounds="true"
+        android:contentDescription="@string/report_content_desc_site_page"
+        android:scaleType="centerCrop" />
+
+    <TextView
+        android:id="@+id/sitePageCaption"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/report_caption_spacing"
+        android:lineSpacingExtra="@dimen/report_body_line_spacing_extra"
+        android:textAlignment="viewStart"
+        android:textAppearance="@style/TextAppearance.MaterialComponents.Body2"
+        android:textColor="?android:textColorSecondary"
+        android:textDirection="firstStrong"
+        android:visibility="gone" />
+
+</LinearLayout>
