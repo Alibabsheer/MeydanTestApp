@@ -41,6 +41,16 @@
     <string name="report_section_obstacles">العوائق والتحديات</string>
     <string name="report_section_project_location">موقع المشروع</string>
     <string name="report_section_info">معلومات التقرير</string>
+    <string name="report_section_workforce">العمالة</string>
+    <string name="report_section_site_pages">صفحات الموقع</string>
+    <string name="report_section_photos">صور التقرير اليومي</string>
+    <string name="report_section_notes">الملاحظات</string>
+
+    <string name="report_workforce_label_skilled">العمالة الماهرة</string>
+    <string name="report_workforce_label_unskilled">العمالة غير الماهرة</string>
+    <string name="report_workforce_label_total">الإجمالي</string>
+    <string name="report_workforce_entry_format">%1$s: %2$s</string>
+    <string name="report_workforce_bullet_format">• %1$s</string>
 
     <string-array name="work_type_options">
         <item>اختر نوع العمل</item>
@@ -52,9 +62,14 @@
     <string name="report_error_missing_data">تعذر فتح التقرير: بيانات مفقودة.</string>
     <string name="report_error_share_pdf">تعذر إنشاء ملف PDF للتقرير.</string>
     <string name="report_error_open_location">لا يمكن فتح رابط الموقع.</string>
+    <string name="report_error_invalid_link">الرابط غير صالح.</string>
     <string name="report_content_desc_logo">شعار المؤسسة</string>
     <string name="report_content_desc_photo">صورة من التقرير اليومي</string>
+    <string name="report_content_desc_site_page">صفحة موقع من التقرير اليومي</string>
     <string name="report_weather_line_format">درجة الحرارة : %1$s    حالة الطقس : %2$s</string>
     <string name="report_weather_temp_format">درجة الحرارة : %1$s</string>
     <string name="report_weather_status_format">حالة الطقس : %1$s</string>
+
+    <string name="report_pdf_page_label">صفحة %1$d</string>
+    <string name="report_pdf_footer_label">تم إنشاء التقرير في تطبيق ميدان</string>
 </resources>

@@ -1,6 +1,5 @@
 package com.example.meydantestapp
 
-import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
@@ -19,7 +18,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.meydantestapp.DailyReport
 import com.example.meydantestapp.report.ReportPdfBuilder
 import com.example.meydantestapp.utils.Constants
 import com.example.meydantestapp.utils.resolveDailyReportSections
@@ -65,8 +63,7 @@ class ViewDailyReportActivity : AppCompatActivity() {
         viewModel = ViewModelProvider(this)[ViewDailyReportViewModel::class.java]
 
         adapter = ReportItemsAdapter(
-            logoProvider = { latestLogo },
-            onLinkClicked = { openProjectLocationLink(it) }
+            logoProvider = { latestLogo }
         )
 
         reportList.layoutManager = LinearLayoutManager(this)
@@ -256,16 +253,6 @@ class ViewDailyReportActivity : AppCompatActivity() {
         progressBar.visibility = if (loading) View.VISIBLE else View.GONE
     }
 
-    private fun openProjectLocationLink(url: String) {
-        val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return
-        val intent = Intent(Intent.ACTION_VIEW, uri)
-        try {
-            startActivity(intent)
-        } catch (_: ActivityNotFoundException) {
-            Toast.makeText(this, R.string.report_error_open_location, Toast.LENGTH_SHORT).show()
-        }
-    }
-
     private fun formatWeatherLine(tempRaw: String?, statusRaw: String?): String? {
         val temperature = normalizeCelsius(tempRaw)
         val status = statusRaw?.trim()?.takeIf { it.isNotEmpty() }
@@ -287,5 +274,4 @@ class ViewDailyReportActivity : AppCompatActivity() {
         val formatter = if (value % 1.0 == 0.0) DecimalFormat("#") else DecimalFormat("#.#")
         return "${formatter.format(value)} °C"
     }
-
 }

@@ -24,6 +24,18 @@ object ReportHeadings {
     @StringRes
     private val infoRes: Int = R.string.report_section_info
 
+    @StringRes
+    private val workforceRes: Int = R.string.report_section_workforce
+
+    @StringRes
+    private val sitePagesRes: Int = R.string.report_section_site_pages
+
+    @StringRes
+    private val photosRes: Int = R.string.report_section_photos
+
+    @StringRes
+    private val notesRes: Int = R.string.report_section_notes
+
     fun activities(context: Context): String = context.getString(activitiesRes)
 
     fun equipment(context: Context): String = context.getString(equipmentRes)
@@ -33,4 +45,12 @@ object ReportHeadings {
     fun projectLocation(context: Context): String = context.getString(projectLocationRes)
 
     fun info(context: Context): String = context.getString(infoRes)
+
+    fun workforce(context: Context): String = context.getString(workforceRes)
+
+    fun sitePages(context: Context): String = context.getString(sitePagesRes)
+
+    fun photos(context: Context): String = context.getString(photosRes)
+
+    fun notes(context: Context): String = context.getString(notesRes)
 }

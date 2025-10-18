@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layoutDirection="locale"
+    android:orientation="vertical"
+    android:paddingBottom="@dimen/report_item_spacing">
+
+    <ImageView
+        android:id="@+id/sitePageImage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:adjustViewBounds="true"
+        android:background="@drawable/ic_image_placeholder"
+        android:contentDescription="@string/report_content_desc_site_page"
+        android:scaleType="centerCrop" />
+
+    <TextView
+        android:id="@+id/sitePageCaption"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/report_item_spacing_half"
+        android:breakStrategy="balanced"
+        android:lineSpacingExtra="@dimen/report_body_line_spacing_extra"
+        android:textColor="?android:textColorPrimary"
+        android:textDirection="firstStrong"
+        android:textSize="14sp"
+        android:textAlignment="viewStart"
+        android:visibility="gone" />
+
+</LinearLayout>

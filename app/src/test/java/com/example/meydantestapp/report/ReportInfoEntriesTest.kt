@@ -1,6 +1,7 @@
 package com.example.meydantestapp.report
 
 import com.example.meydantestapp.report.ReportPdfBuilder
+import com.example.meydantestapp.report.ReportInfoLabels
 import com.example.meydantestapp.report.buildReportInfoEntries
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -8,6 +9,19 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ReportInfoEntriesTest {
+
+    private val testLabels = ReportInfoLabels(
+        projectName = "اسم المشروع",
+        ownerName = "مالك المشروع",
+        contractorName = "مقاول المشروع",
+        consultantName = "الاستشاري",
+        reportNumber = "رقم التقرير",
+        reportDate = "التاريخ",
+        temperature = "درجة الحرارة",
+        weatherStatus = "حالة الطقس",
+        projectLocation = "موقع المشروع",
+        createdBy = "تم إنشاء التقرير بواسطة"
+    )
 
     @Test
     fun `buildReportInfoEntries returns ordered rows with values`() {
@@ -26,23 +40,22 @@ class ReportInfoEntriesTest {
             createdBy = "المهندس أحمد"
         )
 
-        val entries = buildReportInfoEntries(data)
+        val entries = buildReportInfoEntries(data, testLabels)
 
-        assertEquals(
-            listOf(
-                "اسم المشروع",
-                "مالك المشروع",
-                "مقاول المشروع",
-                "الاستشاري",
-                "رقم التقرير",
-                "التاريخ",
-                "درجة الحرارة",
-                "حالة الطقس",
-                "موقع المشروع",
-                "تم إنشاء التقرير بواسطة"
-            ),
-            entries.map { it.label }
+        val expectedLabels = listOf(
+            testLabels.projectName,
+            testLabels.ownerName,
+            testLabels.contractorName,
+            testLabels.consultantName,
+            testLabels.reportNumber,
+            testLabels.reportDate,
+            testLabels.temperature,
+            testLabels.weatherStatus,
+            testLabels.projectLocation,
+            testLabels.createdBy
         )
+
+        assertEquals(expectedLabels, entries.map { it.label })
         assertEquals(
             listOf(
                 "برج الرياض",
@@ -78,7 +91,7 @@ class ReportInfoEntriesTest {
             createdBy = ""
         )
 
-        val entries = buildReportInfoEntries(data)
+        val entries = buildReportInfoEntries(data, testLabels)
 
         assertEquals(10, entries.size)
         assertTrue(entries.all { it.value == "—" })

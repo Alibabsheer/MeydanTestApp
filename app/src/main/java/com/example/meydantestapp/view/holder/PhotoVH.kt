@@ -13,14 +13,17 @@ class PhotoVH(itemView: View) : RecyclerView.ViewHolder(itemView) {
     private val photoView: ImageView = itemView.findViewById(R.id.reportPhoto)
 
     fun bind(item: ReportItem.Photo) {
+        photoView.setImageResource(R.drawable.ic_image_placeholder)
         Glide.with(photoView)
             .load(item.uri)
             .diskCacheStrategy(DiskCacheStrategy.ALL)
-            .placeholder(R.drawable.default_logo)
+            .placeholder(R.drawable.ic_image_placeholder)
+            .error(R.drawable.ic_image_placeholder)
             .into(photoView)
     }
 
     fun clear() {
         Glide.with(photoView).clear(photoView)
+        photoView.setImageResource(R.drawable.ic_image_placeholder)
     }
 }
