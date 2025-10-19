@@ -11,7 +11,7 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.example.meydantestapp.R
 import com.example.meydantestapp.view.ReportItem
 
-class PhotoVH(itemView: View) : RecyclerView.ViewHolder(itemView) {
+open class PhotoVH(itemView: View) : RecyclerView.ViewHolder(itemView) {
 
     private val photoView: ImageView = itemView.findViewById(R.id.reportPhoto)
 
