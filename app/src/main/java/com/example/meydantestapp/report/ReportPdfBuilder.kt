@@ -986,9 +986,9 @@ class ReportPdfBuilder(
 
         fun drawLabor(skilled: String?, unskilled: String?, total: String?) {
             val laborHeading = context.getString(R.string.report_section_labor)
-            val skilledLabel = context.getString(R.string.report_labor_skilled)
-            val unskilledLabel = context.getString(R.string.report_labor_unskilled)
-            val totalLabel = context.getString(R.string.report_labor_total)
+            val skilledLabel = context.getString(R.string.label_labor_skilled)
+            val unskilledLabel = context.getString(R.string.label_labor_unskilled)
+            val totalLabel = context.getString(R.string.label_labor_total)
             val items = listOf(
                 skilledLabel to skilled,
                 unskilledLabel to unskilled,
@@ -1013,7 +1013,7 @@ class ReportPdfBuilder(
                 val all = urls.filter { isHttpUrl(it) }
                 if (all.isEmpty()) return
 
-                val photosHeading = context.getString(R.string.report_section_photos)
+                val photosHeading = context.getString(R.string.report_section_daily_photos)
                 drawSectionHeader(photosHeading)
 
                 var index = 0
@@ -1115,7 +1115,7 @@ class ReportPdfBuilder(
 
         // Render prepared pages (fit-inside within the photo area)
             fun drawSitePagesSection(urls: List<String>) {
-                val photosHeading = context.getString(R.string.report_section_photos)
+                val photosHeading = context.getString(R.string.report_section_daily_photos)
                 urls.forEach { url ->
                     startPageWithHeader()
                     drawSectionHeader(photosHeading)
