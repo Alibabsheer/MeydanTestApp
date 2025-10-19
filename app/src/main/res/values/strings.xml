@@ -38,12 +38,12 @@
 
     <string name="pdf_footer_page_label">صفحة %1$d</string>
     <string name="pdf_footer_generated_label">تم إنشاء التقرير في تطبيق ميدان</string>
-    <string name="pdf_heading_labor">العمالة</string>
-    <string name="pdf_label_labor_skilled">عمالة ماهرة</string>
-    <string name="pdf_label_labor_unskilled">عمالة غير ماهرة</string>
-    <string name="pdf_label_labor_total">الإجمالي</string>
-    <string name="pdf_heading_daily_photos">صور التقرير اليومي</string>
-    <string name="pdf_heading_notes">الملاحظات</string>
+    <string name="report_section_notes">الملاحظات</string>
+    <string name="report_section_labor">العمالة</string>
+    <string name="report_labor_skilled">عمالة ماهرة</string>
+    <string name="report_labor_unskilled">عمالة غير ماهرة</string>
+    <string name="report_labor_total">الإجمالي</string>
+    <string name="report_section_photos">صور التقرير اليومي</string>
     <string name="pdf_regex_temperature_pattern">درجة\s*الحرارة\s*[:：]?\s*([0-9]+)</string>
     <string name="pdf_regex_weather_condition_pattern">حالة\s*الطقس\s*[:：]?\s*([\u0621-\u064A\sA-Za-z]+)</string>
 
