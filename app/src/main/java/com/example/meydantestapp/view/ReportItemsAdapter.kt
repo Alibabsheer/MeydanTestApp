@@ -57,9 +57,9 @@ class ReportItemsAdapter(
                 (holder as SectionTitleVH).bind(textAppearance, item.titleRes)
             }
             is ReportItem.BodyText -> (holder as BodyTextVH).bind(item)
-            is ReportItem.Photo -> (holder as PhotoVH).bind(item)
+            is ReportItem.Photo -> (holder as PhotoVH).bind(item.uri)
             is ReportItem.Workforce -> (holder as WorkforceVH).bind(item.entries)
-            is ReportItem.SitePage -> (holder as SitePageVH).bind(item)
+            is ReportItem.SitePage -> (holder as SitePageVH).bind(item.uri, item.caption)
         }
     }
 
