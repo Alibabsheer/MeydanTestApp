@@ -8,11 +8,11 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.example.meydantestapp.R
 import com.example.meydantestapp.view.ReportItem
 
-class PhotoVH(itemView: View) : RecyclerView.ViewHolder(itemView) {
+open class PhotoVH(itemView: View) : RecyclerView.ViewHolder(itemView) {
 
     private val photoView: ImageView = itemView.findViewById(R.id.reportPhoto)
 
-    fun bind(item: ReportItem.Photo) {
+    open fun bind(item: ReportItem.Photo) {
         Glide.with(photoView)
             .load(item.uri)
             .diskCacheStrategy(DiskCacheStrategy.ALL)
@@ -20,7 +20,7 @@ class PhotoVH(itemView: View) : RecyclerView.ViewHolder(itemView) {
             .into(photoView)
     }
 
-    fun clear() {
+    open fun clear() {
         Glide.with(photoView).clear(photoView)
     }
 }
