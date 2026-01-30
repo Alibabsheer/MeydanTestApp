@@ -6,7 +6,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
+import coil.load
 
 /**
  * SelectedImagesAdapter
@@ -38,10 +38,9 @@ class SelectedImagesAdapter(
 
         // حمّل المصغّر دائمًا
         val item = images[position]
-        Glide.with(ctx)
-            .load(item.uri)
-            .centerCrop()
-            .into(holder.thumb)
+        holder.thumb.load(item.uri) {
+            crossfade(true)
+        }
 
         // افتراضيًا: كل العناصر مختارة => أظهر الشارة ✓ وطبقة التعتيم
         holder.selectionScrim.visibility = View.VISIBLE

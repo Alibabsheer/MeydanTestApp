@@ -5,7 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
+import coil.load
 
 /**
  * PreviewPagerAdapter
@@ -30,10 +30,9 @@ class PreviewPagerAdapter(
         val ctx = holder.itemView.context
         val item = images[position]
 
-        Glide.with(ctx)
-            .load(item.uri)
-            .fitCenter()
-            .into(holder.photo)
+        holder.photo.load(item.uri) {
+            crossfade(true)
+        }
 
         holder.photo.setOnClickListener { onImageTap?.invoke() }
     }

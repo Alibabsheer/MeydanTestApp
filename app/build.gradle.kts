@@ -5,7 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     id("com.google.gms.google-services")
     id("kotlin-parcelize")
-    id("org.jetbrains.kotlin.kapt") // لتفعيل kapt (مطلوب لـ Glide)
+    // تم إزالة kapt لعدم الحاجة إليه بعد إزالة Glide
 }
 
 val localProps = Properties().apply {
@@ -104,9 +104,8 @@ dependencies {
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.viewpager2:viewpager2:1.1.0")
 
+    // استخدام Coil فقط لتحميل الصور (تم إزالة Glide لتقليل حجم APK)
     implementation("io.coil-kt:coil:2.7.0")
-    implementation("com.github.bumptech.glide:glide:4.16.0")
-    kapt("com.github.bumptech.glide:compiler:4.16.0")
 
     implementation("com.google.guava:guava:33.0.0-android")
 

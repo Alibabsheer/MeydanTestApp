@@ -11,7 +11,8 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
+import coil.load
+import coil.clear
 import com.example.meydantestapp.R
 import com.example.meydantestapp.models.PhotoEntry
 import com.example.meydantestapp.models.PhotoTemplate
@@ -136,7 +137,7 @@ class PhotoSlotAdapter(
 
     override fun onViewRecycled(holder: SlotVH) {
         super.onViewRecycled(holder)
-        Glide.with(holder.iv.context).clear(holder.iv)
+        holder.iv.clear()
     }
 
     inner class SlotVH(view: View) : RecyclerView.ViewHolder(view) {
@@ -157,11 +158,11 @@ class PhotoSlotAdapter(
             if (hasImage(entry)) {
                 tvHint.visibility = View.GONE
                 val src: Any = entry!!.originalUrl ?: entry.localUri!!
-                Glide.with(iv.context)
-                    .load(src)
-                    .centerCrop()
-                    .placeholder(R.drawable.ic_image_placeholder)
-                    .into(iv)
+                iv.load(src) {
+                    crossfade(true)
+                    placeholder(R.drawable.ic_image_placeholder)
+                    error(R.drawable.ic_image_placeholder)
+                }
 
                 suppressCallback = true
                 etCaption.setText(entry.caption ?: "")

@@ -38,21 +38,37 @@ class MyApp : Application(), Application.ActivityLifecycleCallbacks {
         AppCompatDelegate.setDefaultNightMode(nightMode)
 
         val sessionPrefs = getSharedPreferences("SessionPrefs", Context.MODE_PRIVATE)
-        val wasBackgrounded = sessionPrefs.getBoolean(KEY_WAS_BACKGROUNDED, false)
-        if (wasBackgrounded) {
-            FirebaseAuth.getInstance().signOut()
-            sessionPrefs.edit().putBoolean(KEY_WAS_BACKGROUNDED, false).apply()
-        }
-
+        // تم إزالة سلوك تسجيل الخروج التلقائي عند الخلفية لتحسين تجربة المستخدم
+        // الاعتماد فقط على SESSION_TIMEOUT_MS للأمان
         sessionPrefs.edit().putLong(KEY_LAST_ACTIVE_MS, System.currentTimeMillis()).apply()
         registerActivityLifecycleCallbacks(this)
 
         initializeSecurityProvider()
     }
 
-    override fun onActivityStarted(activity: Activity) { /* نفس منطق debug لو أردت */ }
-    override fun onActivityStopped(activity: Activity) { /* … */ }
-    override fun onActivityResumed(activity: Activity) { /* … */ }
+    override fun onActivityStarted(activity: Activity) {
+        if (startedCount == 0) {
+            val sp = getSharedPreferences("SessionPrefs", Context.MODE_PRIVATE)
+            // تحديث وقت آخر نشاط عند عودة التطبيق للمقدمة
+            sp.edit().putLong(KEY_LAST_ACTIVE_MS, System.currentTimeMillis()).apply()
+        }
+        startedCount++
+    }
+
+    override fun onActivityStopped(activity: Activity) {
+        startedCount--
+        if (!activity.isChangingConfigurations && startedCount == 0) {
+            val sp = getSharedPreferences("SessionPrefs", Context.MODE_PRIVATE)
+            // تحديث وقت آخر نشاط فقط، بدون تسجيل الخروج
+            sp.edit().putLong(KEY_LAST_ACTIVE_MS, System.currentTimeMillis()).apply()
+        }
+    }
+
+    override fun onActivityResumed(activity: Activity) {
+        val sp = getSharedPreferences("SessionPrefs", Context.MODE_PRIVATE)
+        sp.edit().putLong(KEY_LAST_ACTIVE_MS, System.currentTimeMillis()).apply()
+    }
+
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
     override fun onActivityPaused(activity: Activity) {}
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
@@ -91,8 +107,9 @@ class MyApp : Application(), Application.ActivityLifecycleCallbacks {
     }
 
     companion object {
-        const val SESSION_TIMEOUT_MS: Long = 15L * 60L * 1000L
-        const val KEY_WAS_BACKGROUNDED = "was_backgrounded"
+        // تم زيادة مهلة الخمول من 15 دقيقة إلى ساعة واحدة لتحسين تجربة المستخدم
+        const val SESSION_TIMEOUT_MS: Long = 60L * 60L * 1000L // ساعة واحدة
+        const val KEY_WAS_BACKGROUNDED = "was_backgrounded" // محفوظ للتوافق
         const val KEY_LAST_ACTIVE_MS = "last_active_time"
     }
 }

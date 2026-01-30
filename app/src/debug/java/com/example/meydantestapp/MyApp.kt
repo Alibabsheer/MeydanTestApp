@@ -47,12 +47,8 @@ class MyApp : Application(), Application.ActivityLifecycleCallbacks {
         AppCompatDelegate.setDefaultNightMode(nightMode)
 
         val sessionPrefs = getSharedPreferences("SessionPrefs", Context.MODE_PRIVATE)
-        val wasBackgrounded = sessionPrefs.getBoolean(KEY_WAS_BACKGROUNDED, false)
-        if (wasBackgrounded) {
-            FirebaseAuth.getInstance().signOut()
-            sessionPrefs.edit().putBoolean(KEY_WAS_BACKGROUNDED, false).apply()
-        }
-
+        // تم إزالة سلوك تسجيل الخروج التلقائي عند الخلفية لتحسين تجربة المستخدم
+        // الاعتماد فقط على SESSION_TIMEOUT_MS للأمان
         sessionPrefs.edit().putLong(KEY_LAST_ACTIVE_MS, System.currentTimeMillis()).apply()
         registerActivityLifecycleCallbacks(this)
 
@@ -66,10 +62,8 @@ class MyApp : Application(), Application.ActivityLifecycleCallbacks {
     override fun onActivityStarted(activity: Activity) {
         if (startedCount == 0) {
             val sp = getSharedPreferences("SessionPrefs", Context.MODE_PRIVATE)
-            sp.edit()
-                .putBoolean(KEY_WAS_BACKGROUNDED, false)
-                .putLong(KEY_LAST_ACTIVE_MS, System.currentTimeMillis())
-                .apply()
+            // تحديث وقت آخر نشاط عند عودة التطبيق للمقدمة
+            sp.edit().putLong(KEY_LAST_ACTIVE_MS, System.currentTimeMillis()).apply()
         }
         startedCount++
     }
@@ -78,10 +72,8 @@ class MyApp : Application(), Application.ActivityLifecycleCallbacks {
         startedCount--
         if (!activity.isChangingConfigurations && startedCount == 0) {
             val sp = getSharedPreferences("SessionPrefs", Context.MODE_PRIVATE)
-            sp.edit()
-                .putBoolean(KEY_WAS_BACKGROUNDED, true)
-                .putLong(KEY_LAST_ACTIVE_MS, System.currentTimeMillis())
-                .apply()
+            // تحديث وقت آخر نشاط فقط، بدون تسجيل الخروج
+            sp.edit().putLong(KEY_LAST_ACTIVE_MS, System.currentTimeMillis()).apply()
         }
     }
 
@@ -128,8 +120,9 @@ class MyApp : Application(), Application.ActivityLifecycleCallbacks {
     }
 
     companion object {
-        const val SESSION_TIMEOUT_MS: Long = 15L * 60L * 1000L
-        const val KEY_WAS_BACKGROUNDED = "was_backgrounded"
+        // تم زيادة مهلة الخمول من 15 دقيقة إلى ساعة واحدة لتحسين تجربة المستخدم
+        const val SESSION_TIMEOUT_MS: Long = 60L * 60L * 1000L // ساعة واحدة
+        const val KEY_WAS_BACKGROUNDED = "was_backgrounded" // محفوظ للتوافق
         const val KEY_LAST_ACTIVE_MS = "last_active_time"
     }
 }

@@ -16,7 +16,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.addTextChangedListener
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
-import com.bumptech.glide.Glide
+import coil.load
 import com.example.meydantestapp.databinding.ActivityAccountSettingsBinding
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -184,7 +184,10 @@ class AccountSettingsActivity : AppCompatActivity() {
         })
         viewModel.logoUrl.observe(this, Observer { url ->
             if (url != null) {
-                Glide.with(this).load(url).placeholder(R.drawable.default_logo).into(binding.logoPreview)
+                binding.logoPreview.load(url) {
+                    placeholder(R.drawable.default_logo)
+                    error(R.drawable.default_logo)
+                }
             } else {
                 binding.logoPreview.setImageResource(R.drawable.default_logo)
             }
