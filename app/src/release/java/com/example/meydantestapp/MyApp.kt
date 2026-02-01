@@ -10,6 +10,8 @@ import androidx.appcompat.app.AppCompatDelegate
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.security.ProviderInstaller
@@ -22,6 +24,9 @@ class MyApp : Application(), Application.ActivityLifecycleCallbacks {
         super.onCreate()
 
         FirebaseApp.initializeApp(this)
+
+        // تفعيل Offline Mode لـ Firestore
+        enableFirestoreOfflineMode()
 
         try {
             val appCheck = FirebaseAppCheck.getInstance()
@@ -103,6 +108,23 @@ class MyApp : Application(), Application.ActivityLifecycleCallbacks {
                 "Unexpected error while installing provider: ${throwable.message}",
                 throwable
             )
+        }
+    }
+
+    /**
+     * تفعيل Offline Mode لـ Firestore لتحسين الأداء في المواقع ذات الاتصال الضعيف
+     */
+    private fun enableFirestoreOfflineMode() {
+        try {
+            val firestore = FirebaseFirestore.getInstance()
+            val settings = FirebaseFirestoreSettings.Builder()
+                .setPersistenceEnabled(true)
+                .setCacheSizeBytes(FirebaseFirestoreSettings.CACHE_SIZE_UNLIMITED)
+                .build()
+            firestore.firestoreSettings = settings
+            Log.d("Firestore", "Offline mode enabled with unlimited cache")
+        } catch (e: Exception) {
+            Log.w("Firestore", "Failed to enable offline mode: ${e.message}")
         }
     }
 

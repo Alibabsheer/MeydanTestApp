@@ -57,4 +57,114 @@
     <string name="report_weather_line_format">درجة الحرارة : %1$s    حالة الطقس : %2$s</string>
     <string name="report_weather_temp_format">درجة الحرارة : %1$s</string>
     <string name="report_weather_status_format">حالة الطقس : %1$s</string>
+
+    <!-- ========== Phase 1: Critical Strings ========== -->
+    <!-- Error Messages -->
+    <string name="error_account_deletion_failed">فشل حذف الحساب: %s</string>
+    <string name="error_account_type_unknown">تعذر تحديد نوع الحساب.</string>
+    <string name="error_end_date_before_start">تاريخ الانتهاء يجب أن يكون بعد تاريخ البدء</string>
+    <string name="error_excel_import_failed">فشل في استيراد ملف Excel: %s</string>
+    <string name="error_fill_all_fields">الرجاء تعبئة جميع الحقول المطلوبة.</string>
+    <string name="error_load_org_failed">فشل تحميل بيانات المؤسسة</string>
+    <string name="error_load_users_failed">فشل تحميل المستخدمين</string>
+    <string name="error_location_not_available">بيانات الموقع غير متوفرة لهذا المشروع.</string>
+    <string name="error_logo_update_failed">فشل تحديث الشعار</string>
+    <string name="error_lumpsum_delete_failed">فشل حذف جدول المقطوعية: %s</string>
+    <string name="error_map_not_ready">الخريطة غير جاهزة بعد</string>
+    <string name="error_org_not_found">تعذر تحديد المؤسسة.</string>
+    <string name="error_project_creation_failed">فشل في إنشاء المشروع: %s</string>
+    <string name="error_project_data_incomplete">بيانات المشروع غير مكتملة</string>
+    <string name="error_project_details_not_ready">تفاصيل المشروع غير جاهزة بعد</string>
+    <string name="error_project_not_found">المشروع غير موجود.</string>
+    <string name="error_project_update_failed">فشل في تحديث المشروع: %s</string>
+    <string name="error_quantity_table_delete_failed">فشل حذف جدول الكميات: %s</string>
+    <string name="error_report_save_failed">فشل حفظ التقرير: %s</string>
+    <string name="error_save_changes_failed">فشل حفظ التغييرات</string>
+    <string name="error_select_work_type_first">الرجاء تحديد نوع العمل للمشروع أولاً.</string>
+    <string name="error_user_deletion_failed">فشل حذف المستخدم</string>
+    <string name="error_user_not_logged_in">خطأ: المستخدم غير مسجل الدخول.</string>
+
+    <!-- Success Messages -->
+    <string name="success_account_created">تم إنشاء الحساب بنجاح</string>
+    <string name="success_changes_saved">تم حفظ التغييرات</string>
+    <string name="success_code_copied">تم نسخ الكود</string>
+    <string name="success_logo_updated">تم تحديث الشعار</string>
+    <string name="success_lumpsum_imported">تم استيراد جدول المقطوعية بنجاح</string>
+    <string name="success_project_created">تم إنشاء المشروع بنجاح</string>
+    <string name="success_project_deleted">تم حذف المشروع بنجاح.</string>
+    <string name="success_project_updated">تم تحديث تفاصيل المشروع بنجاح.</string>
+    <string name="success_quantity_table_deleted">تم حذف جدول الكميات بنجاح</string>
+    <string name="success_quantity_table_imported">تم استيراد جدول الكميات بنجاح</string>
+    <string name="success_report_saved">تم حفظ التقرير بنجاح</string>
+    <string name="success_user_deleted">تم حذف المستخدم بنجاح</string>
+
+    <!-- Button Texts -->
+    <string name="button_add">إضافة</string>
+    <string name="button_back">رجوع</string>
+    <string name="button_cancel">إلغاء</string>
+    <string name="button_close">إغلاق</string>
+    <string name="button_delete">حذف</string>
+    <string name="button_edit">تعديل</string>
+    <string name="button_next">التالي</string>
+    <string name="button_no">لا</string>
+    <string name="button_ok">موافق</string>
+    <string name="button_open_settings">فتح الإعدادات</string>
+    <string name="button_retry">إعادة المحاولة</string>
+    <string name="button_save">حفظ</string>
+    <string name="button_update">تحديث</string>
+    <string name="button_yes">نعم</string>
+    <string name="button_yes_delete">نعم، احذف</string>
+
+    <!-- Titles -->
+    <string name="title_account_settings">إعدادات الحساب</string>
+    <string name="title_create_account">إنشاء حساب</string>
+    <string name="title_create_daily_report">إنشاء تقرير يومي</string>
+    <string name="title_create_project">إنشاء مشروع</string>
+    <string name="title_daily_reports">التقارير اليومية</string>
+    <string name="title_login">تسجيل الدخول</string>
+    <string name="title_lumpsum_table">جدول المقطوعية</string>
+    <string name="title_manage_users">إدارة المستخدمين</string>
+    <string name="title_project_details">تفاصيل المشروع</string>
+    <string name="title_quantity_table">جدول الكميات</string>
+
+    <!-- Labels -->
+    <string name="label_activities">النشاطات</string>
+    <string name="label_consultant">الاستشاري</string>
+    <string name="label_contractor">المقاول</string>
+    <string name="label_date">التاريخ</string>
+    <string name="label_end_date">تاريخ الانتهاء</string>
+    <string name="label_equipment">الآلات والمعدات</string>
+    <string name="label_join_code">كود الانضمام</string>
+    <string name="label_location">الموقع</string>
+    <string name="label_obstacles">العوائق</string>
+    <string name="label_organization_name">اسم المؤسسة</string>
+    <string name="label_owner">المالك</string>
+    <string name="label_start_date">تاريخ البدء</string>
+    <string name="label_username">اسم المستخدم</string>
+    <string name="label_work_type">نوع العمل</string>
+
+    <!-- Hints -->
+    <string name="hint_enter_email">أدخل البريد الإلكتروني</string>
+    <string name="hint_enter_join_code">أدخل كود الانضمام</string>
+    <string name="hint_enter_password">أدخل كلمة المرور</string>
+    <string name="hint_enter_project_name">أدخل اسم المشروع</string>
+    <string name="hint_select_date">اختر التاريخ</string>
+    <string name="hint_select_location">اختر الموقع</string>
+    <string name="hint_select_work_type">اختر نوع العمل</string>
+
+    <!-- Validation Messages -->
+    <string name="validation_email_invalid">البريد الإلكتروني غير صحيح</string>
+    <string name="validation_email_required">البريد الإلكتروني مطلوب</string>
+    <string name="validation_join_code_required">كود الانضمام مطلوب</string>
+    <string name="validation_org_name_required">اسم المؤسسة مطلوب</string>
+    <string name="validation_org_name_too_long">اسم المؤسسة طويل جداً</string>
+    <string name="validation_password_required">كلمة المرور مطلوب</string>
+    <string name="validation_password_too_short">كلمة المرور قصيرة جداً</string>
+    <string name="validation_project_name_required">اسم المشروع مطلوب</string>
+    <string name="validation_project_name_too_long">اسم المشروع طويل جداً</string>
+    <string name="validation_username_required">اسم المستخدم مطلوب</string>
+
+    <!-- Dialog Messages -->
+    <string name="dialog_confirm_delete_message">هل أنت متأكد من حذف هذا العنصر؟</string>
+    <string name="dialog_confirm_delete_title">تأكيد الحذف</string>
 </resources>
