@@ -1,9 +1,11 @@
 package com.example.meydantestapp.ui.viewmodels
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.meydantestapp.common.UiMessage
 import com.example.meydantestapp.utils.ErrorHandler
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.launch
@@ -22,13 +24,9 @@ abstract class BaseViewModel : ViewModel() {
     private val _isLoading = MutableLiveData<Boolean>()
     val isLoading: LiveData<Boolean> = _isLoading
 
-    // رسائل الأخطاء
-    private val _errorMessage = MutableLiveData<String?>()
-    val errorMessage: LiveData<String?> = _errorMessage
-
-    // رسائل النجاح
-    private val _successMessage = MutableLiveData<String?>()
-    val successMessage: LiveData<String?> = _successMessage
+    // رسائل واجهة المستخدم (أخطاء، نجاح، معلومات)
+    private val _uiMessage = MutableLiveData<UiMessage?>()
+    val uiMessage: LiveData<UiMessage?> = _uiMessage
 
     /**
      * تنفيذ عملية غير متزامنة مع معالجة الأخطاء تلقائياً
@@ -92,28 +90,34 @@ abstract class BaseViewModel : ViewModel() {
      */
     private fun handleError(error: Throwable) {
         val message = ErrorHandler.getErrorMessage(error)
-        _errorMessage.value = message
+        _uiMessage.value = UiMessage.RawString(message)
     }
 
     /**
-     * عرض رسالة نجاح
+     * عرض رسالة من strings.xml
      */
-    protected fun showSuccess(message: String) {
-        _successMessage.value = message
+    protected fun showMessage(@StringRes resId: Int) {
+        _uiMessage.value = UiMessage.StringResource(resId)
     }
 
     /**
-     * عرض رسالة خطأ
+     * عرض رسالة من strings.xml مع معاملات
      */
-    protected fun showError(message: String) {
-        _errorMessage.value = message
+    protected fun showMessage(@StringRes resId: Int, vararg args: Any) {
+        _uiMessage.value = UiMessage.StringResourceWithArgs(resId, args.toList().toTypedArray())
     }
 
     /**
-     * مسح رسائل الأخطاء والنجاح
+     * عرض نص مباشر (استخدم بحذر - للحالات الاستثنائية فقط)
      */
-    fun clearMessages() {
-        _errorMessage.value = null
-        _successMessage.value = null
+    protected fun showRawMessage(text: String) {
+        _uiMessage.value = UiMessage.RawString(text)
+    }
+
+    /**
+     * مسح الرسائل
+     */
+    fun clearMessage() {
+        _uiMessage.value = null
     }
 }
