@@ -1,15 +1,16 @@
-package com.example.meydantestapp
+package com.example.meydantestapp.ui.viewmodels.auth
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
-import com.example.meydantestapp.repository.OrganizationRepository
+import com.example.meydantestapp.data.repository.OrganizationRepository
 import kotlinx.coroutines.launch
 import android.net.Uri
+import com.example.meydantestapp.ui.viewmodels.BaseViewModel
 
-class AccountSettingsViewModel : ViewModel() {
+class AccountSettingsViewModel : BaseViewModel() {
 
     private val auth = FirebaseAuth.getInstance()
     private val repo = OrganizationRepository()

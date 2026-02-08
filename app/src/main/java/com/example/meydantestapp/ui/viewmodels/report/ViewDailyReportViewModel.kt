@@ -1,4 +1,4 @@
-package com.example.meydantestapp
+package com.example.meydantestapp.ui.viewmodels.report
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -21,8 +21,9 @@ import kotlinx.coroutines.tasks.await
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.Locale
+import com.example.meydantestapp.ui.viewmodels.BaseViewModel
 
-class ViewDailyReportViewModel : ViewModel() {
+class ViewDailyReportViewModel : BaseViewModel() {
 
     private val storage by lazy { FirebaseStorage.getInstance() }
 

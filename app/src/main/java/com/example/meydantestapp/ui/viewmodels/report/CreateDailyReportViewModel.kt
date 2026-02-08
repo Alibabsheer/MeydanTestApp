@@ -1,4 +1,4 @@
-package com.example.meydantestapp
+package com.example.meydantestapp.ui.viewmodels.report
 
 import android.app.Application
 import android.content.ContentResolver
@@ -20,10 +20,10 @@ import androidx.work.OneTimeWorkRequest
 import com.example.meydantestapp.models.PhotoEntry
 import com.example.meydantestapp.models.PhotoTemplates
 import com.example.meydantestapp.models.TemplateId
-import com.example.meydantestapp.repository.DailyReportRepository
-import com.example.meydantestapp.repository.DailyReportUploadTarget
-import com.example.meydantestapp.repository.DailyReportUploadWorker
-import com.example.meydantestapp.repository.WeatherRepository
+import com.example.meydantestapp.data.repository.DailyReportRepository
+import com.example.meydantestapp.data.repository.DailyReportUploadTarget
+import com.example.meydantestapp.data.repository.DailyReportUploadWorker
+import com.example.meydantestapp.data.repository.WeatherRepository
 import com.example.meydantestapp.utils.ImageUtils
 import com.example.meydantestapp.utils.ProjectLocationSnapshotResolver
 import com.example.meydantestapp.utils.ProjectLocationUtils
@@ -48,6 +48,7 @@ import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import com.example.meydantestapp.ui.viewmodels.BaseViewModel
 
 /**
  * CreateDailyReportViewModel – إدارة الحالة والتخزين للتقرير اليومي.

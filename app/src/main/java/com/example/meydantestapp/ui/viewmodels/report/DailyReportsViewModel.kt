@@ -1,21 +1,22 @@
-package com.example.meydantestapp
+package com.example.meydantestapp.ui.viewmodels.report
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.meydantestapp.repository.AuthRepository
-import com.example.meydantestapp.repository.DailyReportRepository
+import com.example.meydantestapp.data.repository.AuthRepository
+import com.example.meydantestapp.data.repository.DailyReportRepository
 import com.example.meydantestapp.utils.Constants
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
+import com.example.meydantestapp.ui.viewmodels.BaseViewModel
 
 /**
  * DailyReportsViewModel
  * - يجلب التقارير اليومية من DailyReportRepository بالمسار الهرمي.
  * - يرتّب محليًا حسب reportIndex إن وجد (تصاعديًا)، وإلا حسب date تنازليًا.
  */
-class DailyReportsViewModel : ViewModel() {
+class DailyReportsViewModel : BaseViewModel() {
 
     private val authRepository = AuthRepository() // أبقيناه للتوافق إن كان يُستخدم بمكان آخر
     private val auth = FirebaseAuth.getInstance()

@@ -1,13 +1,14 @@
-package com.example.meydantestapp
+package com.example.meydantestapp.ui.viewmodels.auth
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.meydantestapp.repository.AuthRepository
+import com.example.meydantestapp.data.repository.AuthRepository
 import kotlinx.coroutines.launch
+import com.example.meydantestapp.ui.viewmodels.BaseViewModel
 
-class RegisterAffiliatedUserViewModel : ViewModel() {
+class RegisterAffiliatedUserViewModel : BaseViewModel() {
 
     private val authRepository = AuthRepository()
 

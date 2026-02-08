@@ -1,11 +1,11 @@
-package com.example.meydantestapp
+package com.example.meydantestapp.ui.viewmodels.project
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.meydantestapp.utils.AppLogger
-import com.example.meydantestapp.repository.ProjectRepository
+import com.example.meydantestapp.data.repository.ProjectRepository
 import com.example.meydantestapp.utils.AuthProvider
 import com.example.meydantestapp.utils.FirebaseAuthProvider
 import com.example.meydantestapp.utils.ProjectLocationUtils
@@ -13,6 +13,7 @@ import com.example.meydantestapp.utils.ProjectDateUtils.toUtcTimestamp
 import com.google.firebase.Timestamp
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import com.example.meydantestapp.ui.viewmodels.BaseViewModel
 
 /**
  * ViewModel مسؤول عن إنشاء مشروع جديد عبر ProjectRepository.
@@ -21,7 +22,7 @@ import java.time.LocalDate
 class CreateProjectViewModel(
     private val repository: ProjectRepository = ProjectRepository(),
     private val authProvider: AuthProvider = FirebaseAuthProvider()
-) : ViewModel() {
+) : BaseViewModel() {
 
     private val _isLoading = MutableLiveData(false)
     val isLoading: LiveData<Boolean> = _isLoading

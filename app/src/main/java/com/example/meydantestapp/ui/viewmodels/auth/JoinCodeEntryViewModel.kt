@@ -1,10 +1,11 @@
-package com.example.meydantestapp
+package com.example.meydantestapp.ui.viewmodels.auth
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.google.firebase.functions.ktx.functions
 import com.google.firebase.ktx.Firebase
+import com.example.meydantestapp.ui.viewmodels.BaseViewModel
 
 /**
  * ViewModel يتحقق من كود الانضمام عبر Cloud Function: verifyJoinCode (us-central1)
@@ -13,7 +14,7 @@ import com.google.firebase.ktx.Firebase
  * لا نستخدم Event wrapper جديد؛ بدلاً من ذلك نمرّر كائن ملاحة مرة واحدة
  * ثم نعيده إلى null بعد الاستهلاك من الـ Activity.
  */
-class JoinCodeEntryViewModel : ViewModel() {
+class JoinCodeEntryViewModel : BaseViewModel() {
 
     // لعرض/إخفاء مؤشّر التحميل إن رغبت
     private val _isLoading = MutableLiveData(false)

@@ -1,22 +1,17 @@
-package com.example.meydantestapp
+package com.example.meydantestapp.ui.viewmodels.auth
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.example.meydantestapp.repository.AuthRepository
+import com.example.meydantestapp.data.repository.AuthRepository
+import com.example.meydantestapp.ui.viewmodels.BaseViewModel
 import com.example.meydantestapp.utils.ValidationUtils
-import kotlinx.coroutines.launch
 
-class RegisterOrganizationViewModel : ViewModel() {
+class RegisterOrganizationViewModel : BaseViewModel() {
 
     private val authRepository = AuthRepository()
 
     private val _registrationResult = MutableLiveData<Result<String>>()
     val registrationResult: LiveData<Result<String>> = _registrationResult
-
-    private val _isLoading = MutableLiveData<Boolean>()
-    val isLoading: LiveData<Boolean> = _isLoading
 
     private val _organizationNameError = MutableLiveData<String?>()
     val organizationNameError: LiveData<String?> = _organizationNameError
@@ -53,19 +48,17 @@ class RegisterOrganizationViewModel : ViewModel() {
             return
         }
 
-        _isLoading.value = true
-
-        viewModelScope.launch {
-            try {
-                val result = authRepository.registerOrganization(
-                    organizationName, activityType, email, password
-                )
-                _registrationResult.value = result
-            } catch (e: Exception) {
-                _registrationResult.value = Result.failure(e)
-            } finally {
-                _isLoading.value = false
+        launchWithResult(
+            onSuccess = { userId ->
+                _registrationResult.value = Result.success(userId)
+            },
+            onError = { error ->
+                _registrationResult.value = Result.failure(error)
             }
+        ) {
+            authRepository.registerOrganization(
+                organizationName, activityType, email, password
+            )
         }
     }
 
@@ -74,6 +67,6 @@ class RegisterOrganizationViewModel : ViewModel() {
         _emailError.value = null
         _passwordError.value = null
         _confirmPasswordError.value = null
+        clearMessages()
     }
 }
-

@@ -1,22 +1,18 @@
-package com.example.meydantestapp
+package com.example.meydantestapp.ui.viewmodels.auth
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.example.meydantestapp.repository.AuthRepository
+import com.example.meydantestapp.data.repository.AuthRepository
+import com.example.meydantestapp.ui.viewmodels.BaseViewModel
 import com.example.meydantestapp.utils.ValidationUtils
-import kotlinx.coroutines.launch
+import com.example.meydantestapp.R
 
-class LoginViewModel : ViewModel() {
+class LoginViewModel : BaseViewModel() {
 
     private val authRepository = AuthRepository()
 
     private val _loginResult = MutableLiveData<Result<String>>()
     val loginResult: LiveData<Result<String>> = _loginResult
-
-    private val _isLoading = MutableLiveData<Boolean>()
-    val isLoading: LiveData<Boolean> = _isLoading
 
     private val _emailError = MutableLiveData<String?>()
     val emailError: LiveData<String?> = _emailError
@@ -36,27 +32,25 @@ class LoginViewModel : ViewModel() {
             return
         }
 
-        _isLoading.value = true
-
-        viewModelScope.launch {
-            try {
-                val result = authRepository.loginUser(email, password)
-                _loginResult.value = result
-            } catch (e: Exception) {
-                _loginResult.value = Result.failure(e)
-            } finally {
-                _isLoading.value = false
+        launchWithResult(
+            onSuccess = { userId ->
+                _loginResult.value = Result.success(userId)
+            },
+            onError = { error ->
+                _loginResult.value = Result.failure(error)
             }
+        ) {
+            authRepository.loginUser(email, password)
         }
     }
 
     fun clearErrors() {
         _emailError.value = null
         _passwordError.value = null
+        clearMessages()
     }
 
     fun isUserLoggedIn(): Boolean {
         return authRepository.getCurrentUserId() != null
     }
 }
-

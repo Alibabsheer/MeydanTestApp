@@ -1,14 +1,15 @@
-package com.example.meydantestapp
+package com.example.meydantestapp.ui.viewmodels.project
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.meydantestapp.data.model.Project
-import com.example.meydantestapp.repository.ProjectRepository
+import com.example.meydantestapp.data.repository.ProjectRepository
 import kotlinx.coroutines.launch
+import com.example.meydantestapp.ui.viewmodels.BaseViewModel
 
-class ProjectDetailsViewModel : ViewModel() {
+class ProjectDetailsViewModel : BaseViewModel() {
 
     private val projectRepository = ProjectRepository()
 
