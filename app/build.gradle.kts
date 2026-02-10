@@ -123,6 +123,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.3")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.8.3")
 
+    // Paging 3
+    implementation("androidx.paging:paging-runtime-ktx:3.2.1")
+
     testImplementation(libs.junit)
     testImplementation("androidx.arch.core:core-testing:2.2.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
