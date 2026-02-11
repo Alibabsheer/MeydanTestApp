@@ -25,6 +25,22 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
+    <!-- زر تصدير المشروع -->
+    <ImageView
+        android:id="@+id/exportProjectButton"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@drawable/ic_share"
+        android:contentDescription="تصدير المشروع"
+        android:padding="8dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:layout_marginTop="24dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        app:tint="?attr/iconTint"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
     <!-- عنوان الشاشة -->
     <TextView
         android:id="@+id/titleText"

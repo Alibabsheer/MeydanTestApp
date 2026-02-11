@@ -7,15 +7,18 @@ import android.view.View
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.example.meydantestapp.databinding.ActivityProjectDetailsBinding
 import com.example.meydantestapp.utils.AppLogger
 import com.example.meydantestapp.utils.Constants
+import com.example.meydantestapp.utils.ExportManager
 import com.example.meydantestapp.utils.ProjectDateFormatter
 import com.example.meydantestapp.utils.migrateTimestampIfNeeded
 import com.example.meydantestapp.utils.toProjectSafe
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
 class ProjectDetailsActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityProjectDetailsBinding
@@ -41,6 +44,25 @@ class ProjectDetailsActivity : AppCompatActivity() {
         binding.fabAddReport.visibility = View.VISIBLE
 
         binding.backButton.setOnClickListener { finish() }
+
+        // زر التصدير إلى Excel
+        binding.exportProjectButton.setOnClickListener {
+            val project = selectedProject
+            if (project == null) {
+                Toast.makeText(this, "يرجى الانتظار حتى تحميل بيانات المشروع", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            lifecycleScope.launch {
+                val exportManager = ExportManager(this@ProjectDetailsActivity)
+                val file = exportManager.exportProjectToExcel(project)
+                if (file != null) {
+                    exportManager.shareFile(file, "مشاركة ملخص المشروع")
+                } else {
+                    Toast.makeText(this@ProjectDetailsActivity, "فشل في تصدير الملف", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
 
         // 2) إن لم تصل organizationId من الشاشة السابقة، نحاول تحديدها تلقائيًا
         if (organizationId.isNullOrBlank()) {
