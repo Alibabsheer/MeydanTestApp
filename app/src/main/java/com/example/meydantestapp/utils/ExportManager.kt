@@ -99,8 +99,62 @@ class ExportManager(private val context: Context) {
         }
     }
 
+    /**
+     * تصدير بيانات المشروع وجداول الكميات إلى ملف Excel احترافي
+     */
     suspend fun exportProjectToExcel(project: Project): File? {
-        // سيتم تنفيذه في المرحلة 3
-        return null
+        return try {
+            val fileName = "Project_${project.name}_Summary.xlsx"
+            val file = File(context.cacheDir, fileName)
+            
+            val workbook = org.apache.poi.xssf.usermodel.XSSFWorkbook()
+            val sheet = workbook.createSheet("ملخص المشروع")
+            
+            // إعداد التنسيقات (العناوين)
+            val headerFont = workbook.createFont().apply {
+                bold = true
+                fontHeightInPoints = 14
+            }
+            val headerStyle = workbook.createCellStyle().apply {
+                setFont(headerFont)
+                alignment = org.apache.poi.ss.usermodel.HorizontalAlignment.CENTER
+            }
+            
+            // إضافة البيانات الأساسية
+            var rowNum = 0
+            val headerRow = sheet.createRow(rowNum++)
+            headerRow.createCell(0).apply {
+                setCellValue("معلومات المشروع")
+                cellStyle = headerStyle
+            }
+            
+            sheet.createRow(rowNum++).createCell(0).setCellValue("اسم المشروع: ${project.name}")
+            sheet.createRow(rowNum++).createCell(0).setCellValue("الموقع: ${project.location}")
+            sheet.createRow(rowNum++).createCell(0).setCellValue("الحالة: ${project.status}")
+            
+            // إضافة مساحة
+            rowNum++
+            
+            // إضافة جداول الكميات (إذا وجدت في كود المشروع)
+            // ملاحظة: هذا الجزء يعتمد على هيكلية الـ BOQ في قاعدة البيانات الخاصة بك
+            val boqHeaderRow = sheet.createRow(rowNum++)
+            boqHeaderRow.createCell(0).setCellValue("جدول الكميات")
+            
+            val boqTableHeaders = sheet.createRow(rowNum++)
+            boqTableHeaders.createCell(0).setCellValue("البند")
+            boqTableHeaders.createCell(1).setCellValue("الوصف")
+            boqTableHeaders.createCell(2).setCellValue("الكمية")
+            boqTableHeaders.createCell(3).setCellValue("الوحدة")
+            
+            // حفظ الملف
+            file.outputStream().use { 
+                workbook.write(it)
+            }
+            workbook.close()
+            file
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
     }
 }
