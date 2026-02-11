@@ -44,11 +44,59 @@ class ExportManager(private val context: Context) {
     }
 
     /**
-     * سيتم تنفيذ الدوال الفعلية لإنشاء الـ PDF والـ Excel في المراحل القادمة
+     * تصدير التقرير اليومي إلى ملف PDF احترافي
      */
     suspend fun exportDailyReportToPdf(report: DailyReport, project: Project): File? {
-        // سيتم تنفيذه في المرحلة 2
-        return null
+        return try {
+            val fileName = "DailyReport_${project.name}_${report.date.replace("/", "-")}.pdf"
+            val file = File(context.cacheDir, fileName)
+            
+            val writer = com.itextpdf.kernel.pdf.PdfWriter(file)
+            val pdf = com.itextpdf.kernel.pdf.PdfDocument(writer)
+            val document = com.itextpdf.layout.Document(pdf)
+            
+            // إعدادات الخطوط العربية (تحتاج ملف خط في الموارد)
+            // val font = com.itextpdf.kernel.font.PdfFontFactory.createFont("assets/fonts/arial.ttf", com.itextpdf.io.font.PdfEncodings.IDENTITY_H)
+            
+            // العنوان الرئيسي
+            document.add(com.itextpdf.layout.element.Paragraph("التقرير اليومي للمشروع")
+                .setTextAlignment(com.itextpdf.layout.properties.TextAlignment.CENTER)
+                .setFontSize(20f)
+                .setBold())
+            
+            // معلومات المشروع
+            document.add(com.itextpdf.layout.element.Paragraph("اسم المشروع: ${project.name}")
+                .setTextAlignment(com.itextpdf.layout.properties.TextAlignment.RIGHT))
+            document.add(com.itextpdf.layout.element.Paragraph("التاريخ: ${report.date}")
+                .setTextAlignment(com.itextpdf.layout.properties.TextAlignment.RIGHT))
+            document.add(com.itextpdf.layout.element.Paragraph("حالة الطقس: ${report.weather}")
+                .setTextAlignment(com.itextpdf.layout.properties.TextAlignment.RIGHT))
+            
+            document.add(com.itextpdf.layout.element.AreaBreak())
+            
+            // تفاصيل النشاطات
+            document.add(com.itextpdf.layout.element.Paragraph("النشاطات المنجزة:")
+                .setTextAlignment(com.itextpdf.layout.properties.TextAlignment.RIGHT)
+                .setBold())
+            document.add(com.itextpdf.layout.element.Paragraph(report.activities)
+                .setTextAlignment(com.itextpdf.layout.properties.TextAlignment.RIGHT))
+            
+            // إضافة الصور إذا وجدت
+            if (report.images.isNotEmpty()) {
+                document.add(com.itextpdf.layout.element.Paragraph("الصور الميدانية:")
+                    .setTextAlignment(com.itextpdf.layout.properties.TextAlignment.RIGHT)
+                    .setBold())
+                
+                // ملاحظة: إضافة الصور تتطلب تحميلها أولاً من الروابط
+                // سيتم تحسين هذا الجزء لاحقاً لدعم تحميل الصور من Firebase Storage
+            }
+            
+            document.close()
+            file
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
     }
 
     suspend fun exportProjectToExcel(project: Project): File? {
